@@ -1,0 +1,435 @@
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--text-color);
+    margin-bottom: 16px;
+}
+
+.breadcrumb i {
+    font-size: 0.6rem;
+}
+
+.breadcrumb .current {
+    color: var(--header-text-color);
+    font-weight: 600;
+}
+
+.headerSection {
+    margin-bottom: 24px;
+}
+
+.pageTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.pageDesc {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.profileBanner {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.memberName {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.statusBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--green-color);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.statusDot {
+    width: 6px;
+    height: 6px;
+    background-color: var(--green-color);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--glow-green);
+}
+
+.memberSince {
+    color: var(--text-color);
+    font-size: 0.85rem;
+    margin: 0 0 12px 0;
+}
+
+.planDetails {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.8rem;
+    color: var(--header-text-color);
+}
+
+.divider {
+    width: 4px;
+    height: 4px;
+    background-color: var(--text-color);
+    border-radius: 50%;
+}
+
+.bannerStats {
+    display: flex;
+    gap: 16px;
+}
+
+.statBox {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 12px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 100px;
+}
+
+.statLabel {
+    font-size: 0.65rem;
+    color: var(--text-color);
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+}
+
+.statValue {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.statSub {
+    font-size: 0.7rem;
+    color: var(--primary-color);
+}
+
+.panelCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.panelHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--card-stroke-color);
+    padding-bottom: 16px;
+}
+
+.panelHeaderIcon {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.panelHeaderIcon i {
+    color: #f59e0b;
+    font-size: 1.4rem;
+    margin-top: 2px;
+}
+
+.panelLabel {
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.panelTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.panelDesc {
+    color: var(--text-color);
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.editableBadge {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+.formLabel {
+    display: block;
+    color: var(--text-color);
+    font-size: 0.75rem;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.formInput,
+.formSelect,
+.formTextarea {
+    width: 100%;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--header-text-color);
+    font-family: var(--text-font);
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.formInput:focus,
+.formSelect:focus,
+.formTextarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.1);
+}
+
+.inputGroup {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.inputGroup i {
+    position: absolute;
+    left: 14px;
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.formInputGroup {
+    width: 100%;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 10px 14px 10px 40px;
+    color: var(--header-text-color);
+    font-family: var(--text-font);
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.formInputGroup:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.infoAlert {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background-color: rgba(56, 189, 248, 0.05);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 20px;
+}
+
+.infoAlert i {
+    color: var(--primary-color);
+    margin-top: 2px;
+}
+
+.infoAlert span {
+    color: var(--text-color);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.largeAvatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    color: var(--background-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 3rem;
+    box-shadow: 0 0 20px var(--glow-primary);
+    border: 4px solid var(--card-bg-dark);
+}
+
+.btnOutlinePrimary {
+    flex-grow: 1;
+    background-color: transparent;
+    border: 1px solid var(--primary-color);
+    color: var(--primary-color);
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-family: var(--heading-font);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btnOutlinePrimary:hover {
+    background-color: var(--primary-color);
+    color: var(--background-color);
+}
+
+.btnOutlineDanger {
+    background-color: transparent;
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btnOutlineDanger:hover {
+    background-color: #ef4444;
+    color: #fff;
+}
+
+.deskInfoList {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.deskInfoRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--card-stroke-color);
+    padding-bottom: 12px;
+}
+
+.deskInfoLabel {
+    color: var(--text-color);
+}
+
+.deskInfoValue {
+    color: var(--header-text-color);
+    font-weight: 600;
+}
+
+.checkinStatus {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background-color: var(--card-bg-dark);
+    padding: 16px;
+    border-radius: 8px;
+}
+
+.checkinStatus i {
+    color: var(--green-color);
+    font-size: 1.2rem;
+    margin-top: 2px;
+}
+
+.checkinStatus h6 {
+    color: var(--header-text-color);
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+}
+
+.checkinStatus p {
+    color: var(--text-color);
+    font-size: 0.75rem;
+    margin: 0;
+}
+
+.actionBar {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    position: sticky;
+    bottom: 24px;
+    z-index: 100;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.btnCancel {
+    background-color: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btnCancel:hover {
+    color: var(--header-text-color);
+    border-color: var(--text-color);
+}
+
+.btnSave {
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.9rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s;
+}
+
+.btnSave:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px var(--glow-primary);
+}
