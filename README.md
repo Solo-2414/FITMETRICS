@@ -23,7 +23,7 @@ Many local fitness centers still rely on manual methods to record member informa
 * **Member & Membership Management:** Digital registration, member record updates, transaction recording, and self-service tracking.
 
 
-* **Operational Monitoring:** Real-time tracking of gym attendance and payment transactions[cite: 2, 3, 6].
+* **Operational Monitoring:** Real-time tracking of gym attendance and payment transactions.
 * **Business Analytics Dashboards:** Visual representation of historical gym data and operational reports using interactive charts and dashboards.
 
 
@@ -104,10 +104,10 @@ Open your browser and navigate to `http://localhost:3000`.
 
 While FITMETRICS provides robust analytics and management tools, it is designed with the following boundaries:
 
-* **No Medical Advice:** The system does not provide medical/health advice, monitor medical conditions, or create workout/diet plans for members[cite: 2, 7].
-* **Predictive Accuracy:** Forecasts and AI recommendations are meant as decision-support tools only; the system does not guarantee 100% accuracy or member renewal rates[cite: 2, 7].
-* **Financial Scope:** The platform handles transaction records but does not act as a full accounting, payroll, or tax filing system[cite: 2, 7].
-* **Target Audience:** Designed specifically for the client's participating gym or selected local fitness centers, rather than managing multiple unrelated businesses[cite: 2, 7].
+* **No Medical Advice:** The system does not provide medical/health advice, monitor medical conditions, or create workout/diet plans for members.
+* **Predictive Accuracy:** Forecasts and AI recommendations are meant as decision-support tools only; the system does not guarantee 100% accuracy or member renewal rates.
+* **Financial Scope:** The platform handles transaction records but does not act as a full accounting, payroll, or tax filing system.
+* **Target Audience:** Designed specifically for the client's participating gym or selected local fitness centers, rather than managing multiple unrelated businesses.
 
 ---
 
@@ -132,5 +132,5 @@ Developed for **IT 313 - System Analysis and Design** at **Batangas State Univer
 
 ## 🤝 Acknowledgements
 
-* **Client:** Mr. Ariel N. Mendoza[cite: 1]
-* **SDG Alignment:** This project supports **SDG 8 (Decent Work and Economic Growth)** by optimizing business structures, improving resource management, and fostering sustainable growth for local enterprises[cite: 3].
+* **Client:** Mr. Ariel N. Mendoza
+* **SDG Alignment:** This project supports **SDG 8 (Decent Work and Economic Growth)** by optimizing business structures, improving resource management, and fostering sustainable growth for local enterprises.
