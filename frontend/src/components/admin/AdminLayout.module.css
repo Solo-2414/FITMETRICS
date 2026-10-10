@@ -1,0 +1,437 @@
+.layoutWrapper {
+    display: flex;
+    min-height: 100vh;
+    background-color: var(--background-color);
+    font-family: var(--text-font);
+    position: relative;
+    width: 100%;
+}
+
+.sidebar {
+    width: 280px;
+    background-color: var(--secondary-background-color);
+    border-right: 1px solid var(--card-stroke-color);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 1050;
+    transition: transform 0.3s ease;
+}
+
+.sidebarBrand {
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--card-stroke-color);
+}
+
+.sidebarBrand h2 {
+    font-family: var(--heading-font);
+    font-size: 1.1rem;
+    color: var(--header-text-color);
+    margin: 0;
+    font-weight: 700;
+}
+
+.sidebarBrand p {
+    font-size: 0.7rem;
+    color: var(--text-color);
+    margin: 0;
+}
+
+.closeBtn {
+    display: none;
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.25rem;
+    cursor: pointer;
+}
+
+.navMenu {
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-grow: 1;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.navMenu::-webkit-scrollbar {
+    display: none;
+}
+
+.navItem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: var(--text-color);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.navItem i {
+    width: 20px;
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+.navItem:hover {
+    background-color: var(--card-button-bg);
+    color: var(--header-text-color);
+}
+
+.navItem.active {
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--header-text-color);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.navItem.active i {
+    color: var(--primary-color);
+}
+
+.logoutWrapper {
+    padding: 24px 16px;
+    border-top: 1px solid var(--card-stroke-color);
+}
+
+.logoutBtn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    color: var(--text-color);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.logoutBtn i {
+    width: 20px;
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+.logoutBtn:hover {
+    color: #ef4444;
+}
+
+.mainContent {
+    flex-grow: 1;
+    margin-left: 280px;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-width: 0;
+    width: calc(100% - 280px);
+}
+
+.topbar {
+    height: 70px;
+    background-color: var(--secondary-background-color);
+    border-bottom: 1px solid var(--card-stroke-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    position: sticky;
+    top: 0;
+    z-index: 999;
+}
+
+.menuToggle {
+    display: none;
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--header-text-color);
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    cursor: pointer;
+}
+
+.gymStatus {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    color: var(--green-color);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.statusDot {
+    width: 6px;
+    height: 6px;
+    background-color: var(--green-color);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--glow-green);
+}
+
+.branchInfo {
+    color: var(--text-color);
+    font-size: 0.8rem;
+}
+
+.btnFastCheckIn {
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.85rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s;
+}
+
+.btnFastCheckIn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 12px var(--glow-primary);
+}
+
+.btnNotification {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+}
+
+.notificationDot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    background-color: #ef4444;
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+
+.userInfo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.avatarImg {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--primary-color);
+}
+
+.userInfo h4 {
+    font-family: var(--heading-font);
+    font-size: 0.85rem;
+    color: var(--header-text-color);
+    margin: 0;
+}
+
+.userInfo p {
+    font-size: 0.7rem;
+    color: var(--text-color);
+    margin: 0;
+}
+
+.pageContent {
+    padding: 32px;
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.floatingChatBtn {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    width: 60px;
+    height: 60px;
+    background-color: var(--primary-color);
+    color: #051424;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 25px var(--glow-primary-strong);
+    cursor: pointer;
+    z-index: 1100;
+    transition: transform 0.2s;
+}
+
+.floatingChatBtn:hover {
+    transform: scale(1.05);
+}
+
+.chatPanel {
+    position: fixed;
+    bottom: 100px;
+    right: 32px;
+    width: 320px;
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chatHeader {
+    background-color: var(--card-color);
+    border-bottom: 1px solid var(--card-stroke-color);
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--header-text-color);
+    font-family: var(--heading-font);
+    font-size: 0.95rem;
+}
+
+.chatHeader button {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.chatBody {
+    height: 300px;
+    padding: 16px;
+    overflow-y: auto;
+    background-color: var(--background-color);
+}
+
+.chatMessage {
+    background-color: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    color: var(--header-text-color);
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin-bottom: 12px;
+    border-top-left-radius: 0;
+}
+
+.chatFooter {
+    display: flex;
+    padding: 12px;
+    background-color: var(--card-color);
+    border-top: 1px solid var(--card-stroke-color);
+    gap: 8px;
+}
+
+.chatFooter input {
+    flex-grow: 1;
+    background-color: var(--background-color);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--header-text-color);
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.chatFooter button {
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.backdrop {
+    display: none;
+}
+
+@media (max-width: 991px) {
+    .sidebar {
+        transform: translateX(-100%);
+    }
+
+    .sidebarOpen {
+        transform: translateX(0);
+    }
+
+    .closeBtn {
+        display: block;
+    }
+
+    .mainContent {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .menuToggle {
+        display: flex;
+    }
+
+    .topbar {
+        padding: 0 20px;
+    }
+
+    .pageContent {
+        padding: 20px 16px;
+    }
+
+    .backdrop {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(5, 20, 36, 0.75);
+        backdrop-filter: blur(4px);
+        z-index: 1040;
+    }
+
+    .floatingChatBtn {
+        bottom: 20px;
+        right: 20px;
+    }
+
+    .chatPanel {
+        right: 20px;
+        bottom: 90px;
+    }
+}

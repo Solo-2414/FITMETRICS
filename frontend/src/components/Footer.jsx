@@ -27,7 +27,7 @@ export default function Footer() {
                         <button
                             type="button"
                             className="login-btn"
-                            onClick={() => navigate("/login")}
+                            onClick={() => navigate("/admin/dashboard")}
                         >
                             <i
                                 className="fa-solid fa-right-to-bracket"

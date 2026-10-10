@@ -18,6 +18,17 @@ import MemberBilling from "./pages/member/MemberBilling";
 import MemberVideoTutorials from "./pages/member/MemberVideoTutorials";
 import MemberNotifications from "./pages/member/MemberNotifications";
 
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminChurnAnalytics from "./pages/admin/AdminChurnAnalytics";
+import AdminPredictiveAnalytics from "./pages/admin/AdminPredictiveAnalytics";
+import AdminMembershipPlans from "./pages/admin/AdminMembershipPlans";
+import AdminAttendanceAnalysis from "./pages/admin/AdminAttendanceAnalysis";
+import AdminManageUsers from "./pages/admin/AdminManageUsers";
+import AdminReports from "./pages/admin/AdminReports";
+import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
+import AdminVideoTutorials from "./pages/admin/AdminVideoTutorials";
+import AdminSettings from "./pages/admin/AdminSettings";
+
 export default function App() {
     useEffect(() => {
         AOS.init({
@@ -58,6 +69,38 @@ export default function App() {
                     path="/member/notifications"
                     element={<MemberNotifications />}
                 />
+
+                <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                <Route
+                    path="/admin/churn-analytics"
+                    element={<AdminChurnAnalytics />}
+                />
+                <Route
+                    path="/admin/predictive-analytics"
+                    element={<AdminPredictiveAnalytics />}
+                />
+                <Route
+                    path="/admin/membership-plans"
+                    element={<AdminMembershipPlans />}
+                />
+                <Route
+                    path="/admin/attendance-analysis"
+                    element={<AdminAttendanceAnalysis />}
+                />
+                <Route
+                    path="/admin/manage-users"
+                    element={<AdminManageUsers />}
+                />
+                <Route path="/admin/reports" element={<AdminReports />} />
+                <Route
+                    path="/admin/announcements"
+                    element={<AdminAnnouncements />}
+                />
+                <Route
+                    path="/admin/video-tutorials"
+                    element={<AdminVideoTutorials />}
+                />
+                <Route path="/admin/settings" element={<AdminSettings />} />
             </Routes>
         </BrowserRouter>
     );
