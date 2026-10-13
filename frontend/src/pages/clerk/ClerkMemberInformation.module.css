@@ -1,0 +1,538 @@
+.pageTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.pageDesc {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.btnPrimaryOutline {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--primary-color);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.9rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btnPrimaryOutline:hover {
+    border-color: var(--primary-color);
+    color: var(--header-text-color);
+    background-color: rgba(56, 189, 248, 0.1);
+}
+
+.toolbar {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+@media (min-width: 1200px) {
+    .toolbar {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+}
+
+.searchBox {
+    display: flex;
+    align-items: center;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 10px 16px;
+    flex-grow: 1;
+    max-width: 500px;
+}
+
+.searchBox i {
+    color: var(--text-color);
+    font-size: 1rem;
+    margin-right: 12px;
+}
+
+.searchBox input {
+    background: transparent;
+    border: none;
+    color: var(--header-text-color);
+    font-size: 0.9rem;
+    outline: none;
+    width: 100%;
+}
+
+.filterGroup {
+    display: flex;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.filterBtn,
+.filterBtnActive,
+.filterBtnWarning,
+.filterBtnDanger {
+    background: transparent;
+    border: none;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.filterBtn {
+    color: var(--text-color);
+}
+
+.filterBtn:hover {
+    color: var(--header-text-color);
+}
+
+.filterBtnActive {
+    background-color: rgba(30, 41, 59, 0.8);
+    color: var(--header-text-color);
+    font-weight: 600;
+}
+
+.filterBtnWarning {
+    color: #f59e0b;
+}
+
+.filterBtnWarning:hover {
+    background-color: rgba(245, 158, 11, 0.1);
+}
+
+.filterBtnDanger {
+    color: #ef4444;
+}
+
+.filterBtnDanger:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.filterSelect {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    outline: none;
+    cursor: pointer;
+}
+
+.panelCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.panelTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.customTable {
+    color: var(--text-color) !important;
+    margin: 0;
+}
+
+.customTable th {
+    background-color: transparent !important;
+    color: var(--text-color);
+    font-size: 0.7rem;
+    border-bottom: 1px solid var(--card-stroke-color) !important;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding-bottom: 16px;
+    white-space: nowrap;
+}
+
+.customTable td {
+    background-color: transparent !important;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--card-stroke-color) !important;
+    padding: 16px 8px;
+    vertical-align: middle;
+}
+
+.activeRow td {
+    background-color: rgba(56, 189, 248, 0.03) !important;
+    border-bottom-color: rgba(56, 189, 248, 0.2) !important;
+}
+
+.activeRow td:first-child {
+    border-left: 3px solid var(--primary-color);
+    padding-left: 21px !important;
+}
+
+.avatarPrimary {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    color: #051424;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.avatarWarning {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+    border: 1px solid #f59e0b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.avatarSecondary {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--card-button-bg);
+    color: var(--header-text-color);
+    border: 1px solid var(--card-stroke-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.avatarDanger {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.avatarSuccess {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--green-color);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.activeIndicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    box-shadow: 0 0 8px var(--glow-primary);
+}
+
+.subText {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.statusActive {
+    color: var(--green-color);
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.statusWarning {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.statusDanger {
+    color: #ef4444;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.dotGreen {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--green-color);
+    box-shadow: 0 0 6px var(--glow-green);
+}
+
+.dotRed {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #ef4444;
+}
+
+.pageBtnText,
+.pageBtnTextActive {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pageBtnText:hover:not(:disabled) {
+    border-color: var(--primary-color);
+    color: var(--header-text-color);
+}
+
+.pageBtnText:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pageBtnTextActive {
+    background-color: var(--card-bg-dark);
+    border-color: var(--primary-color);
+    color: var(--header-text-color);
+}
+
+.detailsCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--primary-color);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.05);
+}
+
+.avatarLarge {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    color: #051424;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 1.5rem;
+}
+
+.badgeActive {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--green-color);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.infoBox {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 12px 16px;
+    height: 100%;
+}
+
+.infoLabel {
+    display: block;
+    color: #64748b;
+    font-size: 0.7rem;
+    margin-bottom: 4px;
+}
+
+.infoValue {
+    display: block;
+    color: var(--header-text-color);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.subscriptionBox {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.subLabel {
+    color: #64748b;
+    font-size: 0.75rem;
+}
+
+.subPrice {
+    color: var(--primary-color);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.historyRow {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    padding: 12px 16px;
+    border-radius: 8px;
+}
+
+.btnLink {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.btnLink:hover {
+    color: var(--header-text-color);
+}
+
+.btnActionPrimary {
+    width: 100%;
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    padding: 12px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.9rem;
+    font-weight: 700;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.btnActionPrimary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px var(--glow-primary);
+}
+
+.btnActionOutline {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--header-text-color);
+    padding: 10px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.btnActionOutline:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btnActionOutlineDark {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    padding: 10px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.btnActionOutlineDark:hover {
+    color: var(--header-text-color);
+}
+
+.infoAlert {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background-color: rgba(30, 41, 59, 0.5);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.infoAlert i {
+    color: var(--text-color);
+    margin-top: 2px;
+}
+
+.infoAlert span {
+    color: var(--text-color);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}

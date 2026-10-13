@@ -1,0 +1,351 @@
+.pageTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.pageDesc {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.panelCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+}
+
+.panelHeader {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--card-stroke-color);
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.panelHeaderNoBorder {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.panelBody {
+    padding: 24px;
+}
+
+.formLabel {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-color);
+    margin-bottom: 8px;
+}
+
+.formInput,
+.formSelect {
+    width: 100%;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--header-text-color);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.formInput:focus,
+.formSelect:focus {
+    border-color: var(--primary-color);
+}
+
+.helperText {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--card-stroke-color);
+    margin-top: 6px;
+}
+
+.planCard {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    height: 100%;
+}
+
+.planCard:hover {
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+.planCardActive {
+    border-color: var(--primary-color);
+    background-color: rgba(56, 189, 248, 0.05);
+}
+
+.planName {
+    display: block;
+    color: var(--header-text-color);
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-bottom: 2px;
+}
+
+.planDuration {
+    display: block;
+    color: var(--text-color);
+    font-size: 0.75rem;
+}
+
+.popularBadge {
+    background-color: rgba(56, 189, 248, 0.15);
+    color: var(--primary-color);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.65rem;
+    margin-left: 8px;
+}
+
+.radioCircle {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--card-stroke-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.radioCircleActive {
+    border-color: var(--primary-color);
+}
+
+.radioInner {
+    width: 8px;
+    height: 8px;
+    background-color: var(--primary-color);
+    border-radius: 50%;
+}
+
+.planPrice {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 16px 0 0 0;
+}
+
+.planPriceSub {
+    font-family: var(--text-font);
+    color: var(--text-color);
+    font-size: 0.75rem;
+    font-weight: 400;
+}
+
+.infoAlert {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background-color: rgba(148, 163, 184, 0.05);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 12px 16px;
+}
+
+.infoAlert i {
+    color: var(--text-color);
+}
+
+.infoAlert span {
+    color: var(--text-color);
+    font-size: 0.8rem;
+}
+
+.coachToggleBox {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.checkboxLabel {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.customCheckbox {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+    margin-top: 2px;
+}
+
+.totalBox {
+    border-top: 1px solid var(--card-stroke-color);
+    border-bottom: 1px solid var(--card-stroke-color);
+    padding: 20px 0;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.totalPrice {
+    font-family: var(--heading-font);
+    color: var(--primary-color);
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    text-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+.btnPaymentMethod {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btnPaymentMethod i {
+    font-size: 1.1rem;
+}
+
+.btnPaymentMethod:hover {
+    border-color: var(--primary-color);
+    color: var(--header-text-color);
+}
+
+.btnPaymentMethodActive {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background-color: rgba(56, 189, 248, 0.05);
+}
+
+.inputGroupPrefix {
+    display: flex;
+    align-items: center;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.inputGroupPrefix span {
+    padding: 10px 14px;
+    color: var(--text-color);
+    background-color: rgba(30, 41, 59, 0.5);
+    border-right: 1px solid var(--card-stroke-color);
+    font-weight: 600;
+}
+
+.inputGroupPrefix input {
+    border: none;
+    border-radius: 0;
+    margin: 0;
+}
+
+.changeDisplay {
+    background-color: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: var(--green-color);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: var(--heading-font);
+    display: flex;
+    align-items: center;
+}
+
+.checkboxLabelFull {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    background-color: var(--card-bg-dark);
+    padding: 16px;
+    border-radius: 8px;
+}
+
+.actionPanel {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.btnSubmit {
+    width: 100%;
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    padding: 14px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.95rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s;
+    margin-bottom: 12px;
+}
+
+.btnSubmit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px var(--glow-primary);
+}
+
+.btnCancelFull {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 12px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btnCancelFull:hover {
+    border-color: var(--header-text-color);
+    color: var(--header-text-color);
+}

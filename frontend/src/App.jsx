@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 
 import AOS from "aos";
 import "aos/dist/aos.css";
@@ -21,13 +21,30 @@ import MemberNotifications from "./pages/member/MemberNotifications";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminChurnAnalytics from "./pages/admin/AdminChurnAnalytics";
 import AdminPredictiveAnalytics from "./pages/admin/AdminPredictiveAnalytics";
-import AdminMembershipPlans from "./pages/admin/AdminMembershipPlans";
 import AdminAttendanceAnalysis from "./pages/admin/AdminAttendanceAnalysis";
+import AdminMembershipPlans from "./pages/admin/AdminMembershipPlans";
 import AdminManageUsers from "./pages/admin/AdminManageUsers";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
 import AdminVideoTutorials from "./pages/admin/AdminVideoTutorials";
 import AdminSettings from "./pages/admin/AdminSettings";
+
+import ClerkDashboard from "./pages/clerk/ClerkDashboard";
+import ClerkMemberRegistration from "./pages/clerk/ClerkMemberRegistration";
+import ClerkMemberInformation from "./pages/clerk/ClerkMemberInformation";
+import ClerkMembership from "./pages/clerk/ClerkMembership";
+import ClerkPayments from "./pages/clerk/ClerkPayments";
+import ClerkAttendance from "./pages/clerk/ClerkAttendance";
+import ClerkNotifications from "./pages/clerk/ClerkNotifications";
+import ClerkSettings from "./pages/clerk/ClerkSettings";
+
+function AOSRefresh() {
+    const location = useLocation();
+    useEffect(() => {
+        AOS.refresh();
+    }, [location]);
+    return null;
+}
 
 export default function App() {
     useEffect(() => {
@@ -41,6 +58,7 @@ export default function App() {
 
     return (
         <BrowserRouter>
+            <AOSRefresh />
             <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<Login />} />
@@ -53,6 +71,10 @@ export default function App() {
                     element={<MemberWorkoutPlans />}
                 />
                 <Route
+                    path="/member/video-tutorials"
+                    element={<MemberVideoTutorials />}
+                />
+                <Route
                     path="/member/membership"
                     element={<MemberMembership />}
                 />
@@ -61,10 +83,6 @@ export default function App() {
                     element={<MemberAttendance />}
                 />
                 <Route path="/member/billing" element={<MemberBilling />} />
-                <Route
-                    path="/member/video-tutorials"
-                    element={<MemberVideoTutorials />}
-                />
                 <Route
                     path="/member/notifications"
                     element={<MemberNotifications />}
@@ -80,12 +98,12 @@ export default function App() {
                     element={<AdminPredictiveAnalytics />}
                 />
                 <Route
-                    path="/admin/membership-plans"
-                    element={<AdminMembershipPlans />}
-                />
-                <Route
                     path="/admin/attendance-analysis"
                     element={<AdminAttendanceAnalysis />}
+                />
+                <Route
+                    path="/admin/membership-plans"
+                    element={<AdminMembershipPlans />}
                 />
                 <Route
                     path="/admin/manage-users"
@@ -101,6 +119,24 @@ export default function App() {
                     element={<AdminVideoTutorials />}
                 />
                 <Route path="/admin/settings" element={<AdminSettings />} />
+
+                <Route path="/clerk/dashboard" element={<ClerkDashboard />} />
+                <Route
+                    path="/clerk/member-registration"
+                    element={<ClerkMemberRegistration />}
+                />
+                <Route
+                    path="/clerk/member-information"
+                    element={<ClerkMemberInformation />}
+                />
+                <Route path="/clerk/membership" element={<ClerkMembership />} />
+                <Route path="/clerk/payments" element={<ClerkPayments />} />
+                <Route path="/clerk/attendance" element={<ClerkAttendance />} />
+                <Route
+                    path="/clerk/notification"
+                    element={<ClerkNotifications />}
+                />
+                <Route path="/clerk/settings" element={<ClerkSettings />} />
             </Routes>
         </BrowserRouter>
     );
