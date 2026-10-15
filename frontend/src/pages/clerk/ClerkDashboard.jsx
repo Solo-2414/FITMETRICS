@@ -1,7 +1,14 @@
+import { useEffect, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
+import { api } from "../../lib/api";
 import styles from "./ClerkDashboard.module.css";
 
 export default function ClerkDashboard() {
+    const [stats, setStats] = useState(null);
+    const [error, setError] = useState("");
+    useEffect(() => {
+        api("/clerk/dashboard").then(setStats).catch((err) => setError(err.message));
+    }, []);
     return (
         <ClerkLayout>
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3">
@@ -14,12 +21,11 @@ export default function ClerkDashboard() {
                 <div className={styles.timeBadge}>
                     <i className="fa-regular fa-clock text-secondary"></i>{" "}
                     Shift: Morning to Afternoon{" "}
-                    <span className={styles.shiftText}>
-                        Tue, Oct 13, 11:15 AM
-                    </span>
+                    <span className={styles.shiftText}>Live shift</span>
                 </div>
             </div>
 
+            {error && <div className="alert alert-danger">{error}</div>}
             <div className="row g-3 mb-4">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
@@ -30,22 +36,22 @@ export default function ClerkDashboard() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            24{" "}
+                            {stats ? stats.activeOnFloor : "..."}{" "}
                             <span className={styles.kpiValueUnit}>Members</span>
                         </h3>
                         <div className={styles.progressContainer}>
                             <div className={styles.progressBarBg}>
                                 <div
                                     className={styles.progressBarFillPrimary}
-                                    style={{ width: "48%" }}
+                                    style={{ width: `${Math.min(100, ((stats?.activeOnFloor || 0) / 50) * 100)}%` }}
                                 ></div>
                             </div>
                             <div className="d-flex justify-content-between align-items-center mt-2">
                                 <span className={styles.kpiSub}>
-                                    Capacity: 50 max
+                                    Current floor occupancy
                                 </span>
                                 <span className={styles.kpiPositive}>
-                                    Comfortable space
+                                    Live status
                                 </span>
                             </div>
                         </div>
@@ -61,23 +67,22 @@ export default function ClerkDashboard() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            86{" "}
+                            {stats ? stats.checkIns : "..."}{" "}
                             <span className={styles.kpiValueUnit}>Visits</span>
                         </h3>
                         <div className="d-flex align-items-center gap-2 mt-1 mb-2">
                             <span className={styles.kpiPositive}>
-                                <i className="fa-solid fa-arrow-trend-up"></i>{" "}
-                                +14% vs yesterday desk entries
+                                Live front-desk entries
                             </span>
                         </div>
                         <div className="d-flex justify-content-between mt-auto">
                             <span className={styles.kpiSub}>
-                                Morning:{" "}
-                                <strong className="text-white">34</strong>
+                                Today's total:{" "}
+                                <strong className="text-white">{stats ? stats.checkIns : "..."}</strong>
                             </span>
                             <span className={styles.kpiSub}>
-                                Afternoon:{" "}
-                                <strong className="text-white">52</strong>
+                                Open sessions:{" "}
+                                <strong className="text-white">{stats ? stats.activeOnFloor : "..."}</strong>
                             </span>
                         </div>
                     </div>
@@ -91,7 +96,7 @@ export default function ClerkDashboard() {
                                 <i className="fa-solid fa-money-bill"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>₱6,420.00</h3>
+                        <h3 className={styles.kpiValue}>₱{stats ? Number(stats.totalCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}</h3>
                         <div className="mb-2">
                             <span className={styles.kpiSub}>
                                 Cash Drawer + GCash/Maya summary
@@ -99,12 +104,12 @@ export default function ClerkDashboard() {
                         </div>
                         <div className="d-flex justify-content-between mt-auto">
                             <span className={styles.kpiSub}>
-                                Desk Drawer:{" "}
-                                <strong className="text-white">₱4,150</strong>
+                                Cash:{" "}
+                                <strong className="text-white">₱{stats ? Number(stats.cashCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}</strong>
                             </span>
                             <span className={styles.kpiSub}>
                                 E-Wallets:{" "}
-                                <strong className="text-white">₱2,270</strong>
+                                <strong className="text-white">₱{stats ? Number(stats.eWalletCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}</strong>
                             </span>
                         </div>
                     </div>
@@ -119,15 +124,14 @@ export default function ClerkDashboard() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            4{" "}
+                            {stats ? stats.registrations : "..."}{" "}
                             <span className={styles.kpiValueUnit}>
                                 New Members
                             </span>
                         </h3>
                         <div className="mb-2">
                             <span className={styles.kpiPositive}>
-                                <i className="fa-solid fa-arrow-up"></i> +2 vs
-                                yesterday
+                                Live registration count
                             </span>
                         </div>
                         <div className="d-flex justify-content-between mt-auto">
@@ -172,7 +176,7 @@ export default function ClerkDashboard() {
                 </div>
             </div>
 
-            <div className="row g-4 mt-1">
+            <div className="row g-4 mt-1" style={{ display: "none" }}>
                 <div
                     className="col-12 col-xl-8"
                     data-aos="fade-right"
@@ -210,6 +214,17 @@ export default function ClerkDashboard() {
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    {(stats?.recentAttendance || []).map((record) => (
+                                        <tr key={record.id}>
+                                            <td><div className="d-flex align-items-center gap-3"><div className={styles.avatar}>{record.display_name.split(" ").map((part) => part[0]).slice(0, 2).join("")}</div><div><strong className="d-block text-white mb-1">{record.display_name}</strong><span className={styles.subText}>Live attendance record</span></div></div></td>
+                                            <td><strong className="d-block text-white mb-1">{new Date(record.check_in_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</strong><span className={styles.subText}>Today</span></td>
+                                            <td><span className={styles.planBadgeOutline}>{record.plan_name}</span></td>
+                                            <td><span className={styles.subText}><i className="fa-solid fa-desktop"></i> {record.method}</span></td>
+                                        </tr>
+                                    ))}
+                                    {!stats?.recentAttendance?.length && <tr><td colSpan="4" className="text-secondary text-center">No check-ins recorded today.</td></tr>}
+                                </tbody>
+                                <tbody style={{ display: "none" }}>
                                     <tr>
                                         <td>
                                             <div className="d-flex align-items-center gap-3">
@@ -501,7 +516,7 @@ export default function ClerkDashboard() {
                                     Starting morning float
                                 </span>
                                 <strong className="text-white">
-                                    ₱2,000.00
+                                    ₱0.00
                                 </strong>
                             </div>
                             <div
@@ -513,7 +528,7 @@ export default function ClerkDashboard() {
                                     Cash collected today
                                 </span>
                                 <strong className="text-success">
-                                    + ₱4,150.00
+                                    + ₱{stats ? Number(stats.cashCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}
                                 </strong>
                             </div>
                             <div
@@ -525,7 +540,7 @@ export default function ClerkDashboard() {
                                     GCash / Maya digital
                                 </span>
                                 <strong className="text-primary">
-                                    ₱2,270.00
+                                    ₱{stats ? Number(stats.eWalletCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}
                                 </strong>
                             </div>
                         </div>
@@ -546,7 +561,7 @@ export default function ClerkDashboard() {
                                         fontWeight: "700",
                                     }}
                                 >
-                                    ₱6,150.00
+                                    ₱{stats ? Number(stats.cashCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}
                                 </h3>
                             </div>
                             <div className="text-end">

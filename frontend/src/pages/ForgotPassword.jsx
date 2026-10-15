@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "../App.css";
+import { supabase } from "../lib/supabase";
 
 export default function ForgotPassword() {
     const navigate = useNavigate();
     const [step, setStep] = useState(1);
-    const [email, setEmail] = useState("zhaider.mendoza@gmail.com");
+    const [email, setEmail] = useState("");
+    const [error, setError] = useState("");
+    const [busy, setBusy] = useState(false);
 
     const [otp, setOtp] = useState(new Array(6).fill(""));
     const otpRefs = useRef([]);
-    const [timeLeft, setTimeLeft] = useState(44);
+    const [timeLeft, setTimeLeft] = useState(60);
 
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -29,22 +32,59 @@ export default function ForgotPassword() {
         }
     }, [step, timeLeft]);
 
-    const handleEmailSubmit = (e) => {
+    const handleEmailSubmit = async (e) => {
         e.preventDefault();
+        setError("");
+        setBusy(true);
+        // Sends a 6-digit code (see SETUP.md: edit the "Reset Password" email template)
+        const { error: err } = await supabase.auth.resetPasswordForEmail(
+            email.trim().toLowerCase(),
+        );
+        setBusy(false);
+        if (err) return setError(err.message);
+        setOtp(new Array(6).fill(""));
         setStep(2);
-        setTimeLeft(44);
+        setTimeLeft(60);
     };
 
-    const handleOtpSubmit = (e) => {
+    const handleResend = async () => {
+        setError("");
+        const { error: err } = await supabase.auth.resetPasswordForEmail(
+            email.trim().toLowerCase(),
+        );
+        if (err) return setError(err.message);
+        setTimeLeft(60);
+    };
+
+    const handleOtpSubmit = async (e) => {
         e.preventDefault();
+        setError("");
+        setBusy(true);
+        const { error: err } = await supabase.auth.verifyOtp({
+            email: email.trim().toLowerCase(),
+            token: otp.join(""),
+            type: "recovery",
+        });
+        setBusy(false);
+        if (err) return setError("Invalid or expired code. Please try again.");
         setStep(3);
     };
 
-    const handlePasswordSubmit = (e) => {
+    const handlePasswordSubmit = async (e) => {
         e.preventDefault();
-        if (isPasswordValid) {
-            navigate("/login");
+        if (!isPasswordValid) return;
+        setError("");
+        setBusy(true);
+        const { error: err } = await supabase.auth.updateUser({
+            password: newPassword,
+        });
+        if (err) {
+            setBusy(false);
+            return setError(err.message);
         }
+        await supabase.auth.signOut(); // make them log in with the new password
+        setBusy(false);
+        navigate("/login");
     };
 
     const handleOtpChange = (element, index) => {
@@ -101,6 +141,16 @@ export default function ForgotPassword() {
             </header>
 
             <main className="d-flex flex-column align-items-center justify-content-center flex-grow-1 w-100 px-3 py-5">
+                {error && (
+                    <div
+                        role="alert"
+                        className="mb-3"
+                        style={{ color: "#f87171", fontSize: "0.85rem" }}
+                    >
+                        {error}
+                    </div>
+                )}
+
                 <div
                     className="stepper-container mb-5"
                     data-aos="fade-down"
@@ -273,7 +323,7 @@ export default function ForgotPassword() {
                                         type="button"
                                         className="btn-resend border-0 bg-transparent"
                                         disabled={timeLeft > 0}
-                                        onClick={() => setTimeLeft(60)}
+                                        onClick={handleResend}
                                     >
                                         <i className="fa-solid fa-arrow-rotate-right me-1"></i>{" "}
                                         Resend Code

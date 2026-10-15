@@ -1,9 +1,46 @@
+import { useEffect, useRef, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
+import { api } from "../../lib/api";
 import styles from "./ClerkAttendance.module.css";
 
 export default function ClerkAttendance() {
+    const [members, setMembers] = useState([]);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [analysis, setAnalysis] = useState(null);
+    const morningCount = analysis?.records?.filter((row) => new Date(row.check_in_at).getHours() < 12).length || 0;
+    const eveningCount = (analysis?.totalCheckIns || 0) - morningCount;
+    const checkInFormRef = useRef(null);
+    useEffect(() => {
+        Promise.all([api("/clerk/members"), api("/attendance/analysis")]).then(([memberRows, attendance]) => {
+            setMembers(memberRows);
+            setAnalysis(attendance);
+        }).catch((err) => setError(err.message));
+    }, []);
+    const recordCheckIn = async (event) => {
+        event.preventDefault();
+        setSaving(true);
+        setError("");
+        setSuccess("");
+        try {
+            const search = checkInFormRef.current.querySelector("input").value.trim().toLowerCase();
+            const member = members.find((item) => `${item.full_name} ${item.email}`.toLowerCase().includes(search));
+            if (!member) throw new Error("Select or enter a registered member before checking in.");
+            await api("/clerk/attendance", { method: "POST", body: { member_id: member.id, method: "manual" } });
+            const refreshed = await api("/attendance/analysis");
+            setAnalysis(refreshed);
+            setSuccess("Check-in recorded successfully.");
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
     return (
         <ClerkLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
+            {success && <div className="alert alert-success">{success}</div>}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                 data-aos="fade-down"
@@ -44,7 +81,7 @@ export default function ClerkAttendance() {
                             </span>
                         </div>
 
-                        <form onSubmit={(e) => e.preventDefault()}>
+                        <form ref={checkInFormRef} onSubmit={recordCheckIn}>
                             <div className="mb-4">
                                 <label className={styles.formLabel}>
                                     Search Member
@@ -64,6 +101,15 @@ export default function ClerkAttendance() {
                                     RECENT FRONT DESK QUEUE
                                 </span>
                                 <div className="d-flex flex-wrap gap-2 mt-2">
+                                    {members.filter((member) => member.membership?.status === "active").slice(0, 5).map((member) => (
+                                        <button type="button" className={styles.queuePill} key={member.id}>
+                                            <span className={styles.dotGreen}></span>{" "}
+                                            {member.full_name || member.email}
+                                        </button>
+                                    ))}
+                                    {!members.length && <span className="text-secondary">No active members found.</span>}
+                                </div>
+                                <div className="d-none">
                                     <button
                                         type="button"
                                         className={styles.queuePill}
@@ -96,11 +142,12 @@ export default function ClerkAttendance() {
 
                             <div className="d-flex justify-content-end pt-3 border-top border-secondary">
                                 <button
+                                    disabled={saving}
                                     type="submit"
                                     className={styles.btnPrimaryFull}
                                 >
                                     <i className="fa-regular fa-circle-check"></i>{" "}
-                                    Record Check-in
+                                    {saving ? "Recording..." : "Record Check-in"}
                                 </button>
                             </div>
                         </form>
@@ -186,22 +233,22 @@ export default function ClerkAttendance() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            24{" "}
+                            {analysis ? analysis.activeInGym : "..."}{" "}
                             <span className={styles.kpiValueUnit}>Members</span>
                         </h3>
                         <div className={styles.progressContainer}>
                             <div className={styles.progressBarBg}>
                                 <div
                                     className={styles.progressBarFillPrimary}
-                                    style={{ width: "48%" }}
+                                    style={{ width: `${Math.min(100, ((analysis?.activeInGym || 0) / 50) * 100)}%` }}
                                 ></div>
                             </div>
                             <div className="d-flex justify-content-between align-items-center mt-2">
                                 <span className={styles.kpiSub}>
-                                    Max capacity: 50
+                                    Live floor occupancy
                                 </span>
                                 <span className={styles.kpiPositive}>
-                                    48% Floor Density
+                                    {analysis ? `${Math.round((analysis.activeInGym / 50) * 100)}% Floor Density` : "..."}
                                 </span>
                             </div>
                         </div>
@@ -217,7 +264,7 @@ export default function ClerkAttendance() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            86{" "}
+                            {analysis ? analysis.totalCheckIns : "..."}{" "}
                             <span className={styles.kpiValueUnit}>Visits</span>
                         </h3>
                         <div className="d-flex align-items-center gap-2 mt-auto">
@@ -248,7 +295,7 @@ export default function ClerkAttendance() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            34{" "}
+                            {analysis ? morningCount : "..."}{" "}
                             <span className={styles.kpiValueUnit}>Visits</span>
                         </h3>
                         <div className="d-flex justify-content-between align-items-center mt-auto">
@@ -256,7 +303,7 @@ export default function ClerkAttendance() {
                                 Shift concluded
                             </span>
                             <span className={styles.kpiSub}>
-                                39.5% of total
+                                {analysis && analysis.totalCheckIns ? `${Math.round((morningCount / analysis.totalCheckIns) * 100)}% of total` : "..."}
                             </span>
                         </div>
                     </div>
@@ -275,7 +322,7 @@ export default function ClerkAttendance() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            52{" "}
+                            {analysis ? eveningCount : "..."}{" "}
                             <span className={styles.kpiValueUnit}>Visits</span>
                         </h3>
                         <div className="d-flex align-items-center mt-auto">
@@ -297,10 +344,10 @@ export default function ClerkAttendance() {
                     <div className="d-flex flex-wrap gap-2">
                         <button className={styles.filterBtnActive}>
                             <span className={styles.dotGreen}></span> Currently
-                            In Gym (24)
+                            In Gym ({analysis ? analysis.activeInGym : "..."})
                         </button>
                         <button className={styles.filterBtn}>
-                            All Today's Check-ins (86)
+                            All Today's Check-ins ({analysis ? analysis.totalCheckIns : "..."})
                         </button>
                     </div>
                     <div className={styles.searchBox}>
@@ -325,6 +372,19 @@ export default function ClerkAttendance() {
                             </tr>
                         </thead>
                         <tbody>
+                            {(analysis?.records || []).map((row) => (
+                                <tr key={row.id}>
+                                    <td><strong className="d-block text-white mb-1">{members.find((member) => member.id === row.member_id)?.full_name || "Member"}</strong><span className={styles.subText}>ID: {row.member_id.slice(0, 8)}</span></td>
+                                    <td>{members.find((member) => member.id === row.member_id)?.membership?.membership_plans?.name || "Membership"}</td>
+                                    <td><span className="text-white fw-bold">{new Date(row.check_in_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></td>
+                                    <td><span className="text-secondary">{row.check_out_at ? new Date(row.check_out_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--"}</span></td>
+                                    <td><span className={styles.methodBadgeOutline}><i className="fa-solid fa-desktop"></i>{" "}{row.method}</span></td>
+                                    <td className="text-end">{!row.check_out_at ? <button className={styles.btnActionOutline} onClick={async () => { try { await api(`/attendance/${row.id}/checkout`, { method: "PATCH" }); const refreshed = await api("/attendance/analysis"); setAnalysis(refreshed); } catch (err) { setError(err.message); } }}>Check Out</button> : <span className={styles.statusCheckedOut}>Checked Out</span>}</td>
+                                </tr>
+                            ))}
+                            {!analysis?.records?.length && <tr><td colSpan="6" className="text-center text-secondary py-4">No attendance records today.</td></tr>}
+                        </tbody>
+                        <tbody style={{ display: "none" }}>
                             <tr>
                                 <td>
                                     <div className="d-flex align-items-center gap-3">
@@ -543,7 +603,7 @@ export default function ClerkAttendance() {
                         className="text-secondary"
                         style={{ fontSize: "0.85rem" }}
                     >
-                        Showing 5 of 24 active sessions in gym
+                        Showing {analysis?.records?.length || 0} active sessions in gym
                     </span>
                     <div className="d-flex gap-2 mt-3 mt-sm-0">
                         <button className={styles.pageBtnText} disabled>

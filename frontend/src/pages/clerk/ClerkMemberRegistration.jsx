@@ -1,13 +1,20 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
+import { api } from "../../lib/api";
 import styles from "./ClerkMemberRegistration.module.css";
 
 export default function ClerkMemberRegistration() {
     const [selectedPlan, setSelectedPlan] = useState("monthly");
     const [paymentMethod, setPaymentMethod] = useState("cash");
     const [addCoach, setAddCoach] = useState(false);
+    const [isStudent, setIsStudent] = useState(false);
+    const formRef = useRef(null);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
+    const [saving, setSaving] = useState(false);
+    const draftKey = "fitmetrics.clerk.member-registration.draft";
 
-    const plans = {
+    const defaultPlans = {
         session: {
             name: "Session / Walk-In",
             duration: "Single Day Pass",
@@ -26,7 +33,79 @@ export default function ClerkMemberRegistration() {
         },
     };
 
-    const currentPrice = plans[selectedPlan].price;
+    const [plans, setPlans] = useState(defaultPlans);
+    useEffect(() => {
+        api("/clerk/plans").then((rows) => {
+            const livePlans = Object.fromEntries(rows.map((plan) => [plan.code, {
+                name: plan.name,
+                duration: `${plan.duration_days} Days Valid`,
+                price: Number(plan.price),
+                studentPrice: plan.student_price == null ? null : Number(plan.student_price),
+            }]));
+            setPlans(livePlans);
+            if (!livePlans[selectedPlan]) setSelectedPlan(Object.keys(livePlans)[0] || "monthly");
+        }).catch((err) => setError(err.message));
+    }, []);
+
+    useEffect(() => {
+        const savedDraft = sessionStorage.getItem(draftKey);
+        if (!savedDraft || !formRef.current) return;
+        try {
+            const draft = JSON.parse(savedDraft);
+            if (draft.selectedPlan) setSelectedPlan(draft.selectedPlan);
+            if (draft.paymentMethod) setPaymentMethod(draft.paymentMethod);
+            if (typeof draft.addCoach === "boolean") setAddCoach(draft.addCoach);
+            if (typeof draft.isStudent === "boolean") setIsStudent(draft.isStudent);
+            const inputs = formRef.current.querySelectorAll("input");
+            const selects = formRef.current.querySelectorAll("select");
+            (draft.inputs || []).forEach((value, index) => {
+                if (inputs[index] && inputs[index].type !== "checkbox") inputs[index].value = value;
+            });
+            (draft.selects || []).forEach((value, index) => {
+                if (selects[index]) selects[index].value = value;
+            });
+        } catch {
+            sessionStorage.removeItem(draftKey);
+        }
+    }, []);
+
+    useEffect(() => {
+        const form = formRef.current;
+        if (!form) return undefined;
+        const saveDraft = () => {
+            sessionStorage.setItem(draftKey, JSON.stringify({
+                inputs: [...form.querySelectorAll("input")].map((input) => input.type === "checkbox" ? input.checked : input.value),
+                selects: [...form.querySelectorAll("select")].map((select) => select.value),
+                selectedPlan,
+                paymentMethod,
+                addCoach,
+                isStudent,
+            }));
+        };
+        form.addEventListener("input", saveDraft);
+        form.addEventListener("change", saveDraft);
+        return () => {
+            form.removeEventListener("input", saveDraft);
+            form.removeEventListener("change", saveDraft);
+        };
+    }, [selectedPlan, paymentMethod, addCoach, isStudent]);
+
+    const clearDraft = ({ clearMessages = true } = {}) => {
+        formRef.current?.reset();
+        sessionStorage.removeItem(draftKey);
+        setSelectedPlan(Object.keys(plans)[0] || "monthly");
+        setPaymentMethod("cash");
+        setAddCoach(false);
+        setIsStudent(false);
+        if (clearMessages) {
+            setError("");
+            setSuccess("");
+        }
+    };
+    const currentPlan = plans[selectedPlan] || Object.values(plans)[0] || defaultPlans.monthly;
+    const currentPrice = isStudent && currentPlan.studentPrice != null
+        ? currentPlan.studentPrice
+        : currentPlan.price || 0;
     const totalDue = currentPrice + (addCoach ? 500 : 0);
 
     return (
@@ -51,7 +130,53 @@ export default function ClerkMemberRegistration() {
                 </p>
             </div>
 
-            <form onSubmit={(e) => e.preventDefault()}>
+            {error && <div className="alert alert-danger">{error}</div>}
+            {success && <div className="alert alert-success">{success}</div>}
+            <form ref={formRef} onSubmit={async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                setError("");
+                setSuccess("");
+                const inputs = [...formRef.current.querySelectorAll("input")];
+                const selects = [...formRef.current.querySelectorAll("select")];
+                try {
+                    await api("/clerk/register", {
+                        method: "POST",
+                        body: {
+                            full_name: inputs[0].value,
+                            phone: inputs[1].value,
+                            email: inputs[2].value,
+                            password: inputs[3].value,
+                            gender: selects[0].value,
+                            emergency_contact_name: inputs[4].value,
+                            emergency_contact_phone: inputs[5].value,
+                            plan_code: selectedPlan,
+                            is_student: isStudent,
+                            coach_addon_amount: addCoach ? 500 : 0,
+                            payment_method: paymentMethod,
+                        },
+                    });
+                    clearDraft({ clearMessages: false });
+                    setSuccess(selectedPlan === "session"
+                        ? "Session pass payment was recorded for the walk-in visitor."
+                        : "Member account, membership, and payment were created successfully.");
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setSaving(false);
+                }
+            }}>
+                <div className="d-flex justify-content-end mb-3">
+                    <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={clearDraft}
+                        title="Clear the saved registration draft"
+                    >
+                        <i className="fa-solid fa-rotate-left me-2"></i>
+                        Clear form
+                    </button>
+                </div>
                 <div className="row g-4 mb-4">
                     <div className="col-12 col-xl-8 d-flex flex-column gap-4">
                         {/* Personal Info Card */}
@@ -97,7 +222,7 @@ export default function ClerkMemberRegistration() {
                                             type="email"
                                             className={styles.formInput}
                                             placeholder="juan.delacruz@example.com"
-                                            required
+                                            required={selectedPlan !== "session"}
                                         />
                                         <span className={styles.helperText}>
                                             <i className="fa-solid fa-circle-info me-1"></i>{" "}
@@ -115,7 +240,7 @@ export default function ClerkMemberRegistration() {
                                             type="text"
                                             className={styles.formInput}
                                             placeholder="Create a strong password"
-                                            required
+                                            required={selectedPlan !== "session"}
                                         />
                                     </div>
                                     <div className="col-12 col-md-6">
@@ -124,7 +249,7 @@ export default function ClerkMemberRegistration() {
                                         </label>
                                         <select
                                             className={styles.formSelect}
-                                            required
+                                            required={selectedPlan !== "session"}
                                         >
                                             <option value="">
                                                 Select gender
@@ -146,7 +271,7 @@ export default function ClerkMemberRegistration() {
                                             type="text"
                                             className={styles.formInput}
                                             placeholder="Maria dela Cruz"
-                                            required
+                                            required={selectedPlan !== "session"}
                                         />
                                     </div>
                                     <div className="col-12 col-md-6">
@@ -157,7 +282,7 @@ export default function ClerkMemberRegistration() {
                                             type="text"
                                             className={styles.formInput}
                                             placeholder="0918 765 4321"
-                                            required
+                                            required={selectedPlan !== "session"}
                                         />
                                     </div>
                                 </div>
@@ -185,176 +310,52 @@ export default function ClerkMemberRegistration() {
 
                             <div className={styles.panelBody}>
                                 <div className="row g-3 mb-4">
-                                    <div className="col-12 col-sm-6">
-                                        <div
-                                            className={`${styles.planCard} ${selectedPlan === "session" ? styles.planCardActive : ""}`}
-                                            onClick={() =>
-                                                setSelectedPlan("session")
-                                            }
-                                        >
-                                            <div className="d-flex justify-content-between align-items-start mb-2">
-                                                <div>
-                                                    <span
-                                                        className={
-                                                            styles.planName
-                                                        }
-                                                    >
-                                                        Session / Walk-In
-                                                    </span>
-                                                    <span
-                                                        className={
-                                                            styles.planDuration
-                                                        }
-                                                    >
-                                                        Single Day Pass
+                                    {Object.entries(plans).map(([code, plan]) => (
+                                        <div className="col-12 col-sm-6" key={code}>
+                                            <div
+                                                role="button"
+                                                tabIndex={0}
+                                                className={`${styles.planCard} ${selectedPlan === code ? styles.planCardActive : ""}`}
+                                                onClick={() => setSelectedPlan(code)}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === "Enter" || event.key === " ") setSelectedPlan(code);
+                                                }}
+                                            >
+                                                <div className="d-flex justify-content-between align-items-start mb-2">
+                                                    <div>
+                                                        <span className={styles.planName}>{plan.name}</span>
+                                                        <span className={styles.planDuration}>{plan.duration}</span>
+                                                    </div>
+                                                    <span className={`${styles.radioCircle} ${selectedPlan === code ? styles.radioCircleActive : ""}`}>
+                                                        {selectedPlan === code && <span className={styles.radioInner}></span>}
                                                     </span>
                                                 </div>
-                                                <div
-                                                    className={`${styles.radioCircle} ${selectedPlan === "session" ? styles.radioCircleActive : ""}`}
-                                                ></div>
+                                                <h3 className={styles.planPrice}>
+                                                    ₱{plan.price.toLocaleString()}
+                                                    {plan.studentPrice != null && <span className={styles.planPriceSub}> (Student: ₱{plan.studentPrice.toLocaleString()})</span>}
+                                                </h3>
                                             </div>
-                                            <h3 className={styles.planPrice}>
-                                                ₱90{" "}
-                                                <span
-                                                    className={
-                                                        styles.planPriceSub
-                                                    }
-                                                >
-                                                    (Student: ₱70)
-                                                </span>
-                                            </h3>
                                         </div>
-                                    </div>
-                                    <div className="col-12 col-sm-6">
-                                        <div
-                                            className={`${styles.planCard} ${selectedPlan === "weekly" ? styles.planCardActive : ""}`}
-                                            onClick={() =>
-                                                setSelectedPlan("weekly")
-                                            }
-                                        >
-                                            <div className="d-flex justify-content-between align-items-start mb-2">
-                                                <div>
-                                                    <span
-                                                        className={
-                                                            styles.planName
-                                                        }
-                                                    >
-                                                        Weekly Pass
-                                                    </span>
-                                                    <span
-                                                        className={
-                                                            styles.planDuration
-                                                        }
-                                                    >
-                                                        7 Days Valid
-                                                    </span>
-                                                </div>
-                                                <div
-                                                    className={`${styles.radioCircle} ${selectedPlan === "weekly" ? styles.radioCircleActive : ""}`}
-                                                ></div>
-                                            </div>
-                                            <h3 className={styles.planPrice}>
-                                                ₱270
-                                            </h3>
-                                        </div>
-                                    </div>
-                                    <div className="col-12 col-sm-6">
-                                        <div
-                                            className={`${styles.planCard} ${selectedPlan === "biweekly" ? styles.planCardActive : ""}`}
-                                            onClick={() =>
-                                                setSelectedPlan("biweekly")
-                                            }
-                                        >
-                                            <div className="d-flex justify-content-between align-items-start mb-2">
-                                                <div>
-                                                    <span
-                                                        className={
-                                                            styles.planName
-                                                        }
-                                                    >
-                                                        Two Weeks Pass
-                                                    </span>
-                                                    <span
-                                                        className={
-                                                            styles.planDuration
-                                                        }
-                                                    >
-                                                        14 Days Valid
-                                                    </span>
-                                                </div>
-                                                <div
-                                                    className={`${styles.radioCircle} ${selectedPlan === "biweekly" ? styles.radioCircleActive : ""}`}
-                                                ></div>
-                                            </div>
-                                            <h3 className={styles.planPrice}>
-                                                ₱540
-                                            </h3>
-                                        </div>
-                                    </div>
-                                    <div className="col-12 col-sm-6">
-                                        <div
-                                            className={`${styles.planCard} ${selectedPlan === "monthly" ? styles.planCardActive : ""}`}
-                                            onClick={() =>
-                                                setSelectedPlan("monthly")
-                                            }
-                                        >
-                                            <div className="d-flex justify-content-between align-items-start mb-2">
-                                                <div>
-                                                    <span
-                                                        className={
-                                                            styles.planName
-                                                        }
-                                                    >
-                                                        Monthly Regular{" "}
-                                                        <span
-                                                            className={
-                                                                styles.popularBadge
-                                                            }
-                                                        >
-                                                            Popular
-                                                        </span>
-                                                    </span>
-                                                    <span
-                                                        className={
-                                                            styles.planDuration
-                                                        }
-                                                    >
-                                                        30 Days Valid
-                                                    </span>
-                                                </div>
-                                                <div
-                                                    className={`${styles.radioCircle} ${selectedPlan === "monthly" ? styles.radioCircleActive : ""}`}
-                                                >
-                                                    {selectedPlan ===
-                                                        "monthly" && (
-                                                        <div
-                                                            className={
-                                                                styles.radioInner
-                                                            }
-                                                        ></div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <h3 className={styles.planPrice}>
-                                                ₱990{" "}
-                                                <span
-                                                    className={
-                                                        styles.planPriceSub
-                                                    }
-                                                >
-                                                    (Student: ₱750)
-                                                </span>
-                                            </h3>
-                                        </div>
-                                    </div>
+                                    ))}
+                                    {!Object.keys(plans).length && <div className="col-12 text-secondary">No membership passes configured.</div>}
                                 </div>
-                                <div className={styles.infoAlert}>
+                                <label className={`${styles.infoAlert} ${styles.studentRateToggle}`}>
+                                    <input
+                                        type="checkbox"
+                                        className={styles.customCheckbox}
+                                        checked={isStudent}
+                                        onChange={(event) => setIsStudent(event.target.checked)}
+                                    />
                                     <i className="fa-regular fa-circle-check"></i>
                                     <span>
-                                        Student rates apply automatically upon
-                                        clerk verification.
+                                        Apply student rate for this member
+                                        <small className="d-block mt-1">
+                                            {currentPlan.studentPrice == null
+                                                ? "No student rate is configured for this plan."
+                                                : `This uses ₱${currentPlan.studentPrice.toLocaleString()} instead of ₱${Number(currentPlan.price).toLocaleString()}.`}
+                                        </small>
                                     </span>
-                                </div>
+                                </label>
                             </div>
                         </div>
 
@@ -428,8 +429,8 @@ export default function ClerkMemberRegistration() {
                                         className="text-secondary"
                                         style={{ fontSize: "0.85rem" }}
                                     >
-                                        {plans[selectedPlan].name} (
-                                        {plans[selectedPlan].duration.replace(
+                                        {currentPlan.name} (
+                                        {currentPlan.duration.replace(
                                             " Valid",
                                             "",
                                         )}
@@ -580,9 +581,9 @@ export default function ClerkMemberRegistration() {
                             data-aos="fade-left"
                             data-aos-delay="300"
                         >
-                            <button type="button" className={styles.btnSubmit}>
+                            <button type="submit" disabled={saving} className={styles.btnSubmit}>
                                 <i className="fa-regular fa-paper-plane"></i>{" "}
-                                Complete Registration & Send Email
+                                {saving ? "Saving..." : "Complete Registration & Send Email"}
                             </button>
                             <button
                                 type="button"

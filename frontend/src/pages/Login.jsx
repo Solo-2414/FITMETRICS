@@ -1,11 +1,31 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import { useAuth, homePathForRole } from "../context/AuthContext";
 import "../App.css";
 
 export default function Login() {
     const [showPassword, setShowPassword] = useState(false);
     const navigate = useNavigate();
+    const { signIn, session, profile, loading } = useAuth();
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+
+    // Already logged in? Go straight to your own dashboard.
+    if (!loading && session && profile) {
+        return <Navigate to={homePathForRole(profile.role)} replace />;
+    }
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError("");
+        setSubmitting(true);
+        const { error: signInError, profile: prof } = await signIn(email, password);
+        setSubmitting(false);
+        if (signInError) return setError(signInError);
+        navigate(homePathForRole(prof.role), { replace: true });
+    };
 
     return (
         <div className="login-wrapper">
@@ -66,15 +86,18 @@ export default function Login() {
                         Log in to your account to continue.
                     </p>
 
-                    <form onSubmit={(e) => e.preventDefault()}>
+                    <form onSubmit={handleSubmit}>
                         <div className="mb-3">
-                            <label className="form-label">Email Address</label>
+                            <label className="form-label">Email or Username</label>
                             <div className="input-group-custom">
                                 <i className="fa-regular fa-envelope icon-left"></i>
                                 <input
-                                    type="email"
+                                    type="text"
                                     className="form-control-custom"
-                                    placeholder="zhaider.mendoza@gmail.com"
+                                    placeholder="Enter your email or username"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    autoComplete="username"
                                     required
                                 />
                             </div>
@@ -87,7 +110,10 @@ export default function Login() {
                                 <input
                                     type={showPassword ? "text" : "password"}
                                     className="form-control-custom"
-                                    placeholder="••••••••••••"
+                                    placeholder="Enter your password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    autoComplete="current-password"
                                     required
                                 />
                                 <button
@@ -113,12 +139,26 @@ export default function Login() {
                             </Link>
                         </div>
 
+                        {error && (
+                            <div
+                                role="alert"
+                                className="mb-3"
+                                style={{
+                                    color: "#f87171",
+                                    fontSize: "0.85rem",
+                                    textAlign: "center",
+                                }}
+                            >
+                                {error}
+                            </div>
+                        )}
+
                         <button
                             type="submit"
                             className="btn-login w-100 mb-4"
-                            onClick={() => navigate("/member/dashboard")}
+                            disabled={submitting}
                         >
-                            Log In{" "}
+                            {submitting ? "Logging in..." : "Log In"}{" "}
                             <i className="fa-solid fa-arrow-right ms-2"></i>
                         </button>
 

@@ -1,36 +1,76 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
+import { api } from "../../lib/api";
 import styles from "./ClerkPayments.module.css";
 
 export default function ClerkPayments() {
     const [selectedPlan, setSelectedPlan] = useState("monthly");
     const [paymentMethod, setPaymentMethod] = useState("cash");
+    const [plans, setPlans] = useState({});
+    const [members, setMembers] = useState([]);
+    const [transactions, setTransactions] = useState([]);
+    const [stats, setStats] = useState(null);
+    const [memberSearch, setMemberSearch] = useState("");
+    const [guestPhone, setGuestPhone] = useState("");
+    const [isStudent, setIsStudent] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
 
-    const plans = {
-        session: {
-            name: "Session Walk-in",
-            sub: "Student rate: ₱70",
-            price: 90,
-        },
-        weekly: { name: "Weekly Pass", sub: "7 consecutive days", price: 270 },
-        twoWeeks: {
-            name: "Two Weeks Pass",
-            sub: "14 consecutive days",
-            price: 540,
-        },
-        monthly: {
-            name: "Monthly Regular",
-            sub: "Student rate: ₱750",
-            price: 990,
-        },
-        coach: {
-            name: "Coach Fee (Personal)",
-            sub: "Mark ₱500 / Analyn ₱600",
-            price: 500,
-        },
+    const loadPayments = () => Promise.all([
+        api("/clerk/plans"),
+        api("/clerk/members"),
+        api("/clerk/payments"),
+        api("/clerk/dashboard"),
+    ]).then(([planRows, memberRows, paymentRows, dashboard]) => {
+        const livePlans = Object.fromEntries(planRows.filter((plan) => plan.account_eligible || plan.code === "session").map((plan) => [plan.code, {
+            ...plan,
+            price: Number(plan.price),
+            student_price: plan.student_price == null ? null : Number(plan.student_price),
+            sub: plan.student_price == null ? `${plan.duration_days} consecutive days` : `Student rate: ₱${Number(plan.student_price).toLocaleString()}`,
+        }]));
+        setPlans(livePlans);
+        setMembers(memberRows);
+        setTransactions(paymentRows);
+        setStats(dashboard);
+        if (!livePlans[selectedPlan]) setSelectedPlan(Object.keys(livePlans)[0] || "");
+    });
+
+    useEffect(() => {
+        loadPayments().catch((err) => setError(err.message));
+    }, []);
+
+    const currentPlan = plans[selectedPlan] || { name: "Select a plan", price: 0, student_price: null };
+    const currentPrice = isStudent && currentPlan.student_price != null ? currentPlan.student_price : currentPlan.price;
+    const selectedMember = members.find((member) => `${member.full_name || ""} ${member.email || ""}`.toLowerCase().includes(memberSearch.trim().toLowerCase())) || null;
+    const submitPayment = async (event) => {
+        event.preventDefault();
+        setSaving(true);
+        setError("");
+        setSuccess("");
+        try {
+            await api("/clerk/payments", {
+                method: "POST",
+                body: {
+                    plan_code: selectedPlan,
+                    member_id: selectedPlan === "session" ? undefined : selectedMember?.id,
+                    guest_name: selectedPlan === "session" ? memberSearch : undefined,
+                    guest_phone: selectedPlan === "session" ? guestPhone : undefined,
+                    is_student: isStudent,
+                    payment_method: paymentMethod,
+                },
+            });
+            setSuccess("Payment recorded and receipt issued successfully.");
+            setMemberSearch("");
+            setGuestPhone("");
+            setIsStudent(false);
+            await loadPayments();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSaving(false);
+        }
     };
-
-    const currentPrice = plans[selectedPlan].price;
 
     return (
         <ClerkLayout>
@@ -46,11 +86,13 @@ export default function ClerkPayments() {
                     </p>
                 </div>
                 <div className={styles.timeBadge}>
-                    <i className="fa-regular fa-calendar"></i> Today: Tuesday,
-                    Oct 13, 2026
+                    <i className="fa-regular fa-calendar"></i> Today:{" "}
+                    {new Date().toLocaleDateString()}
                 </div>
             </div>
 
+            {error && <div className="alert alert-danger">{error}</div>}
+            {success && <div className="alert alert-success">{success}</div>}
             <div
                 className={styles.drawerCard}
                 data-aos="fade-up"
@@ -88,9 +130,9 @@ export default function ClerkPayments() {
                             <span className={styles.statLabel}>
                                 STARTING FLOAT (MORNING)
                             </span>
-                            <h3 className={styles.statValue}>₱2,000.00</h3>
+                            <h3 className={styles.statValue}>₱0.00</h3>
                             <span className={styles.statSub}>
-                                Initialized 06:00 AM
+                                Starting float is not recorded
                             </span>
                         </div>
                     </div>
@@ -100,10 +142,10 @@ export default function ClerkPayments() {
                                 CASH COLLECTED TODAY
                             </span>
                             <h3 className={styles.statValueSuccess}>
-                                +₱4,150.00
+                                +₱{Number(stats?.cashCollected || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </h3>
                             <span className={styles.statSub}>
-                                22 Cash Receipts
+                                {stats?.cashTransactions || 0} cash receipts
                             </span>
                         </div>
                     </div>
@@ -113,10 +155,10 @@ export default function ClerkPayments() {
                                 GCASH / MAYA TODAY
                             </span>
                             <h3 className={styles.statValuePrimary}>
-                                ₱2,270.00
+                                ₱{Number(stats?.eWalletCollected || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </h3>
                             <span className={styles.statSub}>
-                                12 Digital Transfers
+                                {stats?.eWalletTransactions || 0} digital transfers
                             </span>
                         </div>
                     </div>
@@ -125,10 +167,10 @@ export default function ClerkPayments() {
                             <span className={styles.statLabel}>
                                 TOTAL COLLECTED TODAY
                             </span>
-                            <h3 className={styles.statValue}>₱6,420.00</h3>
+                            <h3 className={styles.statValue}>₱{Number(stats?.totalCollected || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
                             <span className={styles.statSubSuccess}>
                                 <i className="fa-regular fa-circle-check"></i>{" "}
-                                34 transactions
+                                {stats?.transactionCount || 0} transactions
                             </span>
                         </div>
                     </div>
@@ -137,9 +179,9 @@ export default function ClerkPayments() {
                             <span className={styles.statLabel}>
                                 EXPECTED IN DRAWER
                             </span>
-                            <h3 className={styles.statValue}>₱6,150.00</h3>
+                            <h3 className={styles.statValue}>₱{Number(stats?.cashCollected || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
                             <span className={styles.statSub}>
-                                Float (₱2k) + Cash (₱4.15k)
+                                Cash collected; starting float not recorded
                             </span>
                         </div>
                     </div>
@@ -168,7 +210,7 @@ export default function ClerkPayments() {
                             </span>
                         </div>
 
-                        <form onSubmit={(e) => e.preventDefault()}>
+                        <form onSubmit={submitPayment}>
                             <div className="mb-4">
                                 <label className={styles.formLabel}>
                                     Select Member / Walk-in Guest
@@ -178,9 +220,14 @@ export default function ClerkPayments() {
                                     <input
                                         type="text"
                                         className={styles.formInputGroup}
-                                        defaultValue="Carlos Miguel Mendoza (carlos.mendoza@gmail.com) · Member #049"
+                                        value={memberSearch}
+                                        onChange={(event) => setMemberSearch(event.target.value)}
+                                        placeholder={selectedPlan === "session" ? "Walk-in guest name" : "Search member name or email"}
                                     />
                                 </div>
+                                {selectedPlan !== "session" && memberSearch && !selectedMember && <small className="text-danger">Select a valid member name or email.</small>}
+                                {selectedPlan !== "session" && selectedMember && <small className="text-success">Selected: {selectedMember.full_name || selectedMember.email}</small>}
+                                {selectedPlan === "session" && <input type="tel" className={`${styles.formInputRaw} mt-2`} value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} placeholder="Walk-in guest phone (optional)" />}
                             </div>
 
                             <div className="mb-4">
@@ -246,8 +293,7 @@ export default function ClerkPayments() {
                                                                         styles.planPrice
                                                                     }
                                                                 >
-                                                                    ₱
-                                                                    {plan.price}
+                                                                    ₱{(isStudent && plan.student_price != null ? plan.student_price : plan.price).toLocaleString()}
                                                                 </span>
                                                             </div>
                                                             <span
@@ -265,6 +311,13 @@ export default function ClerkPayments() {
                                     )}
                                 </div>
                             </div>
+
+                            {currentPlan.student_price != null && selectedPlan !== "session" && (
+                                <label className={styles.checkboxLabelFull}>
+                                    <input type="checkbox" className={styles.customCheckbox} checked={isStudent} onChange={(event) => setIsStudent(event.target.checked)} />
+                                    <div><span className="d-block text-white fw-bold mb-1" style={{ fontSize: "0.85rem" }}>Apply student rate</span><span className="text-secondary" style={{ fontSize: "0.75rem" }}>Use ₱{currentPlan.student_price.toLocaleString()} for this member.</span></div>
+                                </label>
+                            )}
 
                             <div className={styles.totalBox}>
                                 <span
@@ -325,7 +378,7 @@ export default function ClerkPayments() {
                                             <input
                                                 type="number"
                                                 className={styles.formInputRaw}
-                                                defaultValue="1000.00"
+                                                placeholder="Enter amount received"
                                             />
                                         </div>
                                     </div>
@@ -371,7 +424,7 @@ export default function ClerkPayments() {
                                 </div>
                             </label>
 
-                            <button type="submit" className={styles.btnSubmit}>
+                            <button type="submit" disabled={saving || !selectedPlan || (selectedPlan !== "session" && !selectedMember)} className={styles.btnSubmit}>
                                 <i className="fa-solid fa-check"></i> Complete
                                 Payment & Issue Receipt
                             </button>
@@ -412,13 +465,13 @@ export default function ClerkPayments() {
                                     Receipt No:
                                 </span>
                                 <span className="text-white">
-                                    REC-2026-1082
+                                    {transactions[0]?.receipt_number || "Pending"}
                                 </span>
                             </div>
                             <div className="d-flex justify-content-between">
                                 <span className="text-secondary">Date:</span>
                                 <span className="text-white">
-                                    Today, Oct 13, 2026 · 09:42 AM
+                                    {new Date().toLocaleString()}
                                 </span>
                             </div>
                             <div className="d-flex justify-content-between">
@@ -426,7 +479,7 @@ export default function ClerkPayments() {
                                     Member Name:
                                 </span>
                                 <span className="text-white">
-                                    Carlos Miguel Mendoza
+                                    {selectedMember?.full_name || memberSearch || "Walk-in Guest"}
                                 </span>
                             </div>
                             <div className="d-flex justify-content-between">
@@ -434,7 +487,7 @@ export default function ClerkPayments() {
                                     Email Recipient:
                                 </span>
                                 <span className="text-secondary">
-                                    carlos.mendoza@gmail.com
+                                    {selectedMember?.email || "No email provided"}
                                 </span>
                             </div>
                             <div className="d-flex justify-content-between">
@@ -442,7 +495,7 @@ export default function ClerkPayments() {
                                     Recorded By:
                                 </span>
                                 <span className="text-white">
-                                    Clerk Juan (Front Desk)
+                                    Current clerk
                                 </span>
                             </div>
                         </div>
@@ -453,7 +506,7 @@ export default function ClerkPayments() {
                         >
                             <div className="d-flex justify-content-between">
                                 <span className="text-secondary">
-                                    {plans[selectedPlan].name}
+                                    {currentPlan.name}
                                 </span>
                                 <span className="text-white">
                                     ₱{currentPrice.toFixed(2)}
@@ -466,7 +519,7 @@ export default function ClerkPayments() {
                                 className="text-white fw-bold"
                                 style={{ fontSize: "0.9rem" }}
                             >
-                                Total Paid (Cash):
+                                Total Paid ({paymentMethod}):
                             </span>
                             <span
                                 className="text-primary fw-bold"
@@ -522,6 +575,18 @@ export default function ClerkPayments() {
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    {transactions.slice(0, 4).map((transaction) => (
+                                        <tr key={transaction.id}>
+                                            <td>{new Date(transaction.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
+                                            <td><strong className="text-white">{transaction.display_name}</strong></td>
+                                            <td>{transaction.plan_name}</td>
+                                            <td className="text-white text-end fw-bold">₱{Number(transaction.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                            <td><span className={styles.methodBadgeOutline}>{transaction.method}</span></td>
+                                        </tr>
+                                    ))}
+                                    {!transactions.length && <tr><td colSpan="5" className="text-secondary text-center">No payments recorded today.</td></tr>}
+                                </tbody>
+                                <tbody style={{ display: "none" }}>
                                     <tr>
                                         <td>09:42 AM</td>
                                         <td>

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 
 import AOS from "aos";
 import "aos/dist/aos.css";
@@ -8,6 +8,8 @@ import "./App.css";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
+import { AuthProvider } from "./context/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 import MemberDashboard from "./pages/member/MemberDashboard";
 import MemberProfile from "./pages/member/MemberProfile";
@@ -57,6 +59,7 @@ export default function App() {
     }, []);
 
     return (
+        <AuthProvider>
         <BrowserRouter>
             <AOSRefresh />
             <Routes>
@@ -64,6 +67,7 @@ export default function App() {
                 <Route path="/login" element={<Login />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
 
+                <Route element={<ProtectedRoute roles={["member"]} />}>
                 <Route path="/member/dashboard" element={<MemberDashboard />} />
                 <Route path="/member/profile" element={<MemberProfile />} />
                 <Route
@@ -88,6 +92,9 @@ export default function App() {
                     element={<MemberNotifications />}
                 />
 
+                </Route>
+
+                <Route element={<ProtectedRoute roles={["admin"]} />}>
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
                 <Route
                     path="/admin/churn-analytics"
@@ -120,6 +127,9 @@ export default function App() {
                 />
                 <Route path="/admin/settings" element={<AdminSettings />} />
 
+                </Route>
+
+                <Route element={<ProtectedRoute roles={["clerk"]} />}>
                 <Route path="/clerk/dashboard" element={<ClerkDashboard />} />
                 <Route
                     path="/clerk/member-registration"
@@ -137,7 +147,11 @@ export default function App() {
                     element={<ClerkNotifications />}
                 />
                 <Route path="/clerk/settings" element={<ClerkSettings />} />
+                </Route>
+
+                <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </BrowserRouter>
+        </AuthProvider>
     );
 }

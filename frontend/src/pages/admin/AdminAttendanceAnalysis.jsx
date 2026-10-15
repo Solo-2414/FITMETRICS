@@ -8,7 +8,9 @@ import {
     Legend,
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
+import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
+import { api } from "../../lib/api";
 import styles from "./AdminAttendanceAnalysis.module.css";
 
 ChartJS.register(
@@ -21,7 +23,12 @@ ChartJS.register(
 );
 
 export default function AdminAttendanceAnalysis() {
-    const chartData = {
+    const [analysis, setAnalysis] = useState(null);
+    const [error, setError] = useState("");
+    useEffect(() => {
+        api("/attendance/analysis").then(setAnalysis).catch((err) => setError(err.message));
+    }, []);
+    const chartData = useMemo(() => ({
         labels: [
             "6 AM",
             "8 AM",
@@ -35,7 +42,7 @@ export default function AdminAttendanceAnalysis() {
         datasets: [
             {
                 label: "Visits",
-                data: [5, 6, 4, 8, 7, 12, 28, 14],
+                data: analysis?.hourly || [0, 0, 0, 0, 0, 0, 0, 0],
                 backgroundColor: (context) => {
                     const value = context.raw;
                     return value === 28 ? "#f59e0b" : "#38bdf8";
@@ -45,7 +52,7 @@ export default function AdminAttendanceAnalysis() {
                 categoryPercentage: 0.6,
             },
         ],
-    };
+    }), [analysis]);
 
     const chartOptions = {
         responsive: true,
@@ -83,6 +90,7 @@ export default function AdminAttendanceAnalysis() {
 
     return (
         <AdminLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <h1 className={styles.pageTitle}>Attendance Analysis</h1>
                 <p className={styles.pageDesc}>
@@ -101,7 +109,7 @@ export default function AdminAttendanceAnalysis() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            56{" "}
+                            {analysis ? analysis.totalCheckIns : "..."}{" "}
                             <span className={styles.kpiValueUnit}>visits</span>
                         </h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
@@ -123,7 +131,7 @@ export default function AdminAttendanceAnalysis() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            24{" "}
+                            {analysis ? analysis.activeInGym : "..."}{" "}
                             <span className={styles.kpiValueUnit}>
                                 active members
                             </span>

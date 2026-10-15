@@ -1,9 +1,18 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import styles from "./ClerkLayout.module.css";
 
 export default function ClerkLayout({ children }) {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { signOut, profile } = useAuth();
+
+    const handleLogout = async (e) => {
+        e.preventDefault();
+        await signOut();
+        navigate("/login", { replace: true });
+    };
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showFastCheckInModal, setShowFastCheckInModal] = useState(false);
 
@@ -115,7 +124,7 @@ export default function ClerkLayout({ children }) {
                         <i className="fa-solid fa-gear"></i>
                         Settings
                     </Link>
-                    <Link to="/login" className={styles.logoutBtn}>
+                    <Link to="/login" className={styles.logoutBtn} onClick={handleLogout}>
                         <i className="fa-solid fa-arrow-right-from-bracket"></i>
                         Log Out
                     </Link>
@@ -159,7 +168,7 @@ export default function ClerkLayout({ children }) {
                                 className={styles.avatarImg}
                             />
                             <div className="d-none d-sm-block">
-                                <h4>Clerk Juan</h4>
+                                <h4>{profile?.full_name || "Clerk"}</h4>
                                 <p>Front Desk Staff</p>
                             </div>
                         </div>

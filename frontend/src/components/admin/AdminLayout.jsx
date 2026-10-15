@@ -1,9 +1,18 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import styles from "./AdminLayout.module.css";
 
 export default function AdminLayout({ children }) {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { signOut, profile } = useAuth();
+
+    const handleLogout = async (e) => {
+        e.preventDefault();
+        await signOut();
+        navigate("/login", { replace: true });
+    };
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
 
@@ -115,7 +124,7 @@ export default function AdminLayout({ children }) {
                 </nav>
 
                 <div className={styles.logoutWrapper}>
-                    <Link to="/login" className={styles.logoutBtn}>
+                    <Link to="/login" className={styles.logoutBtn} onClick={handleLogout}>
                         <i className="fa-solid fa-arrow-right-from-bracket"></i>
                         Log Out
                     </Link>
@@ -156,7 +165,7 @@ export default function AdminLayout({ children }) {
                                 className={styles.avatarImg}
                             />
                             <div className="d-none d-sm-block">
-                                <h4>Zhaider Mendoza</h4>
+                                <h4>{profile?.full_name || "Admin"}</h4>
                                 <p>Gym Owner / Admin</p>
                             </div>
                         </div>

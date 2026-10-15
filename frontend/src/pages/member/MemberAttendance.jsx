@@ -1,9 +1,21 @@
+import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
+import { api } from "../../lib/api";
 import styles from "./MemberAttendance.module.css";
 
 export default function MemberAttendance() {
+    const [attendance, setAttendance] = useState([]);
+    const [error, setError] = useState("");
+    useEffect(() => {
+        api("/attendance/me").then(setAttendance).catch((err) => setError(err.message));
+    }, []);
+    const totalVisits = attendance.length;
+    const activeDays = new Set(attendance.map((item) => item.check_in_at.slice(0, 10))).size;
+    const formatTime = (value) => value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+    const duration = (row) => row.check_out_at ? `${Math.max(1, Math.round((new Date(row.check_out_at) - new Date(row.check_in_at)) / 60000))} mins` : "In gym";
     return (
         <MemberLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3"
                 data-aos="fade-down"
@@ -51,7 +63,7 @@ export default function MemberAttendance() {
                             </span>
                             <i className="fa-regular fa-calendar-check text-secondary"></i>
                         </div>
-                        <h3 className={styles.kpiValue}>18 Visits</h3>
+                        <h3 className={styles.kpiValue}>{totalVisits} Visits</h3>
                         <span className={styles.kpiSubPositive}>
                             <i className="fa-solid fa-arrow-trend-up"></i> +3
                             visits vs last month
@@ -73,7 +85,7 @@ export default function MemberAttendance() {
                             </span>
                             <i className="fa-solid fa-fire text-success"></i>
                         </div>
-                        <h3 className={styles.kpiValue}>4 Weeks Consistent</h3>
+                        <h3 className={styles.kpiValue}>{activeDays} Active Days</h3>
                         <span className={styles.kpiSub}>
                             Averaging 4 visits per week
                         </span>
@@ -116,7 +128,7 @@ export default function MemberAttendance() {
                             <i className="fa-solid fa-arrow-trend-up text-primary"></i>
                         </div>
                         <div className="d-flex align-items-baseline gap-2 mb-2">
-                            <h3 className={styles.kpiValue}>4</h3>
+                            <h3 className={styles.kpiValue}>{Math.min(5, activeDays)}</h3>
                             <span className={styles.kpiSub}>/ 5 days</span>
                             <span className={styles.kpiTarget}>80% Target</span>
                         </div>
@@ -398,6 +410,20 @@ export default function MemberAttendance() {
                             </tr>
                         </thead>
                         <tbody>
+                            {attendance.map((row) => (
+                                <tr key={row.id}>
+                                    <td><i className="fa-regular fa-calendar"></i>{" "}{new Date(row.check_in_at).toLocaleDateString()}</td>
+                                    <td>{formatTime(row.check_in_at)}</td>
+                                    <td>{formatTime(row.check_out_at)}</td>
+                                    <td>{duration(row)}</td>
+                                    <td><div className="d-flex align-items-center gap-2"><i className="fa-solid fa-desktop text-primary"></i>{row.method === "manual" ? "Counter Check-in" : row.method}</div></td>
+                                    <td>Gym Staff</td>
+                                    <td><span className={styles.statusCompleted}><span className={styles.dotCompleted}></span>{" "}{row.check_out_at ? "Completed" : "Active"}</span></td>
+                                </tr>
+                            ))}
+                            {attendance.length === 0 && <tr><td colSpan="7" className="text-center text-secondary py-4">No attendance records found.</td></tr>}
+                        </tbody>
+                        <tbody style={{ display: "none" }}>
                             <tr>
                                 <td>
                                     <div className="d-flex align-items-center gap-2">

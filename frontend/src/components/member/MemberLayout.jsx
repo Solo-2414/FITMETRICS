@@ -1,9 +1,18 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import styles from "./MemberLayout.module.css";
 
 export default function MemberLayout({ children }) {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { signOut, profile } = useAuth();
+
+    const handleLogout = async (e) => {
+        e.preventDefault();
+        await signOut();
+        navigate("/login", { replace: true });
+    };
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     const closeSidebar = () => setIsSidebarOpen(false);
@@ -98,7 +107,7 @@ export default function MemberLayout({ children }) {
                 </nav>
 
                 <div className={styles.logoutWrapper}>
-                    <Link to="/login" className={styles.logoutBtn}>
+                    <Link to="/login" className={styles.logoutBtn} onClick={handleLogout}>
                         <i className="fa-solid fa-arrow-right-from-bracket"></i>
                         Log Out
                     </Link>
@@ -122,7 +131,7 @@ export default function MemberLayout({ children }) {
                     </div>
                     <div className={styles.topbarRight}>
                         <div className={styles.userInfo}>
-                            <h4>Michael Andre Tanza</h4>
+                            <h4>{profile?.full_name || "Member"}</h4>
                             <p>Regular Member</p>
                         </div>
                         <div className={styles.avatarCircle}>MT</div>

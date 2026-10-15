@@ -1,12 +1,60 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
+import { api } from "../../lib/api";
 import styles from "./ClerkMembership.module.css";
 
 export default function ClerkMembership() {
     const [paymentMethod, setPaymentMethod] = useState("Cash");
+    const [members, setMembers] = useState([]);
+    const [plans, setPlans] = useState([]);
+    const [coaches, setCoaches] = useState([]);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [renewalPlanCode, setRenewalPlanCode] = useState("");
+    const [renewalCoachId, setRenewalCoachId] = useState("");
+    const renewalFormRef = useRef(null);
+    useEffect(() => {
+        Promise.all([api("/clerk/members"), api("/clerk/plans"), api("/clerk/coaches")])
+            .then(([memberRows, planRows, coachRows]) => {
+                setMembers(memberRows);
+                setPlans(planRows);
+                setCoaches(coachRows);
+            })
+            .catch((err) => setError(err.message));
+    }, []);
+    const submitRenewal = async (event) => {
+        event.preventDefault();
+        setSaving(true);
+        setError("");
+        setSuccess("");
+        try {
+            const inputs = renewalFormRef.current.querySelectorAll("input");
+            const search = inputs[0].value.trim().toLowerCase();
+            const member = members.find((item) => `${item.full_name} ${item.email}`.toLowerCase().includes(search));
+            if (!member) throw new Error("Select a registered member before processing the renewal.");
+            await api("/clerk/memberships", {
+                method: "POST",
+                body: {
+                    member_id: member.id,
+                    plan_code: renewalPlanCode,
+                    coach_id: renewalCoachId || null,
+                    coach_addon_amount: renewalCoachId ? 500 : 0,
+                    payment_method: paymentMethod.toLowerCase(),
+                },
+            });
+            setSuccess("Membership renewed and payment recorded.");
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
         <ClerkLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
+            {success && <div className="alert alert-success">{success}</div>}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                 data-aos="fade-down"
@@ -44,12 +92,29 @@ export default function ClerkMembership() {
                 className="row g-3 mb-5"
                 data-aos="fade-up"
                 data-aos-delay="200"
+                style={{ display: "none" }}
             >
                 <div className="col-12 col-sm-6 col-xl">
                     <div className={styles.rateCard}>
                         <div className="d-flex justify-content-between align-items-center mb-2">
                             <span className={styles.rateLabel}>WALK-IN</span>
                             <span className={styles.rateDuration}>1 Day</span>
+                        </div>
+                        <div className="row g-3 mb-5" data-aos="fade-up" data-aos-delay="200">
+                            {plans.length ? plans.map((plan) => (
+                                <div className="col-12 col-sm-6 col-xl" key={plan.id}>
+                                    <div className={styles.rateCard}>
+                                        <div className="d-flex justify-content-between align-items-center mb-2">
+                                            <span className={styles.rateLabel}>{plan.name}</span>
+                                            <span className={styles.rateDuration}>{plan.duration_days} Days</span>
+                                        </div>
+                                        <h2 className={styles.ratePrice}>₱{Number(plan.price).toLocaleString()}</h2>
+                                        <span className={styles.rateSub}>{plan.student_price == null ? "Standard rate" : `Student: ₱${Number(plan.student_price).toLocaleString()}`}</span>
+                                        <div className={styles.rateFooter}>{plan.description || "Gym access plan"}</div>
+                                    </div>
+                                </div>
+                            )) : <div className="col-12 text-secondary">No active plans configured.</div>}
+                            {coaches.length > 0 && <div className="col-12 text-secondary">Optional coaches: {coaches.map((coach) => coach.display_name).join(", ")}</div>}
                         </div>
                         <h2 className={styles.ratePrice}>₱90</h2>
                         <span className={styles.rateSub}>Student: ₱70</span>
@@ -166,7 +231,7 @@ export default function ClerkMembership() {
                     </span>
                 </div>
 
-                <form onSubmit={(e) => e.preventDefault()}>
+                <form ref={renewalFormRef} onSubmit={submitRenewal}>
                     <div className="row g-4 mb-4">
                         <div className="col-12 col-md-6 col-lg-3">
                             <label className={styles.formLabel}>
@@ -177,7 +242,7 @@ export default function ClerkMembership() {
                                 <input
                                     type="text"
                                     className={styles.formInputGroup}
-                                    defaultValue="Clarisse Domingo"
+                                    defaultValue=""
                                 />
                             </div>
                         </div>
@@ -187,17 +252,13 @@ export default function ClerkMembership() {
                             </label>
                             <select
                                 className={styles.formSelect}
-                                defaultValue="monthly"
+                                value={renewalPlanCode}
+                                onChange={(event) => setRenewalPlanCode(event.target.value)}
                             >
-                                <option value="monthly">
-                                    Monthly Regular (₱990)
-                                </option>
-                                <option value="weekly">
-                                    Weekly Pass (₱270)
-                                </option>
-                                <option value="biweekly">
-                                    Two Weeks Pass (₱540)
-                                </option>
+                                <option value="">Select a plan</option>
+                                {plans.filter((plan) => plan.account_eligible).map((plan) => (
+                                    <option value={plan.code} key={plan.id}>{plan.name} (₱{Number(plan.price).toLocaleString()})</option>
+                                ))}
                             </select>
                         </div>
                         <div className="col-12 col-md-6 col-lg-3">
@@ -206,13 +267,11 @@ export default function ClerkMembership() {
                             </label>
                             <select
                                 className={styles.formSelect}
-                                defaultValue="analyn"
+                                value={renewalCoachId}
+                                onChange={(event) => setRenewalCoachId(event.target.value)}
                             >
-                                <option value="none">None</option>
-                                <option value="mark">Coach Mark (+₱500)</option>
-                                <option value="analyn">
-                                    Coach Analyn (+₱600)
-                                </option>
+                                <option value="">None</option>
+                                {coaches.map((coach) => <option value={coach.id} key={coach.id}>{coach.display_name} (+₱500)</option>)}
                             </select>
                         </div>
                         <div className="col-12 col-md-6 col-lg-3">
@@ -257,7 +316,7 @@ export default function ClerkMembership() {
                                 className="text-white"
                                 style={{ fontSize: "0.85rem" }}
                             >
-                                Monthly Regular (₱990) + Coach Analyn (₱600)
+                                {plans.find((plan) => plan.code === renewalPlanCode)?.name || "No plan selected"}{renewalCoachId ? ` + ${coaches.find((coach) => coach.id === renewalCoachId)?.display_name || "Coach"}` : ""}
                             </span>
                         </div>
                         <div className="d-flex flex-column flex-sm-row align-items-sm-center gap-4">
@@ -275,15 +334,16 @@ export default function ClerkMembership() {
                                         fontWeight: "700",
                                     }}
                                 >
-                                    ₱1,590.00
+                                    ₱{((Number(plans.find((plan) => plan.code === renewalPlanCode)?.price) || 0) + (renewalCoachId ? 500 : 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </h2>
                             </div>
                             <button
+                                disabled={saving}
                                 type="submit"
                                 className={styles.btnPrimaryFull}
                             >
                                 <i className="fa-solid fa-file-invoice-dollar"></i>{" "}
-                                Process Renewal & Send Email Receipt
+                                {saving ? "Processing..." : "Process Renewal & Send Email Receipt"}
                             </button>
                         </div>
                     </div>
@@ -292,6 +352,7 @@ export default function ClerkMembership() {
 
             <div
                 className={styles.tablePanel}
+                style={{ display: "none" }}
                 data-aos="fade-up"
                 data-aos-delay="400"
             >

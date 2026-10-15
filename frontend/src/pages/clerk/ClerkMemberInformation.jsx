@@ -1,12 +1,26 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
+import { api } from "../../lib/api";
 import styles from "./ClerkMemberInformation.module.css";
 
 export default function ClerkMemberInformation() {
     const navigate = useNavigate();
+    const [search, setSearch] = useState("");
+    const [members, setMembers] = useState([]);
+    const [error, setError] = useState("");
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            api(`/clerk/members?search=${encodeURIComponent(search)}`)
+                .then(setMembers)
+                .catch((err) => setError(err.message));
+        }, 250);
+        return () => clearTimeout(timer);
+    }, [search]);
 
     return (
         <ClerkLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                 data-aos="fade-down"
@@ -33,7 +47,7 @@ export default function ClerkMemberInformation() {
             >
                 <div className={styles.searchBox}>
                     <i className="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" placeholder="Kenneth Bautista" />
+                    <input type="text" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Kenneth Bautista" />
                 </div>
                 <div className="d-flex flex-wrap gap-3">
                     <div className={styles.filterGroup}>
@@ -79,7 +93,7 @@ export default function ClerkMemberInformation() {
                                 className="text-secondary"
                                 style={{ fontSize: "0.85rem" }}
                             >
-                                Filtered: 5 displayed
+                                Filtered: {members.length} displayed
                             </span>
                         </div>
 
@@ -97,7 +111,27 @@ export default function ClerkMemberInformation() {
                                         <th>STATUS</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                {members.length > 0 && (
+                                    <tbody>
+                                        {members.map((member) => (
+                                            <tr key={member.id}>
+                                                <td style={{ paddingLeft: "24px" }}>
+                                                    <strong className="text-white">{member.full_name || "Unnamed member"}</strong>
+                                                    <span className={styles.subText}>{member.email}</span>
+                                                </td>
+                                                <td><span className={styles.subText}>{member.phone || "—"}</span></td>
+                                                <td>
+                                                    <strong className="d-block text-white">{member.membership?.membership_plans?.name || "No active plan"}</strong>
+                                                    <span className="text-primary" style={{ fontSize: "0.75rem" }}>{member.membership?.coaches?.display_name ? `+ ${member.membership.coaches.display_name}` : ""}</span>
+                                                </td>
+                                                <td><span className={styles.subText}>{member.membership?.start_date || "—"}</span></td>
+                                                <td><strong className="d-block text-white">{member.membership?.end_date || "—"}</strong></td>
+                                                <td><span className={member.membership?.status === "active" ? styles.statusActive : styles.textWarning}>{member.membership?.status || "inactive"}</span></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                )}
+                                <tbody style={{ display: "none" }}>
                                     <tr className={styles.activeRow}>
                                         <td style={{ paddingLeft: "24px" }}>
                                             <div className="d-flex align-items-center gap-3">
@@ -420,6 +454,7 @@ export default function ClerkMemberInformation() {
 
                 <div
                     className="col-12 col-xl-4"
+                    style={{ display: "none" }}
                     data-aos="fade-left"
                     data-aos-delay="300"
                 >
