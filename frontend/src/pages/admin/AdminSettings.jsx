@@ -1,9 +1,23 @@
+import { useEffect, useRef, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminSettings.module.css";
+import { api } from "../../lib/api";
 
 export default function AdminSettings() {
+    const formRef = useRef(null);
+    const [settings, setSettings] = useState(null);
+    const [error, setError] = useState("");
+    const [saved, setSaved] = useState(false);
+    useEffect(() => { api("/admin/settings").then(setSettings).catch((err) => setError(err.message)); }, []);
+    const save = async (event) => {
+        event.preventDefault();
+        const data = Object.fromEntries(new FormData(formRef.current).entries());
+        try { const result = await api("/admin/settings", { method: "PATCH", body: { ...data, expiry_reminder_days: Number(data.expiry_reminder_days || 3) } }); setSettings(result); setSaved(true); } catch (err) { setError(err.message); }
+    };
     return (
         <AdminLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
+            {saved && <div className="alert alert-success">Settings saved.</div>}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                 data-aos="fade-down"
@@ -16,18 +30,18 @@ export default function AdminSettings() {
                     </p>
                 </div>
                 <div className="d-flex gap-3">
-                    <button className={styles.btnSecondary}>
+                    <button type="button" className={styles.btnSecondary} onClick={() => formRef.current?.reset()}>
                         <i className="fa-solid fa-rotate-left"></i> Discard
                         Changes
                     </button>
-                    <button className={styles.btnPrimary}>
+                    <button type="submit" className={styles.btnPrimary}>
                         <i className="fa-solid fa-floppy-disk"></i> Save
                         Settings
                     </button>
                 </div>
             </div>
 
-            <form onSubmit={(e) => e.preventDefault()}>
+            <form ref={formRef} onSubmit={save} key={settings?.updated_at || "settings-loading"}>
                 <div
                     className="row g-4 mb-5"
                     data-aos="fade-up"
@@ -60,7 +74,8 @@ export default function AdminSettings() {
                                         <input
                                             type="text"
                                             className={styles.formInput}
-                                            defaultValue="Analyn's Fitness Gym"
+                                            name="gym_name"
+                                            defaultValue={settings?.gym_name || ""}
                                         />
                                         <i className="fa-solid fa-id-badge"></i>
                                     </div>
@@ -73,7 +88,8 @@ export default function AdminSettings() {
                                         <input
                                             type="text"
                                             className={styles.formInput}
-                                            defaultValue="San Jose, Batangas"
+                                            name="address"
+                                            defaultValue={settings?.address || ""}
                                         />
                                         <i className="fa-solid fa-location-dot"></i>
                                     </div>
@@ -90,7 +106,8 @@ export default function AdminSettings() {
                                         <input
                                             type="text"
                                             className={styles.formInput}
-                                            defaultValue="+63 917 123 4567"
+                                            name="phone"
+                                            defaultValue={settings?.phone || ""}
                                         />
                                         <i className="fa-solid fa-phone"></i>
                                     </div>
@@ -103,7 +120,8 @@ export default function AdminSettings() {
                                         <input
                                             type="email"
                                             className={styles.formInput}
-                                            defaultValue="contact@analynsgym.com"
+                                            name="email"
+                                            defaultValue={settings?.email || ""}
                                         />
                                         <i className="fa-regular fa-envelope"></i>
                                     </div>
@@ -137,7 +155,8 @@ export default function AdminSettings() {
                                         <input
                                             type="time"
                                             className={styles.formInput}
-                                            defaultValue="06:00"
+                                            name="monday_saturday_open"
+                                            defaultValue={settings?.monday_saturday_open || ""}
                                         />
                                         <span className="text-secondary">
                                             to
@@ -145,7 +164,8 @@ export default function AdminSettings() {
                                         <input
                                             type="time"
                                             className={styles.formInput}
-                                            defaultValue="21:30"
+                                            name="monday_saturday_close"
+                                            defaultValue={settings?.monday_saturday_close || ""}
                                         />
                                     </div>
                                 </div>
@@ -157,7 +177,8 @@ export default function AdminSettings() {
                                         <input
                                             type="time"
                                             className={styles.formInput}
-                                            defaultValue="07:00"
+                                            name="sunday_open"
+                                            defaultValue={settings?.sunday_open || ""}
                                         />
                                         <span className="text-secondary">
                                             to
@@ -165,7 +186,8 @@ export default function AdminSettings() {
                                         <input
                                             type="time"
                                             className={styles.formInput}
-                                            defaultValue="19:00"
+                                            name="sunday_close"
+                                            defaultValue={settings?.sunday_close || ""}
                                         />
                                     </div>
                                 </div>

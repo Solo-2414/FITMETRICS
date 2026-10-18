@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -10,6 +11,7 @@ import {
 import { Bar } from "react-chartjs-2";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminPredictiveAnalytics.module.css";
+import { api } from "../../lib/api";
 
 ChartJS.register(
     CategoryScale,
@@ -21,12 +23,28 @@ ChartJS.register(
 );
 
 export default function AdminPredictiveAnalytics() {
+    const [prediction, setPrediction] = useState(null);
+    const [error, setError] = useState("");
+    const [sending, setSending] = useState("");
+    useEffect(() => { api("/admin/predictive").then(setPrediction).catch((err) => setError(err.message)); }, []);
+    const sendReminder = async (memberId) => {
+        setSending(memberId);
+        try {
+            await api(`/admin/churn/${memberId}/reminder`, { method: "POST" });
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSending("");
+        }
+    };
+    const forecast = prediction?.forecast || [];
+    const stats = prediction?.stats || {};
     const chartData = {
-        labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        labels: forecast.map((item) => new Date(`${item.date}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short" })),
         datasets: [
             {
                 label: "Forecasted Members",
-                data: [68, 52, 72, 48, 58, 64, 34],
+                data: forecast.map((item) => item.visits),
                 backgroundColor: "#38bdf8",
                 borderRadius: 6,
                 barPercentage: 0.7,
@@ -65,6 +83,7 @@ export default function AdminPredictiveAnalytics() {
 
     return (
         <AdminLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <h1 className={styles.pageTitle}>Predictive Analytics</h1>
                 <p className={styles.pageDesc}>
@@ -85,11 +104,11 @@ export default function AdminPredictiveAnalytics() {
                                 <i className="fa-solid fa-users"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>~65 visits</h3>
+                        <h3 className={styles.kpiValue}>~{stats.expectedTomorrow ?? "..."} visits</h3>
                         <div className="d-flex align-items-center mt-3 gap-2">
                             <i className="fa-regular fa-clock text-warning"></i>
                             <span className={styles.kpiSub}>
-                                Peak around 6:00 PM
+                                Peak around {prediction?.peak?.hour ?? "..."}:00
                             </span>
                         </div>
                     </div>
@@ -107,7 +126,7 @@ export default function AdminPredictiveAnalytics() {
                                 <i className="fa-solid fa-money-bill"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>₱68,000</h3>
+                        <h3 className={styles.kpiValue}>₱{stats.projectedMonthlyRevenue?.toLocaleString() ?? "..."}</h3>
                         <div className="d-flex align-items-center mt-3 gap-2">
                             <i className="fa-regular fa-circle-check text-success"></i>
                             <span className={styles.kpiSub}>
@@ -129,7 +148,7 @@ export default function AdminPredictiveAnalytics() {
                                 <i className="fa-regular fa-calendar-check"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>19 members</h3>
+                        <h3 className={styles.kpiValue}>{stats.renewalsNext14 ?? "..."} members</h3>
                         <div className="d-flex align-items-center mt-3 gap-2">
                             <i className="fa-solid fa-bell text-warning"></i>
                             <span className={styles.kpiSub}>
@@ -182,11 +201,10 @@ export default function AdminPredictiveAnalytics() {
                         >
                             <span className="d-flex align-items-center gap-2">
                                 <i className="fa-solid fa-chart-line text-primary"></i>{" "}
-                                Estimated average attendance: 58 members/day
+                                Estimated average attendance: {forecast.length ? Math.round(forecast.reduce((sum, item) => sum + item.visits, 0) / forecast.length) : "..."} members/day
                             </span>
                             <span className="mt-2 mt-md-0">
-                                Typical evening rush window: 5:30 PM - 7:30 PM
-                                (after-work peak)
+                                Typical evening rush window: {prediction?.peak?.hour ?? "..."}:00 - {(Number(prediction?.peak?.hour) || 0) + 2}:00
                             </span>
                         </div>
                     </div>
@@ -225,9 +243,7 @@ export default function AdminPredictiveAnalytics() {
                             className="text-secondary mb-4"
                             style={{ fontSize: "0.85rem", lineHeight: "1.6" }}
                         >
-                            Monday & Wednesday evenings will reach 25-30
-                            concurrent members between 6 PM - 8 PM. Ensure 2
-                            staff on desk.
+                            {prediction?.advisory?.busyEvening ? `The busiest recorded period is around ${prediction.peak.hour}:00. ${prediction.advisory.staffing}` : "Recorded attendance does not show a consistent busy-evening threshold yet."}
                         </p>
                         <div className="d-flex justify-content-between align-items-center pt-3 border-top border-secondary">
                             <span
@@ -271,8 +287,7 @@ export default function AdminPredictiveAnalytics() {
                             className="text-secondary mb-4"
                             style={{ fontSize: "0.85rem", lineHeight: "1.6" }}
                         >
-                            8 students have Monthly plans expiring on Friday.
-                            Remind them at front desk.
+                            {prediction?.renewals?.length ?? 0} members have active plans expiring within the next 14 days. Remind them at the front desk.
                         </p>
                         <div className="d-flex justify-content-between align-items-center pt-3 border-top border-secondary">
                             <span
@@ -289,7 +304,7 @@ export default function AdminPredictiveAnalytics() {
                                 className="text-secondary"
                                 style={{ fontSize: "0.8rem" }}
                             >
-                                Friday Expirations
+                                Next 14 Days
                             </span>
                         </div>
                     </div>
@@ -310,7 +325,7 @@ export default function AdminPredictiveAnalytics() {
                                 </p>
                             </div>
                             <span className={styles.totalBadge}>
-                                7 Members Listed
+                                {prediction?.renewals?.length ?? "..."} Members Listed
                             </span>
                         </div>
 
@@ -326,248 +341,11 @@ export default function AdminPredictiveAnalytics() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSecondary
-                                                    }
-                                                >
-                                                    MR
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Mark Ramos
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberSince
-                                                        }
-                                                    >
-                                                        mark.ramos@gmail.com
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="text-white">
-                                            Monthly Student
-                                        </td>
-                                        <td className="text-white">
-                                            Oct 25 (Friday)
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={styles.badgeDanger}
-                                            >
-                                                In 2 days
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <button
-                                                className={
-                                                    styles.btnActionOutline
-                                                }
-                                            >
-                                                <i className="fa-regular fa-envelope"></i>{" "}
-                                                Send Email Reminder
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSecondary
-                                                    }
-                                                >
-                                                    CD
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Camille De Guzman
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberSince
-                                                        }
-                                                    >
-                                                        camille.dg@yahoo.com
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="text-white">
-                                            Monthly Regular
-                                        </td>
-                                        <td className="text-white">
-                                            Oct 25 (Friday)
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={styles.badgeDanger}
-                                            >
-                                                In 2 days
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <button
-                                                className={
-                                                    styles.btnActionOutline
-                                                }
-                                            >
-                                                <i className="fa-regular fa-envelope"></i>{" "}
-                                                Send Email Reminder
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSecondary
-                                                    }
-                                                >
-                                                    JV
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Joshua Villanueva
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberSince
-                                                        }
-                                                    >
-                                                        josh.villa@gmail.com
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="text-white">
-                                            Monthly Student
-                                        </td>
-                                        <td className="text-white">
-                                            Oct 26 (Saturday)
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={styles.badgeWarning}
-                                            >
-                                                In 3 days
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <button
-                                                className={
-                                                    styles.btnActionOutline
-                                                }
-                                            >
-                                                <i className="fa-regular fa-envelope"></i>{" "}
-                                                Send Email Reminder
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSecondary
-                                                    }
-                                                >
-                                                    BT
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Bea Tolentino
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberSince
-                                                        }
-                                                    >
-                                                        beatolentino@gmail.com
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="text-white">
-                                            Quarterly Pass
-                                        </td>
-                                        <td className="text-white">
-                                            Oct 27 (Sunday)
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={styles.badgeWarning}
-                                            >
-                                                In 4 days
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <button
-                                                className={
-                                                    styles.btnActionOutline
-                                                }
-                                            >
-                                                <i className="fa-regular fa-envelope"></i>{" "}
-                                                Send Email Reminder
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSecondary
-                                                    }
-                                                >
-                                                    EC
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Emmanuel Cruz
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberSince
-                                                        }
-                                                    >
-                                                        emman.cruz@outlook.com
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="text-white">
-                                            Monthly Student
-                                        </td>
-                                        <td className="text-white">
-                                            Oct 28 (Monday)
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.badgeSecondary
-                                                }
-                                            >
-                                                In 5 days
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <button
-                                                className={
-                                                    styles.btnActionOutline
-                                                }
-                                            >
-                                                <i className="fa-regular fa-envelope"></i>{" "}
-                                                Send Email Reminder
-                                            </button>
-                                        </td>
-                                    </tr>
+                                    {(prediction?.renewals || []).map((member) => {
+                                        const days = Math.max(0, Math.ceil((new Date(member.end_date) - new Date()) / 86400000));
+                                        return <tr key={member.member_id}><td><div className="d-flex align-items-center gap-3"><div className={styles.avatarSecondary}>{(member.full_name || "Member").split(" ").map((part) => part[0]).join("").slice(0, 2)}</div><div><strong className="d-block text-white mb-1">{member.full_name || "Member"}</strong><span className={styles.memberSince}>{member.email || "No email"}</span></div></div></td><td className="text-white">{member.membership_plans?.name || "Membership"}</td><td className="text-white">{new Date(member.end_date).toLocaleDateString()}</td><td><span className={days <= 3 ? styles.badgeDanger : styles.badgeWarning}>In {days} days</span></td><td><button className={styles.btnActionOutline} disabled={sending === member.member_id} onClick={() => sendReminder(member.member_id)}><i className="fa-regular fa-envelope"></i>{" "}{sending === member.member_id ? "Sending..." : "Send Email Reminder"}</button></td></tr>;
+                                    })}
+                                    {prediction && !prediction.renewals?.length && <tr><td colSpan="5" className="text-center text-secondary py-4">No memberships are expiring in the next 14 days.</td></tr>}
                                 </tbody>
                             </table>
                         </div>

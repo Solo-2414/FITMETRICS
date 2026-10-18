@@ -126,7 +126,7 @@ export default function ClerkMemberInformation() {
                                                 </td>
                                                 <td><span className={styles.subText}>{member.membership?.start_date || "—"}</span></td>
                                                 <td><strong className="d-block text-white">{member.membership?.end_date || "—"}</strong></td>
-                                                <td><span className={member.membership?.status === "active" ? styles.statusActive : styles.textWarning}>{member.membership?.status || "inactive"}</span></td>
+                                                <td><span className={member.membership?.status === "active" ? styles.statusActive : styles.textWarning}>{member.membership?.status || "inactive"}</span><button className="btn btn-sm btn-outline-primary ms-2" onClick={async () => { try { await api(`/clerk/members/${member.id}/information-email`, { method: "POST" }); setError(""); } catch (err) { setError(err.message); } }}>Send info email</button></td>
                                             </tr>
                                         ))}
                                     </tbody>

@@ -12,13 +12,14 @@ export async function api(path, { method = "GET", body } = {}) {
         data: { session },
     } = await supabase.auth.getSession();
 
+    const isFormData = body instanceof FormData;
     const res = await fetch(`${API_URL}${path}`, {
         method,
         headers: {
-            "Content-Type": "application/json",
+            ...(isFormData ? {} : { "Content-Type": "application/json" }),
             ...(session && { Authorization: `Bearer ${session.access_token}` }),
         },
-        body: body ? JSON.stringify(body) : undefined,
+        body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
     });
 
     const json = await res.json().catch(() => ({}));

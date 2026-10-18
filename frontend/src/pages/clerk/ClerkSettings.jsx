@@ -1,7 +1,47 @@
+import { useEffect, useRef, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
 import styles from "./ClerkSettings.module.css";
+import { api } from "../../lib/api";
+import { useAuth } from "../../context/AuthContext";
 
 export default function ClerkSettings() {
+    const { profile, refreshProfile } = useAuth();
+    const [settings, setSettings] = useState(null);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
+    const [phone, setPhone] = useState("");
+    const [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" });
+    const [preferences, setPreferences] = useState(() => ({
+        audioAlerts: localStorage.getItem("fitmetrics.audioAlerts") !== "false",
+        paymentPrompt: localStorage.getItem("fitmetrics.paymentPrompt") !== "false",
+    }));
+    const fileInput = useRef(null);
+    useEffect(() => {
+        api("/clerk/settings").then(setSettings).catch((err) => setError(err.message));
+    }, []);
+    useEffect(() => { setPhone(profile?.phone || ""); }, [profile?.phone]);
+    const names = (profile?.full_name || "").trim().split(/\s+/);
+    const firstName = names.shift() || "";
+    const lastName = names.join(" ");
+    const initials = (profile?.full_name || "Clerk").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+    const savePhone = async () => {
+        try { await api("/me", { method: "PATCH", body: { phone } }); await refreshProfile(); setSuccess("Profile updated."); setError(""); } catch (err) { setError(err.message); setSuccess(""); }
+    };
+    const updatePassword = async () => {
+        if (passwords.next !== passwords.confirm) { setError("New passwords do not match."); return; }
+        try { await api("/me/password", { method: "POST", body: { current_password: passwords.current, new_password: passwords.next } }); setPasswords({ current: "", next: "", confirm: "" }); setSuccess("Password updated."); setError(""); } catch (err) { setError(err.message); setSuccess(""); }
+    };
+    const uploadAvatar = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        if (!["image/jpeg", "image/png"].includes(file.type) || file.size > 5 * 1024 * 1024) { setError("Choose a JPG or PNG image under 5MB."); return; }
+        const body = new FormData(); body.append("avatar", file);
+        try { await api("/me/avatar", { method: "POST", body }); await refreshProfile(); setSuccess("Profile photo updated."); setError(""); } catch (err) { setError(err.message); setSuccess(""); }
+    };
+    const removeAvatar = async () => {
+        try { await api("/me/avatar", { method: "DELETE" }); await refreshProfile(); setSuccess("Profile photo removed."); setError(""); } catch (err) { setError(err.message); setSuccess(""); }
+    };
+    const setPreference = (key, value) => { setPreferences((current) => ({ ...current, [key]: value })); localStorage.setItem(`fitmetrics.${key}`, String(value)); };
     return (
         <ClerkLayout>
             <div
@@ -15,6 +55,8 @@ export default function ClerkSettings() {
                         terminal preferences
                     </p>
                 </div>
+                {error && <div className="alert alert-danger">{error}</div>}
+                {success && <div className="alert alert-success">{success}</div>}
             </div>
 
             <form onSubmit={(e) => e.preventDefault()}>
@@ -50,7 +92,7 @@ export default function ClerkSettings() {
                                         <input
                                             type="text"
                                             className={styles.formInputDisabled}
-                                            defaultValue="Juan"
+                                            value={firstName}
                                             disabled
                                         />
                                         <span className={styles.helperText}>
@@ -64,7 +106,7 @@ export default function ClerkSettings() {
                                         <input
                                             type="text"
                                             className={styles.formInputDisabled}
-                                            defaultValue="Ramirez"
+                                            value={lastName}
                                             disabled
                                         />
                                     </div>
@@ -77,7 +119,7 @@ export default function ClerkSettings() {
                                         <input
                                             type="email"
                                             className={styles.formInputDisabled}
-                                            defaultValue="juan.desk@analynsgym.com"
+                                            value={profile?.email || ""}
                                             disabled
                                         />
                                         <i className="fa-regular fa-envelope"></i>
@@ -91,10 +133,12 @@ export default function ClerkSettings() {
                                         <input
                                             type="text"
                                             className={styles.formInput}
-                                            defaultValue="+63 928 441 9082"
+                                            value={phone}
+                                            onChange={(event) => setPhone(event.target.value)}
                                         />
                                         <i className="fa-solid fa-phone"></i>
                                     </div>
+                                    <button type="button" className={styles.btnSave} onClick={savePhone}>Save Contact Phone</button>
                                 </div>
                             </div>
                         </div>
@@ -125,6 +169,8 @@ export default function ClerkSettings() {
                                         type="password"
                                         className={styles.formInput}
                                         placeholder="Enter current password"
+                                        value={passwords.current}
+                                        onChange={(event) => setPasswords((current) => ({ ...current, current: event.target.value }))}
                                     />
                                 </div>
                                 <div className="row g-3 mb-4">
@@ -136,6 +182,8 @@ export default function ClerkSettings() {
                                             type="password"
                                             className={styles.formInput}
                                             placeholder="Enter new password"
+                                            value={passwords.next}
+                                            onChange={(event) => setPasswords((current) => ({ ...current, next: event.target.value }))}
                                         />
                                     </div>
                                     <div className="col-12 col-md-6">
@@ -146,12 +194,15 @@ export default function ClerkSettings() {
                                             type="password"
                                             className={styles.formInput}
                                             placeholder="Confirm new password"
+                                            value={passwords.confirm}
+                                            onChange={(event) => setPasswords((current) => ({ ...current, confirm: event.target.value }))}
                                         />
                                     </div>
                                 </div>
                                 <button
                                     type="button"
                                     className={styles.btnOutlineWarning}
+                                    onClick={updatePassword}
                                 >
                                     <i className="fa-solid fa-shield-halved"></i>{" "}
                                     Update Password
@@ -175,7 +226,7 @@ export default function ClerkSettings() {
 
                             <div className={styles.cardBody}>
                                 <div className="d-flex flex-column align-items-center justify-content-center py-2">
-                                    <div className={styles.largeAvatar}>JR</div>
+                                    {profile?.avatar_url ? <img src={profile.avatar_url} alt="Clerk Avatar" className={styles.largeAvatar} /> : <div className={styles.largeAvatar}>{initials}</div>}
                                     <h4
                                         className="mt-3 mb-1 text-white"
                                         style={{
@@ -184,7 +235,7 @@ export default function ClerkSettings() {
                                             fontWeight: "700",
                                         }}
                                     >
-                                        Clerk Juan
+                                        {profile?.full_name || "Clerk"}
                                     </h4>
                                     <span className={styles.roleBadge}>
                                         Front Desk Staff
@@ -197,9 +248,11 @@ export default function ClerkSettings() {
                                     </p>
 
                                     <div className="d-flex gap-2 w-100">
+                                        <input ref={fileInput} type="file" accept="image/jpeg,image/png" onChange={uploadAvatar} hidden />
                                         <button
                                             type="button"
                                             className={`${styles.btnOutlinePrimary} flex-grow-1`}
+                                            onClick={() => fileInput.current?.click()}
                                         >
                                             <i className="fa-solid fa-camera"></i>{" "}
                                             Change Photo
@@ -207,6 +260,7 @@ export default function ClerkSettings() {
                                         <button
                                             type="button"
                                             className={styles.btnOutlineDanger}
+                                            onClick={removeAvatar}
                                         >
                                             <i className="fa-solid fa-trash"></i>
                                         </button>
@@ -254,7 +308,7 @@ export default function ClerkSettings() {
                                         </span>
                                     </div>
                                     <label className={styles.toggleSwitch}>
-                                        <input type="checkbox" defaultChecked />
+                                        <input type="checkbox" checked={preferences.audioAlerts} onChange={(event) => setPreference("audioAlerts", event.target.checked)} />
                                         <span
                                             className={styles.toggleSlider}
                                         ></span>
@@ -283,7 +337,7 @@ export default function ClerkSettings() {
                                         </span>
                                     </div>
                                     <label className={styles.toggleSwitch}>
-                                        <input type="checkbox" defaultChecked />
+                                        <input type="checkbox" checked={preferences.paymentPrompt} onChange={(event) => setPreference("paymentPrompt", event.target.checked)} />
                                         <span
                                             className={styles.toggleSlider}
                                         ></span>
@@ -307,12 +361,11 @@ export default function ClerkSettings() {
                                                 maxWidth: "200px",
                                             }}
                                         >
-                                            Receive end-of-shift ledger to your
-                                            staff email
+                                            Coming soon
                                         </span>
                                     </div>
                                     <label className={styles.toggleSwitch}>
-                                        <input type="checkbox" />
+                                        <input type="checkbox" disabled />
                                         <span
                                             className={styles.toggleSlider}
                                         ></span>
@@ -331,7 +384,7 @@ export default function ClerkSettings() {
                     <button type="button" className={styles.btnCancel}>
                         Cancel
                     </button>
-                    <button type="button" className={styles.btnSave}>
+                    <button type="button" className={styles.btnSave} onClick={savePhone}>
                         <i className="fa-regular fa-circle-check"></i> Save
                         Changes
                     </button>

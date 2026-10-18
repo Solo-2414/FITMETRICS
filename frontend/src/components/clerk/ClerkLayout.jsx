@@ -1,12 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { api } from "../../lib/api";
 import styles from "./ClerkLayout.module.css";
 
 export default function ClerkLayout({ children }) {
     const location = useLocation();
     const navigate = useNavigate();
     const { signOut, profile } = useAuth();
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [avatarFailed, setAvatarFailed] = useState(false);
+    useEffect(() => {
+        api("/clerk/notifications").then((items) => setUnreadCount(items.filter((item) => !item.read_at).length)).catch(() => setUnreadCount(0));
+    }, [location.pathname]);
+    const initials = (profile?.full_name || "Clerk").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
     const handleLogout = async (e) => {
         e.preventDefault();
@@ -15,13 +22,40 @@ export default function ClerkLayout({ children }) {
     };
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showFastCheckInModal, setShowFastCheckInModal] = useState(false);
+    const [checkInSearch, setCheckInSearch] = useState("");
+    const [checkInMember, setCheckInMember] = useState(null);
+    const [checkInMessage, setCheckInMessage] = useState("");
+    const [scannerBuffer, setScannerBuffer] = useState("");
 
     const closeSidebar = () => setIsSidebarOpen(false);
 
     const handleCheckInSubmit = (e) => {
         e.preventDefault();
-        setShowFastCheckInModal(false);
+        if (!checkInMember) return;
+        api("/clerk/attendance", { method: "POST", body: { member_id: checkInMember.id, method: "member_id" } })
+            .then(() => { setCheckInMessage("Check-in recorded."); setShowFastCheckInModal(false); })
+            .catch((error) => setCheckInMessage(error.message));
     };
+    useEffect(() => {
+        const onKeyDown = async (event) => {
+            if (event.key === "Enter") {
+                const code = scannerBuffer.trim();
+                setScannerBuffer("");
+                if (code.length < 3) return;
+                try {
+                    const rows = await api(`/clerk/members?search=${encodeURIComponent(code)}`);
+                    const member = rows.find((row) => row.member_details?.member_code === code || row.id === code);
+                    if (!member) throw new Error("No member matches this scan.");
+                    await api("/clerk/attendance", { method: "POST", body: { member_id: member.id, method: "qr" } });
+                    setCheckInMessage(`${member.full_name || "Member"} checked in.`);
+                } catch (error) { setCheckInMessage(error.message); }
+                return;
+            }
+            if (event.key.length === 1) setScannerBuffer((value) => `${value}${event.key}`.slice(-64));
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [scannerBuffer]);
 
     return (
         <div className={styles.layoutWrapper}>
@@ -46,7 +80,7 @@ export default function ClerkLayout({ children }) {
                 </div>
 
                 <div className={styles.quickScanWrapper}>
-                    <button className={styles.btnQuickScan}>
+                    <button className={styles.btnQuickScan} onClick={() => setShowFastCheckInModal(true)}>
                         <i className="fa-solid fa-qrcode"></i> Quick Scan
                     </button>
                 </div>
@@ -110,7 +144,7 @@ export default function ClerkLayout({ children }) {
                                 <i className="fa-regular fa-bell"></i>{" "}
                                 Notification
                             </span>
-                            <span className={styles.navBadge}>3</span>
+                            {unreadCount > 0 && <span className={styles.navBadge}>{unreadCount}</span>}
                         </div>
                     </Link>
                 </nav>
@@ -157,16 +191,12 @@ export default function ClerkLayout({ children }) {
                         >
                             <i className="fa-solid fa-plus"></i> Fast Check-in
                         </button>
-                        <button className={styles.btnNotification}>
+                        <button className={styles.btnNotification} onClick={() => navigate("/clerk/notification")}>
                             <i className="fa-regular fa-bell"></i>
-                            <span className={styles.notificationDot}></span>
+                            {unreadCount > 0 && <span className={styles.notificationDot}></span>}
                         </button>
                         <div className={styles.userInfo}>
-                            <img
-                                src="/placeholder.png"
-                                alt="Clerk Avatar"
-                                className={styles.avatarImg}
-                            />
+                            {avatarFailed ? <div className={styles.avatarImg}>{initials}</div> : <img src={profile?.avatar_url || "/placeholder.png"} alt="Clerk Avatar" className={styles.avatarImg} onError={() => setAvatarFailed(true)} />}
                             <div className="d-none d-sm-block">
                                 <h4>{profile?.full_name || "Clerk"}</h4>
                                 <p>Front Desk Staff</p>
@@ -204,9 +234,21 @@ export default function ClerkLayout({ children }) {
                                         placeholder="e.g. #FM-1042 or Juan dela Cruz"
                                         autoFocus
                                         required
+                                        value={checkInSearch}
+                                        onChange={async (event) => {
+                                            const value = event.target.value;
+                                            setCheckInSearch(value);
+                                            setCheckInMember(null);
+                                            if (value.trim().length >= 2) {
+                                                const rows = await api(`/clerk/members?search=${encodeURIComponent(value)}`);
+                                                setCheckInMember(rows[0] || null);
+                                            }
+                                        }}
                                     />
                                     <i className="fa-solid fa-magnifying-glass"></i>
                                 </div>
+                                {checkInMember && <p className="text-success">Selected: {checkInMember.full_name || checkInMember.email}</p>}
+                                {checkInMessage && <div className="alert alert-info">{checkInMessage}</div>}
                             </div>
 
                             <div
@@ -239,6 +281,7 @@ export default function ClerkLayout({ children }) {
                                 <button
                                     type="submit"
                                     className={styles.btnPrimaryModal}
+                                    disabled={!checkInMember}
                                 >
                                     Log Check-In
                                 </button>

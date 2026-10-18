@@ -1,11 +1,24 @@
 import { useState } from "react";
+import { useEffect } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberNotifications.module.css";
+import { api } from "../../lib/api";
 
 export default function MemberNotifications() {
     const [activeTab, setActiveTab] = useState("All");
 
-    const notifications = [
+    const [notifications, setNotifications] = useState([]);
+    const [error, setError] = useState("");
+    useEffect(() => {
+        api("/member/notifications").then((rows) => setNotifications(rows.map((row) => ({
+            ...row,
+            isRead: Boolean(row.read_at),
+            time: new Date(row.created_at).toLocaleString(),
+            icon: row.type === "payment" ? "fa-solid fa-file-invoice-dollar" : row.type === "alert" ? "fa-solid fa-clock" : "fa-solid fa-bullhorn",
+            iconColor: row.type === "alert" ? "text-warning" : "text-primary",
+        })))).catch((err) => setError(err.message));
+    }, []);
+    /* const notifications = [
         {
             id: 1,
             type: "alert",
@@ -61,7 +74,7 @@ export default function MemberNotifications() {
             time: "Sep 20, 2026",
             isRead: true,
         },
-    ];
+    ]; */
 
     const filteredNotifications =
         activeTab === "Unread"
@@ -81,7 +94,8 @@ export default function MemberNotifications() {
                         announcements, and messages from your coach.
                     </p>
                 </div>
-                <button className={styles.btnOutline}>
+                {error && <div className="alert alert-danger">{error}</div>}
+                <button className={styles.btnOutline} onClick={() => api("/member/notifications", { method: "PATCH" }).then(() => setNotifications((rows) => rows.map((row) => ({ ...row, isRead: true })))).catch((err) => setError(err.message))}>
                     <i className="fa-solid fa-check-double"></i> Mark all as
                     read
                 </button>

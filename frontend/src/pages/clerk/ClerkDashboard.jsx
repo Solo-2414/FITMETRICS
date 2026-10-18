@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
 import { api } from "../../lib/api";
 import styles from "./ClerkDashboard.module.css";
@@ -6,8 +7,13 @@ import styles from "./ClerkDashboard.module.css";
 export default function ClerkDashboard() {
     const [stats, setStats] = useState(null);
     const [error, setError] = useState("");
+    const [plans, setPlans] = useState([]);
+    const [reminderState, setReminderState] = useState("");
+    const navigate = useNavigate();
     useEffect(() => {
-        api("/clerk/dashboard").then(setStats).catch((err) => setError(err.message));
+        Promise.all([api("/clerk/dashboard"), api("/clerk/plans")])
+            .then(([dashboard, planRows]) => { setStats(dashboard); setPlans(planRows); })
+            .catch((err) => setError(err.message));
     }, []);
     return (
         <ClerkLayout>
@@ -158,25 +164,25 @@ export default function ClerkDashboard() {
                     </span>
                 </div>
                 <div className={styles.actionsScroll}>
-                    <button className={styles.btnQuickActionActive}>
-                        Record Walk-in / Day Pass (₱90)
+                    <button className={styles.btnQuickActionActive} onClick={() => navigate(`/clerk/payments?plan=session`)}>
+                        Record Walk-in / Day Pass ({plans.find((plan) => plan.code === "session")?.price ? `₱${Number(plans.find((plan) => plan.code === "session").price).toLocaleString()}` : "live price"})
                     </button>
-                    <button className={styles.btnQuickAction}>
+                    <button className={styles.btnQuickAction} onClick={() => navigate("/clerk/attendance")}>
                         <i className="fa-solid fa-id-card-clip"></i> Verify
                         Membership
                     </button>
-                    <button className={styles.btnQuickAction}>
+                    <button className={styles.btnQuickAction} onClick={() => navigate("/clerk/register")}>
                         <i className="fa-solid fa-user-plus"></i> New Member
                         Registration
                     </button>
-                    <button className={styles.btnQuickAction}>
+                    <button className={styles.btnQuickAction} onClick={() => navigate("/clerk/payments")}>
                         <i className="fa-solid fa-money-bill-wave"></i> Record
                         Member Payment
                     </button>
                 </div>
             </div>
 
-            <div className="row g-4 mt-1" style={{ display: "none" }}>
+            <div className="row g-4 mt-1">
                 <div
                     className="col-12 col-xl-8"
                     data-aos="fade-right"
@@ -501,9 +507,6 @@ export default function ClerkDashboard() {
                                     </p>
                                 </div>
                             </div>
-                            <span className={styles.statusBalanced}>
-                                Balanced
-                            </span>
                         </div>
 
                         <div className="d-flex flex-column gap-3 mb-4 border-bottom border-secondary pb-4">
@@ -516,7 +519,7 @@ export default function ClerkDashboard() {
                                     Starting morning float
                                 </span>
                                 <strong className="text-white">
-                                    ₱0.00
+                                    ₱{Number(localStorage.getItem("fitmetrics_opening_float") || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </strong>
                             </div>
                             <div
@@ -561,7 +564,7 @@ export default function ClerkDashboard() {
                                         fontWeight: "700",
                                     }}
                                 >
-                                    ₱{stats ? Number(stats.cashCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}
+                                    ₱{stats ? (Number(stats.cashCollected) + Number(localStorage.getItem("fitmetrics_opening_float") || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}
                                 </h3>
                             </div>
                             <div className="text-end">
@@ -605,11 +608,22 @@ export default function ClerkDashboard() {
                                 </div>
                             </div>
                             <span className={styles.warningBadge}>
-                                3 Members
+                                {stats?.expiringSoon?.length || 0} Members
                             </span>
                         </div>
 
                         <div className="d-flex flex-column gap-4">
+                            {stats?.expiringSoon?.map((member) => (
+                                <div className={styles.expiringItem} key={member.id}>
+                                    <div className="d-flex justify-content-between align-items-start mb-3">
+                                        <div><h6 className="text-white mb-1" style={{ fontSize: "0.95rem" }}>{member.member_name}</h6><span className="text-secondary d-block mb-1" style={{ fontSize: "0.75rem" }}>{member.membership_plans?.name || "Membership"} · Expires {member.end_date}</span></div>
+                                        <span className={member.days_left <= 1 ? styles.badgeDanger : styles.badgeWarning}>{member.days_left === 0 ? "Expires today" : `Expires in ${member.days_left} days`}</span>
+                                    </div>
+                                    <div className="d-flex gap-2"><button className={styles.btnActionPrimary} onClick={() => navigate("/clerk/membership")}><i className="fa-solid fa-rotate-right"></i> Renew Membership</button><button className={styles.btnActionOutline} disabled={!member.member_email} onClick={async () => { setReminderState(member.id); try { await api(`/clerk/members/${member.member_id}/expiry-reminder`, { method: "POST", body: { membership_id: member.id } }); setReminderState(`${member.id}:sent`); } catch (err) { setError(err.message); setReminderState(""); } }}><i className="fa-regular fa-envelope"></i> {reminderState === `${member.id}:sent` ? "Reminder Sent" : reminderState === member.id ? "Sending..." : "Send Reminder Email"}</button></div>
+                                </div>
+                            ))}
+                            {!stats?.expiringSoon?.length && <div className="text-secondary text-center">No memberships are expiring soon.</div>}
+                            <div style={{ display: "none" }}>
                             <div className={styles.expiringItem}>
                                 <div className="d-flex justify-content-between align-items-start mb-3">
                                     <div>
@@ -716,6 +730,7 @@ export default function ClerkDashboard() {
                         </p>
                     </div>
                 </div>
+            </div>
             </div>
         </ClerkLayout>
     );

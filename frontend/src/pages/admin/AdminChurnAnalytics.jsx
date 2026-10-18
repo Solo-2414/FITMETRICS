@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -11,6 +11,7 @@ import {
 import { Bar } from "react-chartjs-2";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminChurnAnalytics.module.css";
+import { api } from "../../lib/api";
 
 ChartJS.register(
     CategoryScale,
@@ -26,13 +27,23 @@ export default function AdminChurnAnalytics() {
         "We miss you at Analyn's Gym! Come get your workout in today.",
     );
     const [isEditingPrompt, setIsEditingPrompt] = useState(false);
+    const [members, setMembers] = useState([]);
+    const [stats, setStats] = useState(null);
+    const [trend, setTrend] = useState([]);
+    const [sending, setSending] = useState("");
+    const [error, setError] = useState("");
+    useEffect(() => {
+        api("/admin/churn").then((result) => { setMembers(result.members || []); setStats(result.stats); setTrend(result.trend || []); }).catch((err) => setError(err.message));
+    }, []);
+    const inactive = members.filter((member) => member.days_inactive >= 14).length;
+    const expiring = members.filter((member) => member.expiry_date && Math.ceil((new Date(member.expiry_date) - new Date()) / 86400000) <= 7).length;
 
     const chartData = {
-        labels: ["Nov", "Dec", "Jan", "Feb", "Mar", "Apr (Current)"],
+        labels: trend.map((item) => item.label),
         datasets: [
             {
                 label: "Returning Members",
-                data: [1300, 1250, 1650, 1500, 1550, 1600],
+                data: trend.map((item) => item.visits),
                 backgroundColor: "#10b981",
                 borderRadius: 4,
                 barPercentage: 0.6,
@@ -40,7 +51,7 @@ export default function AdminChurnAnalytics() {
             },
             {
                 label: "Total Visits",
-                data: [1410, 1360, 1780, 1620, 1695, 1740],
+                data: trend.map((item) => item.visits),
                 backgroundColor: "#38bdf8",
                 borderRadius: 4,
                 barPercentage: 0.6,
@@ -79,6 +90,7 @@ export default function AdminChurnAnalytics() {
 
     return (
         <AdminLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <h1 className={styles.pageTitle}>Churn Analytics</h1>
                 <p className={styles.pageDesc}>
@@ -96,7 +108,7 @@ export default function AdminChurnAnalytics() {
                                 <i className="fa-regular fa-circle-check"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>184</h3>
+                        <h3 className={styles.kpiValue}>{stats?.visitedThisMonth ?? "..."}</h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
                             <span className={styles.kpiPositive}>
                                 <i className="fa-solid fa-arrow-up"></i> Active
@@ -118,7 +130,7 @@ export default function AdminChurnAnalytics() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            22{" "}
+                            {stats?.inactive14 ?? "..."}{" "}
                             <span className={styles.kpiValueUnit}>members</span>
                         </h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
@@ -141,7 +153,7 @@ export default function AdminChurnAnalytics() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            14{" "}
+                            {stats?.endingSoon ?? "..."}{" "}
                             <span className={styles.kpiValueUnit}>members</span>
                         </h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
@@ -163,7 +175,7 @@ export default function AdminChurnAnalytics() {
                                 <i className="fa-solid fa-rotate"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>88%</h3>
+                        <h3 className={styles.kpiValue}>{stats?.renewalRate ?? "..."}%</h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
                             <span className={styles.kpiPositive}>
                                 <i className="fa-solid fa-arrow-trend-up"></i>{" "}
@@ -233,7 +245,7 @@ export default function AdminChurnAnalytics() {
                                         Members Who Haven't Visited in 14+ Days
                                     </h4>
                                     <span className={styles.totalBadge}>
-                                        22 Total
+                                        {stats?.inactive14 ?? "..."} Total
                                     </span>
                                 </div>
                                 <p className={styles.panelDesc}>
@@ -297,267 +309,16 @@ export default function AdminChurnAnalytics() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div className={styles.avatar}>
-                                                    CM
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Carlos Mendoza
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberSince
-                                                        }
-                                                    >
-                                                        Member since Jan 2024
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeOutline
-                                                }
-                                            >
-                                                Monthly
-                                            </span>
-                                        </td>
-                                        <td>Mar 28, 2025</td>
-                                        <td>
-                                            <span
-                                                className={styles.badgeWarning}
-                                            >
-                                                16 days ago
-                                            </span>
-                                        </td>
-                                        <td>carlos.m@example.com</td>
-                                        <td>
-                                            <button
-                                                className={
-                                                    styles.btnActionOutline
-                                                }
-                                            >
-                                                <i className="fa-regular fa-paper-plane"></i>{" "}
-                                                Send Friendly Email
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSecondary
-                                                    }
-                                                >
-                                                    BB
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Bea Bautista
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberSince
-                                                        }
-                                                    >
-                                                        Member since Nov 2024
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgePrimary
-                                                }
-                                            >
-                                                Student Monthly
-                                            </span>
-                                        </td>
-                                        <td>Mar 25, 2025</td>
-                                        <td>
-                                            <span
-                                                className={styles.badgeWarning}
-                                            >
-                                                19 days ago
-                                            </span>
-                                        </td>
-                                        <td>bea.bautista@univ.edu.ph</td>
-                                        <td>
-                                            <button
-                                                className={
-                                                    styles.btnActionOutline
-                                                }
-                                            >
-                                                <i className="fa-regular fa-paper-plane"></i>{" "}
-                                                Send Friendly Email
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSuccess
-                                                    }
-                                                >
-                                                    RC
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Rafael Cruz
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberSince
-                                                        }
-                                                    >
-                                                        Member since Aug 2023
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeOutline
-                                                }
-                                            >
-                                                Two Weeks
-                                            </span>
-                                        </td>
-                                        <td>Mar 22, 2025</td>
-                                        <td>
-                                            <span
-                                                className={styles.badgeDanger}
-                                            >
-                                                22 days ago
-                                            </span>
-                                        </td>
-                                        <td>rafael.cruz91@gmail.com</td>
-                                        <td>
-                                            <button
-                                                className={
-                                                    styles.btnActionOutline
-                                                }
-                                            >
-                                                <i className="fa-regular fa-paper-plane"></i>{" "}
-                                                Send Friendly Email
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarPrimary
-                                                    }
-                                                >
-                                                    GL
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Grace Lim
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberSince
-                                                        }
-                                                    >
-                                                        Member since Feb 2025
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeOutline
-                                                }
-                                            >
-                                                Weekly
-                                            </span>
-                                        </td>
-                                        <td>Mar 27, 2025</td>
-                                        <td>
-                                            <span
-                                                className={styles.badgeWarning}
-                                            >
-                                                17 days ago
-                                            </span>
-                                        </td>
-                                        <td>grace.lim.design@gmail.com</td>
-                                        <td>
-                                            <button
-                                                className={
-                                                    styles.btnActionOutline
-                                                }
-                                            >
-                                                <i className="fa-regular fa-paper-plane"></i>{" "}
-                                                Send Friendly Email
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSuccess
-                                                    }
-                                                >
-                                                    MR
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Mark Anthony Reyes
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberSince
-                                                        }
-                                                    >
-                                                        Member since Dec 2024
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeOutline
-                                                }
-                                            >
-                                                Monthly
-                                            </span>
-                                        </td>
-                                        <td>Mar 20, 2025</td>
-                                        <td>
-                                            <span
-                                                className={styles.badgeDanger}
-                                            >
-                                                24 days ago
-                                            </span>
-                                        </td>
-                                        <td>mark.reyes88@yahoo.com</td>
-                                        <td>
-                                            <button
-                                                className={
-                                                    styles.btnActionOutline
-                                                }
-                                            >
-                                                <i className="fa-regular fa-paper-plane"></i>{" "}
-                                                Send Friendly Email
-                                            </button>
-                                        </td>
-                                    </tr>
+                                    {members.filter((member) => member.days_inactive >= 14).slice(0, 5).map((member, index) => (
+                                        <tr key={member.member_id}>
+                                            <td><div className="d-flex align-items-center gap-3"><div className={index % 2 ? styles.avatarSecondary : styles.avatar}>{(member.full_name || "Member").split(" ").map((part) => part[0]).join("").slice(0, 2)}</div><div><strong className="d-block text-white mb-1">{member.full_name || "Member"}</strong><span className={styles.memberSince}>Active member</span></div></div></td>
+                                            <td><span className={styles.planBadgeOutline}>{member.plan_name || "Membership"}</span></td>
+                                            <td>{member.last_visit_date ? new Date(member.last_visit_date).toLocaleDateString() : "No visit recorded"}</td>
+                                            <td><span className={member.days_inactive >= 30 ? styles.badgeDanger : styles.badgeWarning}>{member.days_inactive >= 999 ? "No visits" : `${member.days_inactive} days ago`}</span></td>
+                                            <td>{member.email || member.phone || "No contact"}</td>
+                                            <td><button className={styles.btnActionOutline} disabled={sending === member.member_id} onClick={async () => { setSending(member.member_id); try { await api(`/admin/churn/${member.member_id}/reminder`, { method: "POST", body: { message: promptText } }); } catch (err) { setError(err.message); } finally { setSending(""); } }}><i className="fa-regular fa-paper-plane"></i>{" "}{sending === member.member_id ? "Sending..." : "Send Friendly Email"}</button></td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>

@@ -1,9 +1,17 @@
+import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberMembership.module.css";
+import { api } from "../../lib/api";
 
 export default function MemberMembership() {
+    const [data, setData] = useState(null);
+    const [error, setError] = useState("");
+    useEffect(() => { api("/member/membership").then(setData).catch((err) => setError(err.message)); }, []);
+    const current = data?.current;
+    const currentPlan = current?.membership_plans;
     return (
         <MemberLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <div>
                     <h1 className={styles.pageTitle}>Membership & Passes</h1>
@@ -24,7 +32,7 @@ export default function MemberMembership() {
                                 CURRENT SUBSCRIPTION
                             </span>
                             <span className={styles.validityBadge}>
-                                Active · Valid until Nov 28, 2025
+                                {current ? `${current.status} · Valid until ${new Date(current.end_date).toLocaleDateString()}` : "Loading membership..."}
                             </span>
                         </div>
 
@@ -38,7 +46,7 @@ export default function MemberMembership() {
                                         fontWeight: "700",
                                     }}
                                 >
-                                    Monthly Regular Pass
+                                    {currentPlan?.name || "No active membership"}
                                 </h2>
                                 <p
                                     className="text-secondary mb-0"
@@ -47,12 +55,12 @@ export default function MemberMembership() {
                                         maxWidth: "500px",
                                     }}
                                 >
-                                    Full 30-day access to free weights, squat
+                                    {currentPlan?.description || "Membership details will appear here once your plan is active."}
                                     racks, cables & floor gear.
                                 </p>
                             </div>
                             <div className={styles.subPrice}>
-                                <h3>₱990</h3>
+                                <h3>₱{currentPlan ? Number(currentPlan.price).toLocaleString() : "..."}</h3>
                                 <span>/ month</span>
                             </div>
                         </div>
@@ -68,7 +76,7 @@ export default function MemberMembership() {
                                             Assigned Coach Add-on
                                         </span>
                                         <h5 className={styles.addonValue}>
-                                            Coach Mark
+                                            {current?.coaches?.display_name || "No coach assigned"}
                                         </h5>
                                     </div>
                                     <div className={styles.addonPrice}>

@@ -8,7 +8,9 @@ import {
     Legend,
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
+import { useEffect, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
+import { api } from "../../lib/api";
 import styles from "./AdminDashboard.module.css";
 
 ChartJS.register(
@@ -21,25 +23,23 @@ ChartJS.register(
 );
 
 export default function AdminDashboard() {
+    const [dashboard, setDashboard] = useState(null);
+    const [error, setError] = useState("");
+    useEffect(() => {
+        api("/admin/dashboard").then(setDashboard).catch((err) => setError(err.message));
+    }, []);
+    const kpis = dashboard?.kpis || {};
+    const peak = dashboard?.today?.hourlyVisits || [];
+    const recentCheckIns = dashboard?.recentCheckIns || [];
+    const expiringSoon = dashboard?.expiringSoon || [];
+    const planDistribution = dashboard?.planDistribution || [];
+    const totalPlans = planDistribution.reduce((sum, plan) => sum + Number(plan.count || 0), 0);
     const chartData = {
-        labels: [
-            "6a",
-            "7a",
-            "8a",
-            "10a",
-            "12p",
-            "2p",
-            "4p",
-            "5p",
-            "6p",
-            "7p",
-            "8p",
-            "9p",
-        ],
+        labels: peak.map((row) => `${row.hour}:00`),
         datasets: [
             {
                 label: "Visits",
-                data: [4, 6, 8, 5, 12, 10, 14, 18, 22, 16, 9, 5],
+                data: peak.map((row) => Number(row.visits)),
                 backgroundColor: (context) => {
                     const value = context.raw;
                     return value >= 20 ? "#f59e0b" : "#38bdf8";
@@ -82,10 +82,11 @@ export default function AdminDashboard() {
                         Daily summary, member attendance, and gym sales overview
                     </p>
                 </div>
+                {error && <div className="alert alert-danger">{error}</div>}
                 <div className={styles.timeBadge}>
                     <i className="fa-regular fa-calendar"></i> Today: Friday,
                     October 24{" "}
-                    <span className={styles.shiftText}>Evening Shift</span>
+                    <span className={styles.shiftText}>{new Date().toLocaleTimeString([], { hour: "numeric" })}</span>
                 </div>
             </div>
 
@@ -98,12 +99,12 @@ export default function AdminDashboard() {
                                 <i className="fa-solid fa-money-bill"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>₱4,850</h3>
+                        <h3 className={styles.kpiValue}>₱{dashboard ? Number(dashboard.today?.sales || 0).toLocaleString() : "..."}</h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
-                            <span className={styles.kpiSub}>Cash & GCash</span>
+                            <span className={styles.kpiSub}>Paid transactions today</span>
                             <span className={styles.kpiPositive}>
-                                <i className="fa-solid fa-arrow-trend-up"></i>{" "}
-                                +18% vs yesterday
+                                <i className="fa-solid fa-chart-line"></i>{" "}
+                                Live today
                             </span>
                         </div>
                     </div>
@@ -117,7 +118,7 @@ export default function AdminDashboard() {
                                 <i className="fa-solid fa-users"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>184 Members</h3>
+                        <h3 className={styles.kpiValue}>{kpis.active_members ?? "..."} Members</h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
                             <span className={styles.kpiSub}>
                                 82% on monthly
@@ -138,7 +139,7 @@ export default function AdminDashboard() {
                                 <i className="fa-solid fa-person-walking-arrow-right"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>56 Visits</h3>
+                        <h3 className={styles.kpiValue}>{dashboard ? (dashboard.today?.checkIns ?? 0) : "..."} Visits</h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
                             <span className={styles.kpiSub}>
                                 Est. 80 peak total
@@ -158,7 +159,7 @@ export default function AdminDashboard() {
                                 <i className="fa-regular fa-calendar-xmark"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>8 Members</h3>
+                        <h3 className={styles.kpiValue}>{dashboard ? (dashboard.today?.expiringCount ?? 0) : "..."} Members</h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
                             <span className={styles.kpiSub}>Next 3 days</span>
                             <span className={styles.kpiWarning}>
@@ -186,7 +187,7 @@ export default function AdminDashboard() {
                             <div className="d-flex align-items-center gap-3">
                                 <span className={styles.chartLegend}>
                                     <span className={styles.dotPrimary}></span>{" "}
-                                    Peak Evening (18-22 visits)
+                                    Today's visits
                                 </span>
                             </div>
                         </div>
@@ -195,8 +196,8 @@ export default function AdminDashboard() {
                             <i className="fa-regular fa-circle-check text-success"></i>
                             <span>
                                 Gym capacity comfortable{" "}
-                                <strong>(Max occupancy 35 persons)</strong> ·
-                                Peak window: <strong>5:30 PM - 7:30 PM</strong>
+                                <strong>(live capacity)</strong> ·
+                                Live attendance flow from today's recorded check-ins
                             </span>
                         </div>
 
@@ -208,9 +209,9 @@ export default function AdminDashboard() {
                             className="d-flex justify-content-between align-items-center mt-3 pt-3 border-top border-secondary text-secondary"
                             style={{ fontSize: "0.8rem" }}
                         >
-                            <span>Morning rush: 7:00 AM (7 visits)</span>
+                            <span>Total today: {dashboard?.today?.checkIns ?? 0} check-ins</span>
                             <span className="text-white fw-bold">
-                                Current Floor Crowd: 24 members
+                                Current open visits: {dashboard?.today?.openVisits ?? 0}
                             </span>
                         </div>
                     </div>
@@ -241,7 +242,7 @@ export default function AdminDashboard() {
                                 </div>
                             </div>
                             <button className={styles.btnLink}>
-                                View all 56 visits today{" "}
+                                View all {dashboard?.today?.checkIns ?? 0} visits today{" "}
                                 <i className="fa-solid fa-arrow-right"></i>
                             </button>
                         </div>
@@ -256,113 +257,7 @@ export default function AdminDashboard() {
                                         <th>RECORDED BY</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                Jerome Bautista
-                                            </strong>
-                                            <span className={styles.memberId}>
-                                                #FM-1042
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeOutline
-                                                }
-                                            >
-                                                Monthly
-                                            </span>
-                                        </td>
-                                        <td className="text-white">5:42 PM</td>
-                                        <td>Staff Juan</td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                Kimberly Cruz
-                                            </strong>
-                                            <span className={styles.memberId}>
-                                                #FM-1088
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgePrimary
-                                                }
-                                            >
-                                                Student Monthly
-                                            </span>
-                                        </td>
-                                        <td className="text-white">5:38 PM</td>
-                                        <td>Staff Maria</td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                Ramon Mercado
-                                            </strong>
-                                            <span className={styles.memberId}>
-                                                #FM-Walkin-12
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeWarning
-                                                }
-                                            >
-                                                Session P90
-                                            </span>
-                                        </td>
-                                        <td className="text-white">5:31 PM</td>
-                                        <td>Staff Juan</td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                Dennis Villanueva
-                                            </strong>
-                                            <span className={styles.memberId}>
-                                                #FM-0994
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeOutline
-                                                }
-                                            >
-                                                Weekly Plan
-                                            </span>
-                                        </td>
-                                        <td className="text-white">5:24 PM</td>
-                                        <td>Staff Maria</td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                Camille Solis
-                                            </strong>
-                                            <span className={styles.memberId}>
-                                                #FM-1102
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeOutline
-                                                }
-                                            >
-                                                Monthly
-                                            </span>
-                                        </td>
-                                        <td className="text-white">5:15 PM</td>
-                                        <td>Staff Juan</td>
-                                    </tr>
-                                </tbody>
+                                <tbody>{recentCheckIns.map((row) => <tr key={row.id}><td><strong className="d-block text-white mb-1">{row.member?.full_name || "Walk-in"}</strong><span className={styles.memberId}>{row.member?.member_details?.member_code || row.member_id}</span></td><td><span className={styles.planBadgeOutline}>{row.member?.membership_plan || "Active membership"}</span></td><td className="text-white">{new Date(row.check_in_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</td><td>{row.recordedByName}</td></tr>)}{dashboard && !recentCheckIns.length && <tr><td colSpan="4" className="text-center text-secondary py-4">No check-ins recorded today.</td></tr>}</tbody>
                             </table>
                         </div>
                     </div>
@@ -378,7 +273,7 @@ export default function AdminDashboard() {
                             <i className="fa-regular fa-bell-slash text-warning fs-5"></i>
                             <h4 className={styles.panelTitle}>Expiring Soon</h4>
                             <span className={styles.warningBadge}>
-                                3 Days Window
+                                {expiringSoon.length} in 3 Days
                             </span>
                         </div>
                         <p
@@ -388,94 +283,7 @@ export default function AdminDashboard() {
                             Polite email notifications ready to send to members
                         </p>
 
-                        <div className="d-flex flex-column gap-3 mb-4">
-                            <div className={styles.expiringCard}>
-                                <div>
-                                    <h6 className="text-white mb-1">
-                                        Grace Tan
-                                    </h6>
-                                    <div
-                                        className="text-danger"
-                                        style={{
-                                            fontSize: "0.75rem",
-                                            fontWeight: "600",
-                                            marginBottom: "4px",
-                                        }}
-                                    >
-                                        <i className="fa-regular fa-clock"></i>{" "}
-                                        Expires Tomorrow
-                                    </div>
-                                    <span
-                                        className="text-secondary"
-                                        style={{ fontSize: "0.75rem" }}
-                                    >
-                                        Regular Monthly (₱990)
-                                    </span>
-                                </div>
-                                <button className={styles.btnActionOutline}>
-                                    <i className="fa-regular fa-envelope"></i>{" "}
-                                    Send Email
-                                </button>
-                            </div>
-
-                            <div className={styles.expiringCard}>
-                                <div>
-                                    <h6 className="text-white mb-1">
-                                        Carlo Dizon
-                                    </h6>
-                                    <div
-                                        className="text-warning"
-                                        style={{
-                                            fontSize: "0.75rem",
-                                            fontWeight: "600",
-                                            marginBottom: "4px",
-                                        }}
-                                    >
-                                        <i className="fa-regular fa-clock"></i>{" "}
-                                        Expires in 2 days
-                                    </div>
-                                    <span
-                                        className="text-secondary"
-                                        style={{ fontSize: "0.75rem" }}
-                                    >
-                                        Student Monthly (₱750)
-                                    </span>
-                                </div>
-                                <button className={styles.btnActionOutline}>
-                                    <i className="fa-regular fa-envelope"></i>{" "}
-                                    Send Email
-                                </button>
-                            </div>
-
-                            <div className={styles.expiringCard}>
-                                <div>
-                                    <h6 className="text-white mb-1">
-                                        Sheryl Ramos
-                                    </h6>
-                                    <div
-                                        className="text-secondary"
-                                        style={{
-                                            fontSize: "0.75rem",
-                                            fontWeight: "600",
-                                            marginBottom: "4px",
-                                        }}
-                                    >
-                                        <i className="fa-regular fa-clock"></i>{" "}
-                                        Expires in 3 days
-                                    </div>
-                                    <span
-                                        className="text-secondary"
-                                        style={{ fontSize: "0.75rem" }}
-                                    >
-                                        Two Weeks Plan (₱540)
-                                    </span>
-                                </div>
-                                <button className={styles.btnActionOutline}>
-                                    <i className="fa-regular fa-envelope"></i>{" "}
-                                    Send Email
-                                </button>
-                            </div>
-                        </div>
+                        <div className="d-flex flex-column gap-3 mb-4">{expiringSoon.slice(0, 3).map((membership) => { const days = Math.max(0, Math.ceil((new Date(membership.end_date) - new Date()) / 86400000)); return <div className={styles.expiringCard} key={membership.id}><div><h6 className="text-white mb-1">{membership.member?.full_name || "Member"}</h6><div className={days <= 1 ? "text-danger" : "text-warning"} style={{ fontSize: "0.75rem", fontWeight: "600", marginBottom: "4px" }}><i className="fa-regular fa-clock"></i>{" "}Expires {days === 0 ? "today" : `in ${days} day${days === 1 ? "" : "s"}`}</div><span className="text-secondary" style={{ fontSize: "0.75rem" }}>{membership.membership_plans?.name || "Membership"}</span></div><button className={styles.btnActionOutline}><i className="fa-regular fa-envelope"></i>{" "}Send Email</button></div>; })}{dashboard && !expiringSoon.length && <div className="text-secondary py-3">No memberships expire within the next 3 days.</div>}</div>
 
                         <button className={styles.btnPrimaryFull}>
                             <i className="fa-solid fa-paper-plane"></i> Send
@@ -496,8 +304,8 @@ export default function AdminDashboard() {
                             Active Membership Plan Distribution
                         </h4>
                         <p className={styles.panelDesc}>
-                            Current enrollment split across 184 active
-                            subscription contracts and today's sessions
+                            Current enrollment split across {totalPlans} active
+                            membership contracts
                         </p>
                     </div>
                     <span
@@ -508,153 +316,16 @@ export default function AdminDashboard() {
                     </span>
                 </div>
 
-                <div className={styles.distributionBar}>
-                    <div
-                        style={{
-                            width: "53.2%",
-                            backgroundColor: "var(--primary-color)",
-                        }}
-                    ></div>
-                    <div
-                        style={{
-                            width: "29.3%",
-                            backgroundColor: "var(--header-text-color)",
-                        }}
-                    ></div>
-                    <div
-                        style={{
-                            width: "9.7%",
-                            backgroundColor: "var(--green-color)",
-                        }}
-                    ></div>
-                    <div
-                        style={{ width: "7.6%", backgroundColor: "#f59e0b" }}
-                    ></div>
+                                <div className={styles.distributionBar}>
+                    {planDistribution.map((plan, index) => <div key={plan.id} style={{ width: `${totalPlans ? (plan.count / totalPlans) * 100 : 0}%`, backgroundColor: ["var(--primary-color)", "var(--header-text-color)", "var(--green-color)", "#f59e0b"][index % 4] }}></div>)}
                 </div>
 
                 <div className="row g-3 mt-3">
-                    <div className="col-6 col-md-3">
-                        <div className={styles.distBox}>
-                            <div className="d-flex align-items-center gap-2 mb-2">
-                                <span className={styles.dotPrimary}></span>
-                                <span className={styles.distLabel}>
-                                    Monthly (Regular)
-                                </span>
-                            </div>
-                            <div className="d-flex align-items-baseline gap-2 mb-1">
-                                <h4
-                                    className="text-white m-0"
-                                    style={{
-                                        fontFamily: "var(--heading-font)",
-                                        fontWeight: "700",
-                                    }}
-                                >
-                                    98
-                                </h4>
-                                <span
-                                    className="text-secondary"
-                                    style={{ fontSize: "0.75rem" }}
-                                >
-                                    (53.2%)
-                                </span>
-                            </div>
-                            <span className={styles.distPrice}>
-                                ₱990 / month
-                            </span>
-                        </div>
-                    </div>
-                    <div className="col-6 col-md-3">
-                        <div className={styles.distBox}>
-                            <div className="d-flex align-items-center gap-2 mb-2">
-                                <span className={styles.dotWhite}></span>
-                                <span className={styles.distLabel}>
-                                    Student Monthly
-                                </span>
-                            </div>
-                            <div className="d-flex align-items-baseline gap-2 mb-1">
-                                <h4
-                                    className="text-white m-0"
-                                    style={{
-                                        fontFamily: "var(--heading-font)",
-                                        fontWeight: "700",
-                                    }}
-                                >
-                                    54
-                                </h4>
-                                <span
-                                    className="text-secondary"
-                                    style={{ fontSize: "0.75rem" }}
-                                >
-                                    (29.3%)
-                                </span>
-                            </div>
-                            <span className={styles.distPrice}>
-                                ₱750 / month
-                            </span>
-                        </div>
-                    </div>
-                    <div className="col-6 col-md-3">
-                        <div className={styles.distBox}>
-                            <div className="d-flex align-items-center gap-2 mb-2">
-                                <span className={styles.dotGreen}></span>
-                                <span className={styles.distLabel}>
-                                    Two Weeks Plan
-                                </span>
-                            </div>
-                            <div className="d-flex align-items-baseline gap-2 mb-1">
-                                <h4
-                                    className="text-white m-0"
-                                    style={{
-                                        fontFamily: "var(--heading-font)",
-                                        fontWeight: "700",
-                                    }}
-                                >
-                                    18
-                                </h4>
-                                <span
-                                    className="text-secondary"
-                                    style={{ fontSize: "0.75rem" }}
-                                >
-                                    (9.7%)
-                                </span>
-                            </div>
-                            <span className={styles.distPrice}>
-                                ₱540 / 14 days
-                            </span>
-                        </div>
-                    </div>
-                    <div className="col-6 col-md-3">
-                        <div className={styles.distBox}>
-                            <div className="d-flex align-items-center gap-2 mb-2">
-                                <span className={styles.dotWarning}></span>
-                                <span className={styles.distLabel}>
-                                    Weekly Plan
-                                </span>
-                            </div>
-                            <div className="d-flex align-items-baseline gap-2 mb-1">
-                                <h4
-                                    className="text-white m-0"
-                                    style={{
-                                        fontFamily: "var(--heading-font)",
-                                        fontWeight: "700",
-                                    }}
-                                >
-                                    14
-                                </h4>
-                                <span
-                                    className="text-secondary"
-                                    style={{ fontSize: "0.75rem" }}
-                                >
-                                    (7.6%)
-                                </span>
-                            </div>
-                            <span className={styles.distPrice}>
-                                ₱270 / week
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </AdminLayout>
+                    {planDistribution.map((plan, index) => {
+                        const percentage = totalPlans ? ((plan.count / totalPlans) * 100).toFixed(1) : "0.0";
+                        return <div className="col-6 col-md-3" key={plan.id}><div className={styles.distBox}><div className="d-flex align-items-center gap-2 mb-2"><span className={[styles.dotPrimary, styles.dotWhite, styles.dotGreen, styles.dotWarning][index % 4]}></span><span className={styles.distLabel}>{plan.name}</span></div><div className="d-flex align-items-baseline gap-2 mb-1"><h4 className="text-white m-0" style={{ fontFamily: "var(--heading-font)", fontWeight: "700" }}>{plan.count}</h4><span className="text-secondary" style={{ fontSize: "0.75rem" }}>({percentage}%)</span></div><span className={styles.distPrice}>₱{Number(plan.price || 0).toLocaleString()}</span></div></div>;
+                    })}
+                    {dashboard && !planDistribution.length && <div className="col-12 text-secondary">No active membership plans.</div>}
+                </div>            </div>\n        </AdminLayout>
     );
 }

@@ -1,9 +1,19 @@
+import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout.jsx";
 import styles from "./MemberDashboard.module.css";
+import { api } from "../../lib/api";
 
 export default function MemberDashboard() {
+    const [dashboard, setDashboard] = useState(null);
+    const [error, setError] = useState("");
+    useEffect(() => { api("/member/dashboard").then(setDashboard).catch((err) => setError(err.message)); }, []);
+    const membership = dashboard?.membership;
+    const plan = membership?.membership_plans;
+    const attendance = dashboard?.attendance;
+    const expiration = membership?.end_date ? new Date(membership.end_date).toLocaleDateString() : "...";
     return (
         <MemberLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
             <div
                 className={`${styles.welcomeBanner} p-4 mb-4`}
                 data-aos="fade-down"
@@ -15,10 +25,10 @@ export default function MemberDashboard() {
                 <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mt-3 gap-3">
                     <div>
                         <h1 className={styles.welcomeTitle}>
-                            Welcome back, Michael!
+                            Welcome back, {membership?.profiles?.first_name || "member"}!
                         </h1>
                         <p className={styles.welcomeSub}>
-                            Keep up the momentum. 4 visits logged this week.
+                            Keep up the momentum. {attendance?.visit_count ?? "..."} visits logged so far.
                             Coach Mark is on the floor today.
                         </p>
                     </div>
@@ -44,7 +54,7 @@ export default function MemberDashboard() {
                             </span>
                             <i className="fa-regular fa-id-card text-primary fs-5"></i>
                         </div>
-                        <h3 className={styles.kpiValue}>Monthly Regular</h3>
+                        <h3 className={styles.kpiValue}>{plan?.name || "No active plan"}</h3>
                         <div className={styles.kpiStatusPositive}>
                             <i className="fa-regular fa-circle-check"></i>{" "}
                             Active Plan
@@ -67,7 +77,7 @@ export default function MemberDashboard() {
                             </span>
                             <i className="fa-solid fa-chart-line text-primary fs-5"></i>
                         </div>
-                        <h3 className={styles.kpiValue}>18 Visits</h3>
+                        <h3 className={styles.kpiValue}>{attendance?.visit_count ?? "..."} Visits</h3>
                         <div className={styles.kpiSubPositive}>
                             <i className="fa-solid fa-arrow-trend-up"></i> 4x
                             this week
@@ -90,7 +100,7 @@ export default function MemberDashboard() {
                             </span>
                             <i className="fa-regular fa-calendar-xmark text-primary fs-5"></i>
                         </div>
-                        <h3 className={styles.kpiValue}>Nov 28, 2025</h3>
+                        <h3 className={styles.kpiValue}>{expiration}</h3>
                         <div className={styles.kpiStatusWarning}>
                             <i className="fa-regular fa-clock"></i> 14 Days
                             Remaining

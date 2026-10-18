@@ -1,9 +1,26 @@
+import { useEffect, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminAnnouncements.module.css";
+import { api } from "../../lib/api";
 
 export default function AdminAnnouncements() {
+    const [announcements, setAnnouncements] = useState([]);
+    const [error, setError] = useState("");
+    useEffect(() => { api("/admin/announcements").then(setAnnouncements).catch((err) => setError(err.message)); }, []);
+    const createAnnouncement = async (event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        try {
+            const created = await api("/admin/announcements", { method: "POST", body: {
+                title: form.get("title"), body: form.get("body"), audience: form.get("audience"), expires_at: form.get("expires_at") || null,
+            }});
+            setAnnouncements((items) => [created, ...items]);
+            event.currentTarget.reset();
+        } catch (err) { setError(err.message); }
+    };
     return (
         <AdminLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                 data-aos="fade-down"
@@ -40,7 +57,7 @@ export default function AdminAnnouncements() {
                                 <i className="fa-solid fa-bullhorn"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>2</h3>
+                        <h3 className={styles.kpiValue}>{announcements.filter((item) => item.status === "published").length}</h3>
                         <div className="d-flex align-items-center gap-2 mt-2">
                             <span className={styles.kpiPositive}>
                                 <i className="fa-regular fa-eye"></i>{" "}
@@ -98,7 +115,7 @@ export default function AdminAnnouncements() {
                             <h4 className={styles.sectionTitle}>
                                 Active & Scheduled Announcements
                             </h4>
-                            <span className={styles.countBadge}>3 Total</span>
+                            <span className={styles.countBadge}>{announcements.length} Total</span>
                         </div>
                         <div className="d-flex align-items-center gap-2">
                             <span
@@ -294,7 +311,7 @@ export default function AdminAnnouncements() {
                             </div>
                         </div>
 
-                        <form onSubmit={(e) => e.preventDefault()}>
+                        <form onSubmit={createAnnouncement}>
                             <div className="mb-4">
                                 <label className={styles.formLabel}>
                                     Announcement Title{" "}
@@ -303,6 +320,7 @@ export default function AdminAnnouncements() {
                                 <input
                                     type="text"
                                     className={styles.formInput}
+                                    name="title"
                                     placeholder="e.g., Holy Week Gym Schedule & Holiday Hours"
                                     required
                                 />
@@ -318,6 +336,7 @@ export default function AdminAnnouncements() {
                                         <input
                                             type="radio"
                                             name="audience"
+                                            value="all"
                                             defaultChecked
                                             className={styles.radioInput}
                                         />
@@ -330,6 +349,7 @@ export default function AdminAnnouncements() {
                                         <input
                                             type="radio"
                                             name="audience"
+                                            value="clerk"
                                             className={styles.radioInput}
                                         />
                                         <span
@@ -347,6 +367,7 @@ export default function AdminAnnouncements() {
                                 </label>
                                 <textarea
                                     className={styles.formTextarea}
+                                    name="body"
                                     rows="5"
                                     placeholder="Provide complete details regarding schedules, maintenance, equipment guidelines, or gym announcements..."
                                     required
@@ -372,6 +393,7 @@ export default function AdminAnnouncements() {
                                     <input
                                         type="date"
                                         className={styles.formInputDate}
+                                        name="expires_at"
                                     />
                                 </div>
                                 <span className={styles.helperTextBlock}>

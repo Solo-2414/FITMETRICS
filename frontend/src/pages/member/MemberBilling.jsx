@@ -1,9 +1,26 @@
+import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberBilling.module.css";
+import { api } from "../../lib/api";
 
 export default function MemberBilling() {
+    const [billing, setBilling] = useState([]);
+    const [membership, setMembership] = useState(null);
+    const [error, setError] = useState("");
+    useEffect(() => {
+        Promise.all([api("/member/billing"), api("/member/membership")])
+            .then(([payments, memberships]) => { setBilling(payments); setMembership(memberships.current); })
+            .catch((err) => setError(err.message));
+    }, []);
+    const plan = membership?.membership_plans;
+    const totalPaid = billing.filter((item) => item.status === "paid").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const nextDate = membership?.end_date ? new Date(membership.end_date).toLocaleDateString() : "...";
+    const pendingPayments = billing.filter((item) => item.status === "pending");
     return (
         <MemberLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
+            {new URLSearchParams(window.location.search).get("payment") === "success" && <div className="alert alert-info">Payment received for verification. Your membership will activate after PayMongo confirms the payment.</div>}
+            {pendingPayments.length > 0 && <div className="alert alert-warning">{pendingPayments.length} online payment{pendingPayments.length === 1 ? "" : "s"} pending confirmation.</div>}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                 data-aos="fade-down"
@@ -39,7 +56,7 @@ export default function MemberBilling() {
                             <span>CURRENT ACCOUNT BALANCE</span>
                             <i className="fa-regular fa-circle-check text-success fs-5"></i>
                         </div>
-                        <h3 className={styles.kpiValue}>₱0.00</h3>
+                        <h3 className={styles.kpiValue}>₱{totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
                             <span className={styles.statusSettled}>
                                 <span className={styles.dotSettled}></span>{" "}
@@ -68,14 +85,14 @@ export default function MemberBilling() {
                             <span>NEXT RENEWAL DATE</span>
                             <i className="fa-regular fa-calendar fs-5"></i>
                         </div>
-                        <h3 className={styles.kpiValue}>November 28, 2026</h3>
+                        <h3 className={styles.kpiValue}>{nextDate}</h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
                             <span className={styles.kpiSub}>
                                 <i className="fa-regular fa-clock"></i> 14 Days
                                 Remaining
                             </span>
                             <span className={styles.kpiSub}>
-                                Monthly Membership
+                                {plan?.name || "Membership"}
                             </span>
                         </div>
                     </div>
@@ -99,7 +116,7 @@ export default function MemberBilling() {
                                 Upcoming
                             </span>
                         </div>
-                        <h3 className={styles.kpiValueBlue}>₱1,490.00</h3>
+                        <h3 className={styles.kpiValueBlue}>₱{plan ? Number(plan.price).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}</h3>
                         <p className={styles.kpiDescBlue}>
                             Monthly Regular ₱990 + Coach Mark ₱500
                         </p>

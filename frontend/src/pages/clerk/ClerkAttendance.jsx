@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
 import { api } from "../../lib/api";
+import QRCode from "qrcode";
 import styles from "./ClerkAttendance.module.css";
 
 export default function ClerkAttendance() {
@@ -9,27 +10,41 @@ export default function ClerkAttendance() {
     const [success, setSuccess] = useState("");
     const [saving, setSaving] = useState(false);
     const [analysis, setAnalysis] = useState(null);
-    const morningCount = analysis?.records?.filter((row) => new Date(row.check_in_at).getHours() < 12).length || 0;
+    const [recordSearch, setRecordSearch] = useState("");
+    const [checkInSearch, setCheckInSearch] = useState("");
+    const [checkInMemberId, setCheckInMemberId] = useState("");
+    const [qrUrl, setQrUrl] = useState("");
+    const [date, setDate] = useState(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()));
+    const selectedMember = members.find((member) => member.id === checkInMemberId);
+    const memberForRow = (id) => members.find((member) => member.id === id);
+    const filteredRecords = useMemo(() => (analysis?.records || []).filter((row) => {
+        const member = memberForRow(row.member_id);
+        return `${member?.full_name || ""} ${member?.member_details?.member_code || ""}`.toLowerCase().includes(recordSearch.toLowerCase());
+    }), [analysis, members, recordSearch]);
+    const morningCount = analysis?.records?.filter((row) => new Date(row.check_in_at).toLocaleString("en-US", { timeZone: "Asia/Manila", hour: "numeric", hour12: false }) < 12).length || 0;
     const eveningCount = (analysis?.totalCheckIns || 0) - morningCount;
     const checkInFormRef = useRef(null);
     useEffect(() => {
-        Promise.all([api("/clerk/members"), api("/attendance/analysis")]).then(([memberRows, attendance]) => {
+        Promise.all([api("/clerk/members"), api(`/attendance/analysis?date=${date}`)]).then(([memberRows, attendance]) => {
             setMembers(memberRows);
             setAnalysis(attendance);
         }).catch((err) => setError(err.message));
-    }, []);
+    }, [date]);
+    const refresh = async () => setAnalysis(await api(`/attendance/analysis?date=${date}`));
+    const createMemberQr = async (member) => {
+        const code = member?.member_details?.member_code;
+        if (!code) return setError("This member has no member code for QR generation.");
+        setQrUrl(await QRCode.toDataURL(code));
+    };
     const recordCheckIn = async (event) => {
         event.preventDefault();
         setSaving(true);
         setError("");
         setSuccess("");
         try {
-            const search = checkInFormRef.current.querySelector("input").value.trim().toLowerCase();
-            const member = members.find((item) => `${item.full_name} ${item.email}`.toLowerCase().includes(search));
-            if (!member) throw new Error("Select or enter a registered member before checking in.");
-            await api("/clerk/attendance", { method: "POST", body: { member_id: member.id, method: "manual" } });
-            const refreshed = await api("/attendance/analysis");
-            setAnalysis(refreshed);
+            if (!selectedMember) throw new Error("Select a registered member before checking in.");
+            await api("/clerk/attendance", { method: "POST", body: { member_id: selectedMember.id, method: "member_id" } });
+            await refresh();
             setSuccess("Check-in recorded successfully.");
         } catch (err) {
             setError(err.message);
@@ -91,9 +106,12 @@ export default function ClerkAttendance() {
                                         type="text"
                                         className={styles.formInputGroup}
                                         placeholder="Type member name or ID..."
+                                        value={checkInSearch}
+                                        onChange={(event) => { setCheckInSearch(event.target.value); setCheckInMemberId(""); }}
                                     />
                                     <i className="fa-solid fa-magnifying-glass"></i>
                                 </div>
+                                {checkInSearch && !selectedMember && <div className="list-group mt-2">{members.filter((member) => `${member.full_name || ""} ${member.member_details?.member_code || ""}`.toLowerCase().includes(checkInSearch.toLowerCase())).slice(0, 5).map((member) => <button type="button" className="list-group-item list-group-item-action" key={member.id} onClick={() => { setCheckInMemberId(member.id); setCheckInSearch(member.full_name || member.member_details?.member_code); }}>{member.full_name || member.email} <small>{member.member_details?.member_code || ""}</small></button>)}</div>}
                             </div>
 
                             <div className="mb-4">
@@ -102,41 +120,12 @@ export default function ClerkAttendance() {
                                 </span>
                                 <div className="d-flex flex-wrap gap-2 mt-2">
                                     {members.filter((member) => member.membership?.status === "active").slice(0, 5).map((member) => (
-                                        <button type="button" className={styles.queuePill} key={member.id}>
+                                        <button type="button" className={styles.queuePill} key={member.id} onClick={() => { setCheckInMemberId(member.id); setCheckInSearch(member.full_name || member.email); }}>
                                             <span className={styles.dotGreen}></span>{" "}
                                             {member.full_name || member.email}
                                         </button>
                                     ))}
                                     {!members.length && <span className="text-secondary">No active members found.</span>}
-                                </div>
-                                <div className="d-none">
-                                    <button
-                                        type="button"
-                                        className={styles.queuePill}
-                                    >
-                                        <span
-                                            className={styles.dotGreen}
-                                        ></span>{" "}
-                                        Kenneth Bautista (0917-882-9912)
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={styles.queuePill}
-                                    >
-                                        <span
-                                            className={styles.dotGreen}
-                                        ></span>{" "}
-                                        Maricel Santos (0922-311-8401)
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={styles.queuePill}
-                                    >
-                                        <span
-                                            className={styles.dotWarning}
-                                        ></span>{" "}
-                                        Andrea Lim (0908-119-4452)
-                                    </button>
                                 </div>
                             </div>
 
@@ -177,7 +166,7 @@ export default function ClerkAttendance() {
 
                         <div className={styles.qrBox}>
                             <div className={styles.qrIconWrapper}>
-                                <i className="fa-solid fa-qrcode"></i>
+                                {qrUrl ? <img src={qrUrl} alt="Member QR" id="member-qr-block" style={{ width: 110, height: 110 }} /> : <i className="fa-solid fa-qrcode"></i>}
                             </div>
                             <div>
                                 <h4
@@ -206,11 +195,11 @@ export default function ClerkAttendance() {
                         </div>
 
                         <div className="d-flex flex-column flex-sm-row gap-3 mt-4">
-                            <button className={styles.btnOutlineAction}>
+                            <button className={styles.btnOutlineAction} onClick={() => { if (!qrUrl) return setError("Select a member in Fast Check-in first to generate a QR."); const printWindow = window.open("", "_blank"); printWindow.document.write(`<img src="${qrUrl}" style="width:300px;height:300px" onload="window.print();window.close()">`); }}>
                                 <i className="fa-solid fa-print"></i> Print QR
                                 Code Poster
                             </button>
-                            <button className={styles.btnOutlineActionPrimary}>
+                            <button className={styles.btnOutlineActionPrimary} onClick={() => setCheckInSearch("")}>
                                 <i className="fa-solid fa-camera"></i> Scan
                                 Member Phone Pass
                             </button>
@@ -355,7 +344,10 @@ export default function ClerkAttendance() {
                         <input
                             type="text"
                             placeholder="Filter attendance records..."
+                            value={recordSearch}
+                            onChange={(event) => setRecordSearch(event.target.value)}
                         />
+                        <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="form-control ms-2" />
                     </div>
                 </div>
 
@@ -372,228 +364,17 @@ export default function ClerkAttendance() {
                             </tr>
                         </thead>
                         <tbody>
-                            {(analysis?.records || []).map((row) => (
+                            {filteredRecords.map((row) => (
                                 <tr key={row.id}>
-                                    <td><strong className="d-block text-white mb-1">{members.find((member) => member.id === row.member_id)?.full_name || "Member"}</strong><span className={styles.subText}>ID: {row.member_id.slice(0, 8)}</span></td>
-                                    <td>{members.find((member) => member.id === row.member_id)?.membership?.membership_plans?.name || "Membership"}</td>
+                                    <td><strong className="d-block text-white mb-1">{memberForRow(row.member_id)?.full_name || "Member"}</strong><span className={styles.subText}>ID: {memberForRow(row.member_id)?.member_details?.member_code || row.member_id.slice(0, 8)}</span></td>
+                                    <td>{memberForRow(row.member_id)?.membership?.membership_plans?.name || "Membership"}</td>
                                     <td><span className="text-white fw-bold">{new Date(row.check_in_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></td>
                                     <td><span className="text-secondary">{row.check_out_at ? new Date(row.check_out_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--"}</span></td>
                                     <td><span className={styles.methodBadgeOutline}><i className="fa-solid fa-desktop"></i>{" "}{row.method}</span></td>
-                                    <td className="text-end">{!row.check_out_at ? <button className={styles.btnActionOutline} onClick={async () => { try { await api(`/attendance/${row.id}/checkout`, { method: "PATCH" }); const refreshed = await api("/attendance/analysis"); setAnalysis(refreshed); } catch (err) { setError(err.message); } }}>Check Out</button> : <span className={styles.statusCheckedOut}>Checked Out</span>}</td>
+                                    <td className="text-end">{!row.check_out_at ? <button className={styles.btnActionOutline} onClick={async () => { if (!window.confirm("Check out this member?")) return; try { await api(`/attendance/${row.id}/checkout`, { method: "PATCH" }); await refresh(); setSuccess("Check-out recorded."); } catch (err) { setError(err.message); } }}>Check Out</button> : <span className={styles.statusCheckedOut}>Checked Out</span>}</td>
                                 </tr>
                             ))}
                             {!analysis?.records?.length && <tr><td colSpan="6" className="text-center text-secondary py-4">No attendance records today.</td></tr>}
-                        </tbody>
-                        <tbody style={{ display: "none" }}>
-                            <tr>
-                                <td>
-                                    <div className="d-flex align-items-center gap-3">
-                                        <div className={styles.avatar}>KB</div>
-                                        <div>
-                                            <strong className="d-block text-white mb-1">
-                                                Kenneth Bautista
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                ID: #FM-1082
-                                            </span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <strong className="d-block text-white mb-1">
-                                        Monthly Regular
-                                    </strong>
-                                    <span
-                                        className="text-primary"
-                                        style={{ fontSize: "0.75rem" }}
-                                    >
-                                        + Coach Mark
-                                    </span>
-                                </td>
-                                <td>
-                                    <span className="text-white fw-bold">
-                                        10:15 AM
-                                    </span>
-                                </td>
-                                <td>
-                                    <span className="text-secondary">--</span>
-                                </td>
-                                <td>
-                                    <span className={styles.methodBadgePrimary}>
-                                        <i className="fa-solid fa-qrcode"></i>{" "}
-                                        Member QR Code
-                                    </span>
-                                </td>
-                                <td className="text-end">
-                                    <button className={styles.btnActionOutline}>
-                                        Check Out
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div className="d-flex align-items-center gap-3">
-                                        <div className={styles.avatarSecondary}>
-                                            MS
-                                        </div>
-                                        <div>
-                                            <strong className="d-block text-white mb-1">
-                                                Maricel Santos
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                ID: #FM-2041
-                                            </span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <strong className="d-block text-white mb-1">
-                                        Weekly Pass
-                                    </strong>
-                                </td>
-                                <td>
-                                    <span className="text-white fw-bold">
-                                        10:45 AM
-                                    </span>
-                                </td>
-                                <td>
-                                    <span className="text-secondary">--</span>
-                                </td>
-                                <td>
-                                    <span className={styles.methodBadgeOutline}>
-                                        <i className="fa-solid fa-desktop"></i>{" "}
-                                        Clerk Check-in
-                                    </span>
-                                </td>
-                                <td className="text-end">
-                                    <button className={styles.btnActionOutline}>
-                                        Check Out
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div className="d-flex align-items-center gap-3">
-                                        <div className={styles.avatarSecondary}>
-                                            DV
-                                        </div>
-                                        <div>
-                                            <strong className="d-block text-white mb-1">
-                                                Dominic Valderama
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                ID: #FM-1903
-                                            </span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <strong className="d-block text-white mb-1">
-                                        Two Weeks Pass
-                                    </strong>
-                                </td>
-                                <td>
-                                    <span className="text-white fw-bold">
-                                        09:30 AM
-                                    </span>
-                                </td>
-                                <td>
-                                    <span className="text-white">11:15 AM</span>
-                                </td>
-                                <td>
-                                    <span className={styles.methodBadgePrimary}>
-                                        <i className="fa-solid fa-qrcode"></i>{" "}
-                                        Member QR Code
-                                    </span>
-                                </td>
-                                <td className="text-end">
-                                    <span className={styles.statusCheckedOut}>
-                                        <i className="fa-solid fa-check"></i>{" "}
-                                        Checked Out
-                                    </span>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div className="d-flex align-items-center gap-3">
-                                        <div className={styles.avatarSecondary}>
-                                            JC
-                                        </div>
-                                        <div>
-                                            <strong className="d-block text-white mb-1">
-                                                Joshua Cordero
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                ID: #FM-1130
-                                            </span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <strong className="d-block text-white mb-1">
-                                        Monthly Regular
-                                    </strong>
-                                </td>
-                                <td>
-                                    <span className="text-white fw-bold">
-                                        08:15 AM
-                                    </span>
-                                </td>
-                                <td>
-                                    <span className="text-white">10:00 AM</span>
-                                </td>
-                                <td>
-                                    <span className={styles.methodBadgeOutline}>
-                                        <i className="fa-solid fa-desktop"></i>{" "}
-                                        Clerk Check-in
-                                    </span>
-                                </td>
-                                <td className="text-end">
-                                    <span className={styles.statusCheckedOut}>
-                                        <i className="fa-solid fa-check"></i>{" "}
-                                        Checked Out
-                                    </span>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div className="d-flex align-items-center gap-3">
-                                        <div className={styles.avatar}>AL</div>
-                                        <div>
-                                            <strong className="d-block text-white mb-1">
-                                                Andrea Lim
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                ID: #FM-2508
-                                            </span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <strong className="d-block text-white mb-1">
-                                        Student Monthly
-                                    </strong>
-                                </td>
-                                <td>
-                                    <span className="text-white fw-bold">
-                                        11:00 AM
-                                    </span>
-                                </td>
-                                <td>
-                                    <span className="text-secondary">--</span>
-                                </td>
-                                <td>
-                                    <span className={styles.methodBadgePrimary}>
-                                        <i className="fa-solid fa-qrcode"></i>{" "}
-                                        Member QR Code
-                                    </span>
-                                </td>
-                                <td className="text-end">
-                                    <button className={styles.btnActionOutline}>
-                                        Check Out
-                                    </button>
-                                </td>
-                            </tr>
                         </tbody>
                     </table>
                 </div>

@@ -1,9 +1,31 @@
+import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberProfile.module.css";
+import { api } from "../../lib/api";
 
 export default function MemberProfile() {
+    const [profile, setProfile] = useState(null);
+    const [error, setError] = useState("");
+    const [saved, setSaved] = useState(false);
+    useEffect(() => { api("/me").then(setProfile).catch((err) => setError(err.message)); }, []);
+    const save = async (event) => {
+        event.preventDefault();
+        const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+        try {
+            const result = await api("/me", { method: "PATCH", body: {
+                full_name: `${data.first_name || ""} ${data.last_name || ""}`.trim(),
+                phone: data.phone,
+                gender: data.gender,
+                emergency_contact_name: data.emergency_contact_name,
+                emergency_contact_phone: data.emergency_contact_phone,
+            }});
+            setProfile(result); setSaved(true);
+        } catch (err) { setError(err.message); }
+    };
     return (
         <MemberLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
+            {saved && <div className="alert alert-success">Profile saved.</div>}
             <div className="mb-4" data-aos="fade-down" data-aos-delay="100">
                 <h1 className={styles.pageTitle}>My Profile</h1>
                 <p className={styles.pageDesc}>
@@ -58,7 +80,7 @@ export default function MemberProfile() {
                 </div>
             </div>
 
-            <form onSubmit={(e) => e.preventDefault()}>
+            <form onSubmit={save} key={profile?.updated_at || "profile-loading"}>
                 <div className="row g-4 mb-4">
                     <div className="col-12 col-lg-8">
                         <div
@@ -89,7 +111,8 @@ export default function MemberProfile() {
                                     <input
                                         type="text"
                                         className={styles.formInput}
-                                        defaultValue="Michael Andre"
+                                        name="first_name"
+                                        defaultValue={profile?.full_name?.split(" ").slice(0, -1).join(" ") || ""}
                                     />
                                 </div>
                                 <div className="col-12 col-md-6">
@@ -99,7 +122,8 @@ export default function MemberProfile() {
                                     <input
                                         type="text"
                                         className={styles.formInput}
-                                        defaultValue="Tanza"
+                                        name="last_name"
+                                        defaultValue={profile?.full_name?.split(" ").slice(-1)[0] || ""}
                                     />
                                 </div>
                                 <div className="col-12 col-md-6">
@@ -121,7 +145,8 @@ export default function MemberProfile() {
                                     </label>
                                     <select
                                         className={styles.formSelect}
-                                        defaultValue="Male"
+                                        name="gender"
+                                        defaultValue={profile?.gender || ""}
                                     >
                                         <option value="Male">Male</option>
                                         <option value="Female">Female</option>
@@ -137,7 +162,8 @@ export default function MemberProfile() {
                                         <input
                                             type="text"
                                             className={styles.formInputGroup}
-                                            defaultValue="0917-123-4567"
+                                            name="phone"
+                                            defaultValue={profile?.phone || ""}
                                         />
                                     </div>
                                 </div>
@@ -180,7 +206,8 @@ export default function MemberProfile() {
                                     <input
                                         type="text"
                                         className={styles.formInput}
-                                        defaultValue="Sarah Tanza"
+                                        name="emergency_contact_name"
+                                        defaultValue={profile?.emergency_contact_name || ""}
                                     />
                                 </div>
                                 <div className="col-12 col-md-4">
@@ -202,7 +229,8 @@ export default function MemberProfile() {
                                         <input
                                             type="text"
                                             className={styles.formInputGroup}
-                                            defaultValue="0918-552-1190"
+                                            name="emergency_contact_phone"
+                                            defaultValue={profile?.emergency_contact_phone || ""}
                                         />
                                     </div>
                                 </div>

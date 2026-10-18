@@ -11,6 +11,8 @@ export default function ClerkPayments() {
     const [transactions, setTransactions] = useState([]);
     const [stats, setStats] = useState(null);
     const [memberSearch, setMemberSearch] = useState("");
+    const [selectedMemberId, setSelectedMemberId] = useState("");
+    const [promoCode, setPromoCode] = useState("");
     const [guestPhone, setGuestPhone] = useState("");
     const [isStudent, setIsStudent] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -33,22 +35,47 @@ export default function ClerkPayments() {
         setMembers(memberRows);
         setTransactions(paymentRows);
         setStats(dashboard);
-        if (!livePlans[selectedPlan]) setSelectedPlan(Object.keys(livePlans)[0] || "");
+        const requestedPlan = new URLSearchParams(window.location.search).get("plan");
+        if (requestedPlan && livePlans[requestedPlan]) setSelectedPlan(requestedPlan);
+        else if (!livePlans[selectedPlan]) setSelectedPlan(Object.keys(livePlans)[0] || "");
     });
 
     useEffect(() => {
         loadPayments().catch((err) => setError(err.message));
     }, []);
 
+    useEffect(() => {
+        const result = new URLSearchParams(window.location.search).get("payment");
+        if (result === "success") setSuccess("Online payment completed. We are confirming the payment status.");
+        if (result === "cancelled") setError("Online payment was cancelled.");
+    }, []);
+
     const currentPlan = plans[selectedPlan] || { name: "Select a plan", price: 0, student_price: null };
     const currentPrice = isStudent && currentPlan.student_price != null ? currentPlan.student_price : currentPlan.price;
-    const selectedMember = members.find((member) => `${member.full_name || ""} ${member.email || ""}`.toLowerCase().includes(memberSearch.trim().toLowerCase())) || null;
+    const selectedMember = members.find((member) => member.id === selectedMemberId) || null;
+    const matchingMembers = memberSearch.trim()
+        ? members.filter((member) => `${member.full_name || ""} ${member.email || ""}`.toLowerCase().includes(memberSearch.trim().toLowerCase())).slice(0, 6)
+        : [];
     const submitPayment = async (event) => {
         event.preventDefault();
         setSaving(true);
         setError("");
         setSuccess("");
         try {
+            if (paymentMethod === "online") {
+                const checkout = await api("/payments/online", {
+                    method: "POST",
+                    body: {
+                        plan_code: selectedPlan,
+                        member_id: selectedMember?.id,
+                        is_student: isStudent,
+                        promo_code: promoCode || null,
+                        return_path: "/clerk/payments",
+                    },
+                });
+                window.location.assign(checkout.checkout_url);
+                return;
+            }
             await api("/clerk/payments", {
                 method: "POST",
                 body: {
@@ -58,10 +85,13 @@ export default function ClerkPayments() {
                     guest_phone: selectedPlan === "session" ? guestPhone : undefined,
                     is_student: isStudent,
                     payment_method: paymentMethod,
+                    promo_code: promoCode || null,
                 },
             });
             setSuccess("Payment recorded and receipt issued successfully.");
             setMemberSearch("");
+            setSelectedMemberId("");
+            setPromoCode("");
             setGuestPhone("");
             setIsStudent(false);
             await loadPayments();
@@ -224,10 +254,12 @@ export default function ClerkPayments() {
                                         onChange={(event) => setMemberSearch(event.target.value)}
                                         placeholder={selectedPlan === "session" ? "Walk-in guest name" : "Search member name or email"}
                                     />
+                                    {selectedPlan !== "session" && matchingMembers.length > 0 && !selectedMember && <div className="list-group mt-2">{matchingMembers.map((member) => <button type="button" className="list-group-item list-group-item-action" key={member.id} onClick={() => { setSelectedMemberId(member.id); setMemberSearch(member.full_name || member.email); }}>{member.full_name || member.email} <small className="text-secondary">{member.email}</small></button>)}</div>}
                                 </div>
                                 {selectedPlan !== "session" && memberSearch && !selectedMember && <small className="text-danger">Select a valid member name or email.</small>}
                                 {selectedPlan !== "session" && selectedMember && <small className="text-success">Selected: {selectedMember.full_name || selectedMember.email}</small>}
                                 {selectedPlan === "session" && <input type="tel" className={`${styles.formInputRaw} mt-2`} value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} placeholder="Walk-in guest phone (optional)" />}
+                                <input type="text" className={`${styles.formInputRaw} mt-2`} value={promoCode} onChange={(event) => setPromoCode(event.target.value.toUpperCase())} placeholder="Promo code (optional)" />
                             </div>
 
                             <div className="mb-4">
@@ -362,7 +394,20 @@ export default function ClerkPayments() {
                                         <i className="fa-solid fa-mobile-button"></i>{" "}
                                         Maya
                                     </button>
+                                    <button
+                                        type="button"
+                                        className={`${styles.btnPaymentMethod} ${paymentMethod === "online" ? styles.btnPaymentMethodActive : ""}`}
+                                        onClick={() => setPaymentMethod("online")}
+                                    >
+                                        <i className="fa-solid fa-credit-card"></i>{" "}
+                                        Online
+                                    </button>
                                 </div>
+                                {paymentMethod === "online" && (
+                                    <small className="text-secondary d-block mt-2">
+                                        Opens a secure PayMongo checkout page. The membership activates after payment confirmation.
+                                    </small>
+                                )}
                             </div>
 
                             {paymentMethod === "cash" && (
@@ -537,7 +582,7 @@ export default function ClerkPayments() {
                                 <span className={styles.dotGreen}></span> Paid ·
                                 Receipt Sent to Email
                             </div>
-                            <button className={styles.btnResend}>
+                            <button className={styles.btnResend} onClick={async () => { const latest = transactions.find((item) => item.member_id === selectedMember?.id) || transactions[0]; if (!latest) return; try { await api(`/clerk/payments/${latest.id}/resend-receipt`, { method: "POST" }); setSuccess("Receipt email queued."); } catch (err) { setError(err.message); } }}>
                                 <i className="fa-solid fa-rotate-right"></i>{" "}
                                 Resend Receipt Email
                             </button>

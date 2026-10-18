@@ -8,6 +8,7 @@ export default function ClerkMembership() {
     const [members, setMembers] = useState([]);
     const [plans, setPlans] = useState([]);
     const [coaches, setCoaches] = useState([]);
+    const [expiring, setExpiring] = useState([]);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
     const [saving, setSaving] = useState(false);
@@ -15,11 +16,12 @@ export default function ClerkMembership() {
     const [renewalCoachId, setRenewalCoachId] = useState("");
     const renewalFormRef = useRef(null);
     useEffect(() => {
-        Promise.all([api("/clerk/members"), api("/clerk/plans"), api("/clerk/coaches")])
-            .then(([memberRows, planRows, coachRows]) => {
+        Promise.all([api("/clerk/members"), api("/clerk/plans"), api("/clerk/coaches"), api("/clerk/dashboard")])
+            .then(([memberRows, planRows, coachRows, dashboard]) => {
                 setMembers(memberRows);
                 setPlans(planRows);
                 setCoaches(coachRows);
+                setExpiring(dashboard.expiringSoon || []);
             })
             .catch((err) => setError(err.message));
     }, []);
@@ -39,7 +41,7 @@ export default function ClerkMembership() {
                     member_id: member.id,
                     plan_code: renewalPlanCode,
                     coach_id: renewalCoachId || null,
-                    coach_addon_amount: renewalCoachId ? 500 : 0,
+                    coach_addon_amount: renewalCoachId ? Number(coaches.find((coach) => coach.id === renewalCoachId)?.addon_amount || coaches.find((coach) => coach.id === renewalCoachId)?.monthly_price || 0) : 0,
                     payment_method: paymentMethod.toLowerCase(),
                 },
             });
@@ -88,6 +90,10 @@ export default function ClerkMembership() {
                 </span>
             </div>
 
+            <div className="row g-3 mb-5">
+                {plans.map((plan) => <div className="col-12 col-sm-6 col-xl" key={`live-${plan.id}`}><div className={styles.rateCard}><div className="d-flex justify-content-between align-items-center mb-2"><span className={styles.rateLabel}>{plan.name}</span><span className={styles.rateDuration}>{plan.duration_days} Days</span></div><h2 className={styles.ratePrice}>₱{Number(plan.price).toLocaleString()}</h2><span className={styles.rateSub}>{plan.student_price == null ? "Standard rate" : `Student: ₱${Number(plan.student_price).toLocaleString()}`}</span><div className={styles.rateFooter}>{plan.description || "Gym access plan"}</div></div></div>)}
+                {coaches.map((coach) => <div className="col-12 col-sm-6 col-xl" key={`coach-${coach.id}`}><div className={styles.rateCard}><span className={styles.rateLabel}>COACH ADD-ON</span><h2 className={styles.ratePrice}>₱{Number(coach.addon_amount || coach.monthly_price || 0).toLocaleString()}</h2><span className={styles.rateSub}>{coach.display_name}</span></div></div>)}
+            </div>
             <div
                 className="row g-3 mb-5"
                 data-aos="fade-up"
@@ -271,7 +277,7 @@ export default function ClerkMembership() {
                                 onChange={(event) => setRenewalCoachId(event.target.value)}
                             >
                                 <option value="">None</option>
-                                {coaches.map((coach) => <option value={coach.id} key={coach.id}>{coach.display_name} (+₱500)</option>)}
+                                {coaches.map((coach) => <option value={coach.id} key={coach.id}>{coach.display_name} (+₱{Number(coach.addon_amount || coach.monthly_price || 0).toLocaleString()})</option>)}
                             </select>
                         </div>
                         <div className="col-12 col-md-6 col-lg-3">
@@ -334,7 +340,7 @@ export default function ClerkMembership() {
                                         fontWeight: "700",
                                     }}
                                 >
-                                    ₱{((Number(plans.find((plan) => plan.code === renewalPlanCode)?.price) || 0) + (renewalCoachId ? 500 : 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    ₱{((Number(plans.find((plan) => plan.code === renewalPlanCode)?.price) || 0) + Number(coaches.find((coach) => coach.id === renewalCoachId)?.addon_amount || coaches.find((coach) => coach.id === renewalCoachId)?.monthly_price || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </h2>
                             </div>
                             <button
@@ -395,6 +401,20 @@ export default function ClerkMembership() {
                             </tr>
                         </thead>
                         <tbody>
+                            {expiring.map((membership) => (
+                                <tr key={membership.id}>
+                                    <td><div className="d-flex align-items-center gap-3"><div className={styles.avatarWarning}>{(membership.member_name || "Member").split(" ").map((part) => part[0]).slice(0, 2).join("")}</div><div><strong className="d-block text-white mb-1">{membership.member_name}</strong><span className={styles.subText}>{membership.member_email || "No email"}</span></div></div></td>
+                                    <td><span className={styles.subText}>Member contact</span></td>
+                                    <td><span className={styles.planBadgeOutline}>{membership.membership_plans?.name || "Membership"}</span></td>
+                                    <td className="text-white">{membership.end_date}</td>
+                                    <td><span className={styles.badgeWarningOutline}>{membership.days_left === 0 ? "Expires today" : `${membership.days_left} days`}</span></td>
+                                    <td className="text-white">-</td>
+                                    <td><button className={styles.btnActionPrimary} onClick={() => setRenewalPlanCode("")}>Renew Now</button></td>
+                                </tr>
+                            ))}
+                            {!expiring.length && <tr><td colSpan="7" className="text-secondary text-center">No memberships are expiring soon.</td></tr>}
+                        </tbody>
+                        <tbody style={{ display: "none" }}>
                             <tr>
                                 <td>
                                     <div className="d-flex align-items-center gap-3">

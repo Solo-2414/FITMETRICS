@@ -1,9 +1,29 @@
+import { useEffect, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminReports.module.css";
+import { api } from "../../lib/api";
 
 export default function AdminReports() {
+    const [reports, setReports] = useState([]);
+    const [error, setError] = useState("");
+    const [generating, setGenerating] = useState(false);
+    const [summary, setSummary] = useState(null);
+    useEffect(() => { api("/admin/reports").then(setReports).catch((err) => setError(err.message)); }, []);
+    const generate = async (type) => {
+        setGenerating(true);
+        try {
+            const end = new Date().toISOString().slice(0, 10);
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 29);
+            const report = await api("/admin/reports", { method: "POST", body: { report_type: type, start: startDate.toISOString().slice(0, 10), end } });
+            setReports((items) => [report, ...items]);
+            setSummary(report);
+        } catch (err) { setError(err.message); } finally { setGenerating(false); }
+    };
     return (
         <AdminLayout>
+            {error && <div className="alert alert-danger">{error}</div>}
+            {summary && <div className="alert alert-success">Generated {summary.report_type} report.</div>}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                 data-aos="fade-down"
@@ -59,7 +79,7 @@ export default function AdminReports() {
                         </select>
                     </div>
                     <div className="col-12 col-md-2">
-                        <button className={styles.btnGenerate}>
+                        <button className={styles.btnGenerate} type="button" disabled={generating} onClick={() => generate("revenue")}>
                             <i className="fa-solid fa-filter"></i> Generate
                             Summary
                         </button>
@@ -80,7 +100,7 @@ export default function AdminReports() {
                                 <i className="fa-solid fa-money-bill"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>₱68,450</h3>
+                        <h3 className={styles.kpiValue}>₱{reports.length ? reports.filter((r) => r.report_type === "revenue").reduce((sum, r) => sum + (r.result || []).reduce((total, row) => total + Number(row.revenue || 0), 0), 0).toLocaleString() : "..."}</h3>
                         <div className="d-flex align-items-center gap-2 mb-3">
                             <span className={styles.kpiPositive}>
                                 <i className="fa-solid fa-arrow-trend-up"></i>{" "}
