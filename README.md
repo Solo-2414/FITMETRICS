@@ -66,7 +66,7 @@ JWT_SECRET=your_jwt_secret_key
 
 1. **Clone the repository**
 ```sh
-git clone https://github.com/your-username/FITMETRICS.git
+git clone https://github.com/Solo-2414/FITMETRICS.git
 cd FITMETRICS
 
 ```
