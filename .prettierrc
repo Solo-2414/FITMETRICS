@@ -1,0 +1,9 @@
+{
+  "semi": true,
+  "trailingComma": "all",
+  "endOfLine": "auto",
+  "overrides": [
+    { "files": "frontend/**/*.{js,jsx,css,json}", "options": { "tabWidth": 4, "singleQuote": false, "printWidth": 80 } },
+    { "files": "backend/**/*.{js,mjs,json}", "options": { "tabWidth": 2, "singleQuote": true, "printWidth": 100 } }
+  ]
+}
