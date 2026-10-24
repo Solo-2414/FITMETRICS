@@ -60,6 +60,22 @@ export const priceFor = (plan, isStudent, promo) => {
   return { gross, discount, amount: Math.max(0, gross - discount) };
 };
 
+router.post('/payments/:id/sync', requireAuth, requireRole('admin', 'clerk', 'member'), async (req, res, next) => {
+  try {
+    const { data: payment, error } = await supabaseAdmin.from('payments').select('*').eq('id', req.params.id).single();
+    if (error || !payment) return res.status(404).json({ error: 'Payment not found.' });
+    if (req.profile.role === 'member' && payment.member_id !== req.user.id) return res.status(403).json({ error: 'You do not have permission to do this.' });
+    if (!payment.provider_checkout_id) return res.status(400).json({ error: 'This payment has no PayMongo checkout session.' });
+    if (payment.status === 'paid') return res.json(payment);
+    const checkout = await paymongoRequest(`/checkout_sessions/${payment.provider_checkout_id}`);
+    const attributes = checkout?.data?.attributes || {};
+    const paid = attributes.status === 'paid' || attributes.payment_intent?.attributes?.status === 'succeeded';
+    if (!paid) return res.json({ payment, status: attributes.status || payment.status });
+    const result = await activatePaymentMembership(payment);
+    res.json(result.payment);
+  } catch (error) { next(error); }
+});
+
 router.post('/payments/online', requireAuth, requireRole('admin', 'clerk'), async (req, res, next) => {
   try {
     const { member_id, plan_code, is_student = false, promo_code = null, return_path = '/member/billing' } = req.body || {};
@@ -103,21 +119,6 @@ router.post('/payments/online', requireAuth, requireRole('admin', 'clerk'), asyn
         }),
       });
 
-      router.post('/payments/:id/sync', requireAuth, requireRole('admin', 'clerk', 'member'), async (req, res, next) => {
-        try {
-          const { data: payment, error } = await supabaseAdmin.from('payments').select('*').eq('id', req.params.id).single();
-          if (error || !payment) return res.status(404).json({ error: 'Payment not found.' });
-          if (req.user.role === 'member' && payment.member_id !== req.user.id) return res.status(403).json({ error: 'You do not have permission to do this.' });
-          if (!payment.provider_checkout_id) return res.status(400).json({ error: 'This payment has no PayMongo checkout session.' });
-          if (payment.status === 'paid') return res.json(payment);
-          const checkout = await paymongoRequest(`/checkout_sessions/${payment.provider_checkout_id}`);
-          const attributes = checkout?.data?.attributes || {};
-          const paid = attributes.status === 'paid' || attributes.payment_intent?.attributes?.status === 'succeeded';
-          if (!paid) return res.json({ payment, status: attributes.status || payment.status });
-          const result = await activatePaymentMembership(payment);
-          res.json(result.payment);
-        } catch (error) { next(error); }
-      });
       const checkoutData = checkout.data;
       const { error: updateError } = await supabaseAdmin.from('payments').update({ provider_checkout_id: checkoutData.id }).eq('id', payment.id);
       if (updateError) return next(updateError);
