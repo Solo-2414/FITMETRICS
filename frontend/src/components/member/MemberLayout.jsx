@@ -1,9 +1,19 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import styles from "./MemberLayout.module.css";
 
 export default function MemberLayout({ children }) {
+    const [activeInGym, setActiveInGym] = useState(null);
+    const [date] = useState(() => 
+        new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())
+    );
+    useEffect(() => {
+        api(`/attendance/analysis?date=${date}`)
+            .then((data) => setActiveInGym(data?.activeInGym ?? 0))
+            .catch((err) => console.error("Error fetching live gym count:", err));
+    }, [date]);
     const location = useLocation();
     const navigate = useNavigate();
     const { signOut, profile } = useAuth();
@@ -126,7 +136,7 @@ export default function MemberLayout({ children }) {
                         </button>
                         <div className={styles.gymStatus}>
                             <span className={styles.statusDot}></span>
-                            Floor: 24 Active Members
+                            <span>Floor: {activeInGym !== null ? activeInGym : "..."} Active Members</span>
                         </div>
                     </div>
                     <div className={styles.topbarRight}>
@@ -134,7 +144,7 @@ export default function MemberLayout({ children }) {
                             <h4>{profile?.full_name || "Member"}</h4>
                             <p>Regular Member</p>
                         </div>
-                        <div className={styles.avatarCircle}>MT</div>
+                        <div className={styles.avatarCircle}>{profile?.full_name ? profile?.full_name.trim().split(" ").map((n) => n[0]).join("").toUpperCase() : "M"}</div>
                     </div>
                 </header>
 

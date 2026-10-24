@@ -10,7 +10,42 @@ export default function MemberDashboard() {
     const membership = dashboard?.membership;
     const plan = membership?.membership_plans;
     const attendance = dashboard?.attendance;
-    const expiration = membership?.end_date ? new Date(membership.end_date).toLocaleDateString() : "...";
+    const expiration = membership?.end_date ? new Date(membership.end_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "...";
+    const [profile, setProfile] = useState(null);
+    const [saved, setSaved] = useState(false);
+    useEffect(() => { api("/me").then(setProfile).catch((err) => setError(err.message)); }, []);
+    const save = async (event) => {
+        event.preventDefault();
+        const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+        try {
+            const result = await api("/me", { method: "PATCH", body: {
+                full_name: `${data.first_name || ""} ${data.last_name || ""}`.trim(),
+                phone: data.phone,
+                gender: data.gender,
+                emergency_contact_name: data.emergency_contact_name,
+                emergency_contact_phone: data.emergency_contact_phone,
+            }});
+            setProfile(result); setSaved(true);
+        } catch (err) { setError(err.message); }
+    };
+    const getDaysRemainingText = (expiration) => {
+    if (!expiration) return "";
+
+  // Set both dates to midnight to ensure an accurate day calculation regardless of current time
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const expDate = new Date(expiration);
+    expDate.setHours(0, 0, 0, 0);
+
+    const diffInMs = expDate - today;
+    const diffInDays = Math.round(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInDays < 0) return "Expired";
+    if (diffInDays === 0) return "Expires Today";
+    if (diffInDays === 1) return "1 Day Remaining";
+    return `${diffInDays} Days Remaining`;
+    };
     return (
         <MemberLayout>
             {error && <div className="alert alert-danger">{error}</div>}
@@ -25,11 +60,10 @@ export default function MemberDashboard() {
                 <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mt-3 gap-3">
                     <div>
                         <h1 className={styles.welcomeTitle}>
-                            Welcome back, {membership?.profiles?.first_name || "member"}!
+                            Welcome, {profile?.full_name?.split(" ")[0] || "member"}!
                         </h1>
                         <p className={styles.welcomeSub}>
-                            Keep up the momentum. {attendance?.visit_count ?? "..."} visits logged so far.
-                            Coach Mark is on the floor today.
+                            Keep up the momentum! {attendance?.visit_count ?? "0"} visits logged so far.
                         </p>
                     </div>
                     <button className={styles.noticeBtn}>
@@ -102,8 +136,7 @@ export default function MemberDashboard() {
                         </div>
                         <h3 className={styles.kpiValue}>{expiration}</h3>
                         <div className={styles.kpiStatusWarning}>
-                            <i className="fa-regular fa-clock"></i> 14 Days
-                            Remaining
+                            <i className="fa-regular fa-clock"></i> {getDaysRemainingText(expiration)}
                         </div>
                     </div>
                 </div>

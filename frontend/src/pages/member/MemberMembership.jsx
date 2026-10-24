@@ -16,9 +16,7 @@ export default function MemberMembership() {
                 <div>
                     <h1 className={styles.pageTitle}>Membership & Passes</h1>
                     <p className={styles.pageDesc}>
-                        View your current subscription status, gym pass rates,
-                        and personal coaching fees. All transactions are handled
-                        directly by our staff.
+                        View your current subscription status, gym pass rates, and personal coaching fees. All transactions are handled directly by our staff.
                     </p>
                 </div>
             </div>

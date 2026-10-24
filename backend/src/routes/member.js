@@ -3,7 +3,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
-router.use(requireAuth, requireRole('member'));
+router.use('/member', requireAuth, requireRole('member'));
 
 router.get('/member/dashboard', async (req, res, next) => {
   try {
@@ -65,3 +65,4 @@ router.patch('/member/notifications', async (req, res, next) => {
 });
 
 export default router;
+

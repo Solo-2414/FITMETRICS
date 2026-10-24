@@ -8,7 +8,7 @@ import { dayStart, nextDayStart, today } from '../utils/time.js';
 import { getPromo, priceFor } from './paymongo.js';
 
 const router = Router();
-router.use(requireAuth, requireRole('admin', 'clerk'));
+router.use('/clerk', requireAuth, requireRole('admin', 'clerk'));
 
 const getPlan = async (planIdOrCode) => {
   let query = supabaseAdmin.from('membership_plans').select('*').eq('active', true);

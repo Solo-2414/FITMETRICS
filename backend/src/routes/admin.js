@@ -6,7 +6,7 @@ import { enqueueEmail } from '../services/emailQueue.js';
 import { dayStart, nextDayStart } from '../utils/time.js';
 
 const router = Router();
-router.use(requireAuth, requireRole('admin'));
+router.use('/admin', requireAuth, requireRole('admin'));
 
 const today = () => new Date().toISOString().slice(0, 10);
 const dateOr = (value, fallback) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? value : fallback;

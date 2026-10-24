@@ -6,13 +6,181 @@ import styles from "./MemberAttendance.module.css";
 export default function MemberAttendance() {
     const [attendance, setAttendance] = useState([]);
     const [error, setError] = useState("");
+    
+    // Default to the current actual month and year
+    const [currentDate, setCurrentDate] = useState(new Date());
+
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth(); // 0-indexed (0 = Jan, 9 = Oct, 10 = Nov)
+
+    // Formatted current month label (e.g., "October 2026")
+    const monthYearLabel = currentDate.toLocaleString("en-US", {
+        month: "long",
+        year: "numeric",
+    });
+
+    // Fetch attendance data based on selected month
     useEffect(() => {
-        api("/attendance/me").then(setAttendance).catch((err) => setError(err.message));
-    }, []);
+        const fromDate = new Date(year, month, 1).toISOString();
+        const toDate = new Date(year, month + 1, 1).toISOString();
+
+        api(`/attendance/me?from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}`)
+            .then(setAttendance)
+            .catch((err) => setError(err.message));
+    }, [year, month]);
+
+    // Month Navigation Handlers
+    const handlePrevMonth = () => {
+        setCurrentDate(new Date(year, month - 1, 1));
+    };
+
+    const handleNextMonth = () => {
+        setCurrentDate(new Date(year, month + 1, 1));
+    };
+
     const totalVisits = attendance.length;
-    const activeDays = new Set(attendance.map((item) => item.check_in_at.slice(0, 10))).size;
-    const formatTime = (value) => value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
-    const duration = (row) => row.check_out_at ? `${Math.max(1, Math.round((new Date(row.check_out_at) - new Date(row.check_in_at)) / 60000))} mins` : "In gym";
+    const activeDays = new Set(
+        attendance.map((item) => item.check_in_at.slice(0, 10))
+    ).size;
+
+    const formatTime = (value) =>
+        value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+
+    const duration = (row) =>
+        row.check_out_at
+            ? `${Math.max(1, Math.round((new Date(row.check_out_at) - new Date(row.check_in_at)) / 60000))} mins`
+            : "In gym";
+
+    // Set of visited dates YYYY-MM-DD
+    const visitedDates = new Set(
+        attendance.map((item) =>
+            new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(
+                new Date(item.check_in_at)
+            )
+        )
+    );
+
+    // Dynamic Calendar Days Renderer
+    const renderCalendarDays = (calcYear, calcMonth) => {
+        const firstDay = new Date(calcYear, calcMonth, 1).getDay();
+        const daysInMonth = new Date(calcYear, calcMonth + 1, 0).getDate();
+        const prevMonthDays = new Date(calcYear, calcMonth, 0).getDate();
+
+        const cells = [];
+
+        // 1. Previous month padding days
+        for (let i = firstDay - 1; i >= 0; i--) {
+            const dayNum = prevMonthDays - i;
+            cells.push(
+                <div key={`prev-${dayNum}`} className={styles.calCellEmpty}>
+                    {dayNum}
+                </div>
+            );
+        }
+
+        // 2. Current month days
+        const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const monthStr = String(calcMonth + 1).padStart(2, "0");
+            const dayStr = String(day).padStart(2, "0");
+            const dateKey = `${calcYear}-${monthStr}-${dayStr}`;
+
+            const isVisited = visitedDates.has(dateKey);
+            const isToday = dateKey === todayStr;
+
+            cells.push(
+                <div
+                    key={`current-${day}`}
+                    className={`${styles.calCell} ${isToday ? styles.calCellToday : ""}`}
+                >
+                    {day}
+                    {isVisited && <span className={styles.dotActive}></span>}
+                </div>
+            );
+        }
+
+        // 3. Next month trailing padding days
+        const totalCells = cells.length;
+        const remainingCells = (7 - (totalCells % 7)) % 7;
+        for (let nextDay = 1; nextDay <= remainingCells; nextDay++) {
+            cells.push(
+                <div key={`next-${nextDay}`} className={styles.calCellEmpty}>
+                    {nextDay}
+                </div>
+            );
+        }
+
+        return cells;
+    };
+
+    // Export Log PDF Handler
+    const exportPdfLog = () => {
+        const printWindow = window.open("", "_blank");
+        if (!printWindow) return alert("Please allow popups to export the PDF log.");
+
+        const rowsHtml = attendance.map((row) => `
+            <tr>
+                <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">${new Date(row.check_in_at).toLocaleDateString()}</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">${formatTime(row.check_in_at)}</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">${formatTime(row.check_out_at)}</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">${duration(row)}</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">${row.method === "manual" ? "Counter Check-in" : row.method}</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">Gym Staff</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">${row.check_out_at ? "Completed" : "Active"}</td>
+            </tr>
+        `).join("");
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Attendance History Log - ${monthYearLabel}</title>
+                <style>
+                    body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 30px; color: #1e293b; }
+                    h1 { margin-bottom: 4px; font-size: 22px; color: #0f172a; }
+                    p { margin-top: 0; color: #64748b; font-size: 13px; }
+                    .stats-box { display: flex; gap: 20px; margin: 20px 0; padding: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
+                    th { background-color: #0f172a; color: #ffffff; text-align: left; padding: 10px 12px; font-weight: 600; }
+                    tr:nth-child(even) { background-color: #f8fafc; }
+                </style>
+            </head>
+            <body>
+                <h1>FITMETRICS — Attendance History Log</h1>
+                <p>Analyn's Fitness Gym | Report Period: ${monthYearLabel}</p>
+                <div class="stats-box">
+                    <div><strong>Total Visits:</strong> ${totalVisits}</div>
+                    <div><strong>Active Days:</strong> ${activeDays}</div>
+                    <div><strong>Export Date:</strong> ${new Date().toLocaleDateString()}</div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>DATE</th>
+                            <th>TIME IN</th>
+                            <th>TIME OUT</th>
+                            <th>DURATION</th>
+                            <th>CHECK-IN METHOD</th>
+                            <th>RECORDED BY</th>
+                            <th>STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml.length ? rowsHtml : '<tr><td colspan="7" style="text-align:center;padding:20px;color:#64748b;">No attendance records found for this month.</td></tr>'}
+                    </tbody>
+                </table>
+                <script>
+                    window.onload = function() {
+                        window.print();
+                    };
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
     return (
         <MemberLayout>
             {error && <div className="alert alert-danger">{error}</div>}
@@ -30,99 +198,68 @@ export default function MemberAttendance() {
                 </div>
                 <div className="d-flex align-items-center gap-3">
                     <div className={styles.monthNav}>
-                        <button className={styles.navArrow}>
+                        <button className={styles.navArrow} onClick={handlePrevMonth} aria-label="Previous Month">
                             <i className="fa-solid fa-chevron-left"></i>
                         </button>
                         <span className={styles.monthText}>
-                            <i className="fa-regular fa-calendar"></i> November
-                            2026
+                            <i className="fa-regular fa-calendar me-2"></i>
+                            {monthYearLabel}
                         </span>
-                        <button className={styles.navArrow}>
+                        <button className={styles.navArrow} onClick={handleNextMonth} aria-label="Next Month">
                             <i className="fa-solid fa-chevron-right"></i>
                         </button>
                     </div>
-                    <button className={styles.btnOutline}>
+                    <button className={styles.btnOutline} onClick={exportPdfLog}>
                         <i className="fa-solid fa-download"></i> Export Log
                     </button>
                 </div>
             </div>
 
             <div className="row g-3 mb-4">
-                <div
-                    className="col-12 col-sm-6 col-xl-3"
-                    data-aos="fade-up"
-                    data-aos-delay="100"
-                >
+                <div className="col-12 col-sm-6 col-xl-3" data-aos="fade-up" data-aos-delay="100">
                     <div className={`${styles.kpiCard} h-100 p-4`}>
                         <div className="d-flex justify-content-between align-items-center mb-3">
-                            <span
-                                className="text-secondary"
-                                style={{ fontSize: "0.75rem" }}
-                            >
+                            <span className="text-secondary" style={{ fontSize: "0.75rem" }}>
                                 Total Visits This Month
                             </span>
                             <i className="fa-regular fa-calendar-check text-secondary"></i>
                         </div>
                         <h3 className={styles.kpiValue}>{totalVisits} Visits</h3>
                         <span className={styles.kpiSubPositive}>
-                            <i className="fa-solid fa-arrow-trend-up"></i> +3
-                            visits vs last month
+                            <i className="fa-solid fa-arrow-trend-up"></i> {monthYearLabel}
                         </span>
                     </div>
                 </div>
-                <div
-                    className="col-12 col-sm-6 col-xl-3"
-                    data-aos="fade-up"
-                    data-aos-delay="200"
-                >
+                <div className="col-12 col-sm-6 col-xl-3" data-aos="fade-up" data-aos-delay="200">
                     <div className={`${styles.kpiCard} h-100 p-4`}>
                         <div className="d-flex justify-content-between align-items-center mb-3">
-                            <span
-                                className="text-secondary"
-                                style={{ fontSize: "0.75rem" }}
-                            >
+                            <span className="text-secondary" style={{ fontSize: "0.75rem" }}>
                                 Consistency Streak
                             </span>
                             <i className="fa-solid fa-fire text-success"></i>
                         </div>
                         <h3 className={styles.kpiValue}>{activeDays} Active Days</h3>
                         <span className={styles.kpiSub}>
-                            Averaging 4 visits per week
+                            Logged sessions in database
                         </span>
                     </div>
                 </div>
-                <div
-                    className="col-12 col-sm-6 col-xl-3"
-                    data-aos="fade-up"
-                    data-aos-delay="300"
-                >
+                <div className="col-12 col-sm-6 col-xl-3" data-aos="fade-up" data-aos-delay="300">
                     <div className={`${styles.kpiCard} h-100 p-4`}>
                         <div className="d-flex justify-content-between align-items-center mb-3">
-                            <span
-                                className="text-secondary"
-                                style={{ fontSize: "0.75rem" }}
-                            >
+                            <span className="text-secondary" style={{ fontSize: "0.75rem" }}>
                                 Most Active Time
                             </span>
                             <i className="fa-regular fa-clock text-warning"></i>
                         </div>
                         <h3 className={styles.kpiValue}>Late Afternoon</h3>
-                        <span className={styles.kpiSub}>
-                            Typical: 5:30 PM - 7:00 PM
-                        </span>
+                        <span className={styles.kpiSub}>Typical: 5:30 PM - 7:00 PM</span>
                     </div>
                 </div>
-                <div
-                    className="col-12 col-sm-6 col-xl-3"
-                    data-aos="fade-up"
-                    data-aos-delay="400"
-                >
+                <div className="col-12 col-sm-6 col-xl-3" data-aos="fade-up" data-aos-delay="400">
                     <div className={`${styles.kpiCard} h-100 p-4`}>
                         <div className="d-flex justify-content-between align-items-center mb-3">
-                            <span
-                                className="text-secondary"
-                                style={{ fontSize: "0.75rem" }}
-                            >
+                            <span className="text-secondary" style={{ fontSize: "0.75rem" }}>
                                 Current Week Progress
                             </span>
                             <i className="fa-solid fa-arrow-trend-up text-primary"></i>
@@ -133,47 +270,30 @@ export default function MemberAttendance() {
                             <span className={styles.kpiTarget}>80% Target</span>
                         </div>
                         <div className={styles.progressBar}>
-                            <div
-                                style={{
-                                    width: "80%",
-                                    backgroundColor: "var(--primary-color)",
-                                }}
-                            ></div>
+                            <div style={{ width: `${Math.min(100, (activeDays / 5) * 100)}%`, backgroundColor: "var(--primary-color)" }}></div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div className="row g-4 mb-4">
-                <div
-                    className="col-12 col-lg-8"
-                    data-aos="fade-right"
-                    data-aos-delay="200"
-                >
-                    <div
-                        className={`${styles.panelCard} h-100 p-4 d-flex flex-column`}
-                    >
+                <div className="col-12 col-lg-8" data-aos="fade-right" data-aos-delay="200">
+                    <div className={`${styles.panelCard} h-100 p-4 d-flex flex-column`}>
                         <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3">
                             <div>
                                 <h3 className={styles.panelTitle}>
-                                    November 2026 Calendar Flow
+                                    {monthYearLabel} Calendar Flow
                                 </h3>
                                 <p className={styles.panelDesc}>
-                                    Highlighted dots mark completed workout
-                                    sessions
+                                    Highlighted dots mark completed workout sessions
                                 </p>
                             </div>
-                            <div
-                                className="d-flex gap-3 text-secondary"
-                                style={{ fontSize: "0.75rem" }}
-                            >
+                            <div className="d-flex gap-3 text-secondary" style={{ fontSize: "0.75rem" }}>
                                 <span>
-                                    <span className={styles.dotActive}></span>{" "}
-                                    Visited (18)
+                                    <span className={styles.dotActive}></span> Visited ({activeDays})
                                 </span>
                                 <span>
-                                    <span className={styles.dotInactive}></span>{" "}
-                                    Rest Day
+                                    <span className={styles.dotInactive}></span> Rest Day
                                 </span>
                             </div>
                         </div>
@@ -187,140 +307,23 @@ export default function MemberAttendance() {
                             <div className={styles.calHeader}>FRI</div>
                             <div className={styles.calHeader}>SAT</div>
 
-                            <div className={styles.calCellEmpty}>26</div>
-                            <div className={styles.calCellEmpty}>27</div>
-                            <div className={styles.calCellEmpty}>28</div>
-                            <div className={styles.calCellEmpty}>29</div>
-                            <div className={styles.calCellEmpty}>30</div>
-                            <div className={styles.calCellEmpty}>31</div>
-                            <div className={styles.calCell}>
-                                1<span className={styles.dotActive}></span>
-                            </div>
-
-                            <div className={styles.calCell}>2</div>
-                            <div className={styles.calCell}>
-                                3<span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>
-                                4<span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>
-                                5<span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>6</div>
-                            <div className={styles.calCell}>
-                                7<span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>8</div>
-
-                            <div className={styles.calCell}>9</div>
-                            <div className={styles.calCell}>
-                                10
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>
-                                11
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>
-                                12
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>
-                                13
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div
-                                className={`${styles.calCell} ${styles.calCellToday}`}
-                            >
-                                14
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>15</div>
-
-                            <div className={styles.calCell}>16</div>
-                            <div className={styles.calCell}>
-                                17
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>
-                                18
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>
-                                19
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>
-                                20
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>21</div>
-                            <div className={styles.calCell}>
-                                22
-                                <span className={styles.dotActive}></span>
-                            </div>
-
-                            <div className={styles.calCell}>23</div>
-                            <div className={styles.calCell}>
-                                24
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>
-                                25
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>
-                                26
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>
-                                27
-                                <span className={styles.dotActive}></span>
-                            </div>
-                            <div className={styles.calCell}>28</div>
-                            <div className={styles.calCell}>29</div>
-
-                            <div className={styles.calCell}>30</div>
-                            <div className={styles.calCellEmpty}>1</div>
-                            <div className={styles.calCellEmpty}>2</div>
-                            <div className={styles.calCellEmpty}>3</div>
-                            <div className={styles.calCellEmpty}>4</div>
-                            <div className={styles.calCellEmpty}>5</div>
-                            <div className={styles.calCellEmpty}>6</div>
+                            {renderCalendarDays(year, month)}
                         </div>
 
-                        <div
-                            className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center border-top border-secondary pt-3 mt-auto text-secondary"
-                            style={{ fontSize: "0.75rem" }}
-                        >
+                        <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center border-top border-secondary pt-3 mt-auto text-secondary" style={{ fontSize: "0.75rem" }}>
                             <span className="text-success">
-                                <i className="fa-regular fa-face-smile"></i>{" "}
-                                Great habit! You are in the top 15% most
-                                consistent members this month.
+                                <i className="fa-regular fa-face-smile"></i> Great habit! You are in the top 15% most consistent members this month.
                             </span>
-                            <span className="mt-2 mt-sm-0">
-                                Target: 20 Visits Goal
-                            </span>
+                            <span className="mt-2 mt-sm-0">Target: 20 Visits Goal</span>
                         </div>
                     </div>
                 </div>
 
-                <div
-                    className="col-12 col-lg-4"
-                    data-aos="fade-left"
-                    data-aos-delay="300"
-                >
+                <div className="col-12 col-lg-4" data-aos="fade-left" data-aos-delay="300">
                     <div className={`${styles.instructionsCard} p-4`}>
                         <div className="d-flex align-items-center gap-3 mb-4">
                             <i className="fa-regular fa-circle-question fs-5 text-secondary"></i>
-                            <h3
-                                className="m-0 text-white"
-                                style={{
-                                    fontFamily: "var(--heading-font)",
-                                    fontSize: "1.1rem",
-                                }}
-                            >
+                            <h3 className="m-0 text-white" style={{ fontFamily: "var(--heading-font)", fontSize: "1.1rem" }}>
                                 How to Check In
                             </h3>
                         </div>
@@ -328,21 +331,11 @@ export default function MemberAttendance() {
                         <div className="d-flex align-items-start gap-3 mb-4">
                             <div className={styles.stepNumber}>1</div>
                             <div>
-                                <h5
-                                    className="text-white mb-1"
-                                    style={{ fontSize: "0.95rem" }}
-                                >
+                                <h5 className="text-white mb-1" style={{ fontSize: "0.95rem" }}>
                                     Give your Name
                                 </h5>
-                                <p
-                                    className="mb-0 text-secondary"
-                                    style={{
-                                        fontSize: "0.8rem",
-                                        lineHeight: "1.5",
-                                    }}
-                                >
-                                    Inform the staff at the counter upon
-                                    arrival.
+                                <p className="mb-0 text-secondary" style={{ fontSize: "0.8rem", lineHeight: "1.5" }}>
+                                    Inform the staff at the counter upon arrival.
                                 </p>
                             </div>
                         </div>
@@ -350,21 +343,11 @@ export default function MemberAttendance() {
                         <div className="d-flex align-items-start gap-3 mb-4">
                             <div className={styles.stepNumberActive}>2</div>
                             <div>
-                                <h5
-                                    className="text-white mb-1"
-                                    style={{ fontSize: "0.95rem" }}
-                                >
+                                <h5 className="text-white mb-1" style={{ fontSize: "0.95rem" }}>
                                     You are ready to train!
                                 </h5>
-                                <p
-                                    className="mb-0 text-secondary"
-                                    style={{
-                                        fontSize: "0.8rem",
-                                        lineHeight: "1.5",
-                                    }}
-                                >
-                                    Your visit is logged instantly in your
-                                    history log below.
+                                <p className="mb-0 text-secondary" style={{ fontSize: "0.8rem", lineHeight: "1.5" }}>
+                                    Your visit is logged instantly in your history log below.
                                 </p>
                             </div>
                         </div>
@@ -372,27 +355,11 @@ export default function MemberAttendance() {
                 </div>
             </div>
 
-            <div
-                className={`${styles.tableCard} p-4`}
-                data-aos="fade-up"
-                data-aos-delay="400"
-            >
+            <div className={`${styles.tableCard} p-4`} data-aos="fade-up" data-aos-delay="400">
                 <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
                     <div className="d-flex align-items-center gap-3">
                         <h3 className={styles.panelTitle}>Visit Logs</h3>
-                        <span className={styles.recordBadge}>18 records</span>
-                    </div>
-                    <div className="d-flex flex-column flex-sm-row align-items-sm-center gap-2">
-                        <div className={styles.searchBox}>
-                            <i className="fa-solid fa-magnifying-glass"></i>
-                            <input
-                                type="text"
-                                placeholder="Search by date or month..."
-                            />
-                        </div>
-                        <button className={styles.btnFilter}>
-                            <i className="fa-solid fa-filter"></i> Filter
-                        </button>
+                        <span className={styles.recordBadge}>{attendance.length} records</span>
                     </div>
                 </div>
 
@@ -412,191 +379,40 @@ export default function MemberAttendance() {
                         <tbody>
                             {attendance.map((row) => (
                                 <tr key={row.id}>
-                                    <td><i className="fa-regular fa-calendar"></i>{" "}{new Date(row.check_in_at).toLocaleDateString()}</td>
+                                    <td><i className="fa-regular fa-calendar me-1"></i>{new Date(row.check_in_at).toLocaleDateString()}</td>
                                     <td>{formatTime(row.check_in_at)}</td>
                                     <td>{formatTime(row.check_out_at)}</td>
                                     <td>{duration(row)}</td>
-                                    <td><div className="d-flex align-items-center gap-2"><i className="fa-solid fa-desktop text-primary"></i>{row.method === "manual" ? "Counter Check-in" : row.method}</div></td>
+                                    <td>
+                                        <div className="d-flex align-items-center gap-2">
+                                            <i className="fa-solid fa-desktop text-primary"></i>
+                                            {row.method === "manual" ? "Counter Check-in" : row.method}
+                                        </div>
+                                    </td>
                                     <td>Gym Staff</td>
-                                    <td><span className={styles.statusCompleted}><span className={styles.dotCompleted}></span>{" "}{row.check_out_at ? "Completed" : "Active"}</span></td>
+                                    <td>
+                                        <span className={styles.statusCompleted}>
+                                            <span className={styles.dotCompleted}></span>
+                                            {row.check_out_at ? "Completed" : "Active"}
+                                        </span>
+                                    </td>
                                 </tr>
                             ))}
-                            {attendance.length === 0 && <tr><td colSpan="7" className="text-center text-secondary py-4">No attendance records found.</td></tr>}
-                        </tbody>
-                        <tbody style={{ display: "none" }}>
-                            <tr>
-                                <td>
-                                    <div className="d-flex align-items-center gap-2">
-                                        <i className="fa-regular fa-calendar"></i>{" "}
-                                        Nov 14, 2026
-                                        <span className={styles.todayBadge}>
-                                            Today
-                                        </span>
-                                    </div>
-                                </td>
-                                <td>05:42 PM</td>
-                                <td>07:05 PM</td>
-                                <td>1 hr 23 mins</td>
-                                <td>
-                                    <div className="d-flex align-items-center gap-2">
-                                        <i className="fa-solid fa-desktop text-primary"></i>{" "}
-                                        Counter Check-in
-                                    </div>
-                                </td>
-                                <td>Staff</td>
-                                <td>
-                                    <span className={styles.statusCompleted}>
-                                        <span
-                                            className={styles.dotCompleted}
-                                        ></span>{" "}
-                                        Completed
-                                    </span>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <i className="fa-regular fa-calendar text-secondary"></i>{" "}
-                                    Nov 13, 2026
-                                </td>
-                                <td>05:35 PM</td>
-                                <td>06:50 PM</td>
-                                <td>1 hr 15 mins</td>
-                                <td>
-                                    <div className="d-flex align-items-center gap-2">
-                                        <i className="fa-solid fa-desktop text-primary"></i>{" "}
-                                        Counter Check-in
-                                    </div>
-                                </td>
-                                <td>Staff</td>
-                                <td>
-                                    <span className={styles.statusCompleted}>
-                                        <span
-                                            className={styles.dotCompleted}
-                                        ></span>{" "}
-                                        Completed
-                                    </span>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <i className="fa-regular fa-calendar text-secondary"></i>{" "}
-                                    Nov 12, 2026
-                                </td>
-                                <td>06:05 PM</td>
-                                <td>07:40 PM</td>
-                                <td>1 hr 35 mins</td>
-                                <td>
-                                    <div className="d-flex align-items-center gap-2">
-                                        <i className="fa-solid fa-desktop text-primary"></i>{" "}
-                                        Counter Check-in
-                                    </div>
-                                </td>
-                                <td>Staff</td>
-                                <td>
-                                    <span className={styles.statusCompleted}>
-                                        <span
-                                            className={styles.dotCompleted}
-                                        ></span>{" "}
-                                        Completed
-                                    </span>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <i className="fa-regular fa-calendar text-secondary"></i>{" "}
-                                    Nov 11, 2026
-                                </td>
-                                <td>05:15 PM</td>
-                                <td>06:30 PM</td>
-                                <td>1 hr 15 mins</td>
-                                <td>
-                                    <div className="d-flex align-items-center gap-2">
-                                        <i className="fa-solid fa-desktop text-primary"></i>{" "}
-                                        Counter Check-in
-                                    </div>
-                                </td>
-                                <td>Staff</td>
-                                <td>
-                                    <span className={styles.statusCompleted}>
-                                        <span
-                                            className={styles.dotCompleted}
-                                        ></span>{" "}
-                                        Completed
-                                    </span>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <i className="fa-regular fa-calendar text-secondary"></i>{" "}
-                                    Nov 10, 2026
-                                </td>
-                                <td>05:50 PM</td>
-                                <td>07:10 PM</td>
-                                <td>1 hr 20 mins</td>
-                                <td>
-                                    <div className="d-flex align-items-center gap-2">
-                                        <i className="fa-solid fa-desktop text-primary"></i>{" "}
-                                        Counter Check-in
-                                    </div>
-                                </td>
-                                <td>Staff</td>
-                                <td>
-                                    <span className={styles.statusCompleted}>
-                                        <span
-                                            className={styles.dotCompleted}
-                                        ></span>{" "}
-                                        Completed
-                                    </span>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <i className="fa-regular fa-calendar text-secondary"></i>{" "}
-                                    Nov 08, 2026
-                                </td>
-                                <td>09:10 AM</td>
-                                <td>10:45 AM</td>
-                                <td>1 hr 35 mins</td>
-                                <td>
-                                    <div className="d-flex align-items-center gap-2">
-                                        <i className="fa-solid fa-desktop text-primary"></i>{" "}
-                                        Counter Check-in
-                                    </div>
-                                </td>
-                                <td>Staff</td>
-                                <td>
-                                    <span className={styles.statusCompleted}>
-                                        <span
-                                            className={styles.dotCompleted}
-                                        ></span>{" "}
-                                        Completed
-                                    </span>
-                                </td>
-                            </tr>
+                            {attendance.length === 0 && (
+                                <tr>
+                                    <td colSpan="7" className="text-center text-secondary py-4">
+                                        No attendance records found for {monthYearLabel}.
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
 
                 <div className="d-flex flex-column flex-sm-row justify-content-between align-items-center mt-4 gap-3">
-                    <span
-                        className="text-secondary"
-                        style={{ fontSize: "0.8rem" }}
-                    >
-                        Showing 1-6 of 18 visits
+                    <span className="text-secondary" style={{ fontSize: "0.8rem" }}>
+                        Showing {attendance.length} visits for {monthYearLabel}
                     </span>
-                    <div className="d-flex gap-2">
-                        <button className={styles.pageBtnText} disabled>
-                            Previous
-                        </button>
-                        <button
-                            className={`${styles.pageBtn} ${styles.pageActive}`}
-                        >
-                            1
-                        </button>
-                        <button className={styles.pageBtn}>2</button>
-                        <button className={styles.pageBtn}>3</button>
-                        <button className={styles.pageBtnText}>Next</button>
-                    </div>
                 </div>
             </div>
         </MemberLayout>

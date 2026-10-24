@@ -4,9 +4,19 @@ import styles from "./MemberProfile.module.css";
 import { api } from "../../lib/api";
 
 export default function MemberProfile() {
+    const [data, setData] = useState(null);
+    const [dashboard, setDashboard] = useState(null);
     const [profile, setProfile] = useState(null);
+    const attendance = dashboard?.attendance;
     const [error, setError] = useState("");
     const [saved, setSaved] = useState(false);
+    const membership = dashboard?.membership;
+    const current = data?.current;
+    const currentPlan = current?.membership_plans;
+    const plan = membership?.membership_plans;
+    const expiration = membership?.end_date ? new Date(membership.end_date).toLocaleDateString() : "...";
+    useEffect(() => { api("/member/membership").then(setData).catch((err) => setError(err.message)); }, []);
+    useEffect(() => { api("/member/dashboard").then(setDashboard).catch((err) => setError(err.message)); }, []);
     useEffect(() => { api("/me").then(setProfile).catch((err) => setError(err.message)); }, []);
     const save = async (event) => {
         event.preventDefault();
@@ -42,7 +52,8 @@ export default function MemberProfile() {
                 <div className="d-flex flex-column">
                     <div className="d-flex flex-wrap align-items-center gap-3 mb-2">
                         <h2 className={styles.memberName}>
-                            Michael Andre Tanza
+                            {profile?.full_name ? profile.full_name : "Member Name"}
+
                         </h2>
                         <span className={styles.statusBadge}>
                             <span className={styles.statusDot}></span> Active
@@ -50,31 +61,31 @@ export default function MemberProfile() {
                         </span>
                     </div>
                     <p className={styles.memberSince}>
-                        Analyn's Fitness Gym since October 2023
+                        Analyn's Fitness Gym Member since {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "..."}
                     </p>
                     <div
                         className="d-flex flex-column flex-sm-row align-items-sm-center gap-2 text-white"
                         style={{ fontSize: "0.8rem" }}
                     >
-                        <span>Monthly Regular (₱990/month)</span>
+                        <span>{currentPlan?.name || "No active membership"} </span>
                         <span
                             className={`${styles.divider} d-none d-sm-block`}
                         ></span>
                         <span>
                             <i className="fa-solid fa-dumbbell text-success"></i>{" "}
-                            Assigned Trainer: Coach Mark
+                            Assigned Trainer: {" " +(current?.coaches?.display_name || "No assigned trainer")}
                         </span>
                     </div>
                 </div>
                 <div className="d-flex gap-3">
                     <div className={styles.statBox}>
                         <span className={styles.statLabel}>ATTENDANCE</span>
-                        <span className={styles.statValue}>14</span>
+                        <span className={styles.statValue}>{attendance?.visit_count ?? "..."}</span>
                         <span className={styles.statSub}>This Month</span>
                     </div>
                     <div className={styles.statBox}>
                         <span className={styles.statLabel}>NEXT DUE</span>
-                        <span className={styles.statValue}>Nov 15</span>
+                        <span className={styles.statValue}>{expiration ? new Date(expiration).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "..."}</span>
                         <span className={styles.statSub}>Auto-renew</span>
                     </div>
                 </div>
@@ -135,7 +146,7 @@ export default function MemberProfile() {
                                         <input
                                             type="email"
                                             className={styles.formInputGroup}
-                                            defaultValue="michael.tanza@example.com"
+                                            defaultValue={profile?.email || ""}
                                         />
                                     </div>
                                 </div>
@@ -166,16 +177,6 @@ export default function MemberProfile() {
                                             defaultValue={profile?.phone || ""}
                                         />
                                     </div>
-                                </div>
-                                <div className="col-12 col-md-6">
-                                    <label className={styles.formLabel}>
-                                        City
-                                    </label>
-                                    <input
-                                        type="text"
-                                        className={styles.formInput}
-                                        defaultValue="San Jose, Batangas"
-                                    />
                                 </div>
                             </div>
                         </div>
@@ -217,7 +218,7 @@ export default function MemberProfile() {
                                     <input
                                         type="text"
                                         className={styles.formInput}
-                                        defaultValue="Sister"
+                                        placeholder="e.g., Mother, Brother, Spouse"
                                     />
                                 </div>
                                 <div className="col-12 col-md-4">
@@ -263,7 +264,7 @@ export default function MemberProfile() {
                                 <textarea
                                     className={styles.formTextarea}
                                     rows="4"
-                                    defaultValue="Mild knee sensitivity, prefer dumbbell squats over heavy barbell back squats. Working on endurance and general core conditioning."
+                                    placeholder="e.g., Mild knee sensitivity, prefer dumbbell squats over heavy barbell back squats. Working on endurance and general core conditioning."
                                 ></textarea>
                             </div>
 
@@ -302,14 +303,14 @@ export default function MemberProfile() {
                             </div>
 
                             <div className="d-flex flex-column align-items-center justify-content-center py-4">
-                                <div className={styles.largeAvatar}>MT</div>
+                                <div className={styles.largeAvatar}>{profile?.full_name ? profile?.full_name.trim().split(" ").map((n) => n[0]).join("").toUpperCase() : "M"}</div>
                                 <h4
                                     className="mt-3 mb-1 text-white"
                                     style={{
                                         fontFamily: "var(--heading-font)",
                                     }}
                                 >
-                                    Michael Andre Tanza
+                                    {profile?.full_name ? profile.full_name : "Member Name"}
                                 </h4>
                                 <p
                                     className="text-secondary mb-4"

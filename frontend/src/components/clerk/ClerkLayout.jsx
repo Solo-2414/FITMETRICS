@@ -20,6 +20,16 @@ export default function ClerkLayout({ children }) {
         await signOut();
         navigate("/login", { replace: true });
     };
+    const [activeInGym, setActiveInGym] = useState(null);
+    const [date] = useState(() => 
+        new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())
+    );
+
+    useEffect(() => {
+        api(`/attendance/analysis?date=${date}`)
+            .then((data) => setActiveInGym(data?.activeInGym ?? 0))
+            .catch((err) => console.error("Error fetching live gym count:", err));
+    }, [date]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showFastCheckInModal, setShowFastCheckInModal] = useState(false);
     const [checkInSearch, setCheckInSearch] = useState("");
@@ -177,7 +187,7 @@ export default function ClerkLayout({ children }) {
                         <div className="d-none d-md-flex align-items-center gap-3">
                             <div className={styles.gymStatus}>
                                 <span className={styles.statusDot}></span>{" "}
-                                Floor: 24 Active Members
+                                Floor: {activeInGym !== null ? activeInGym : "..."} Active Members
                             </div>
                             <span className={styles.branchInfo}>
                                 Comfortable floor density (50 cap)

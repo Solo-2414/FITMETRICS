@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { api } from "../../lib/api";
 import styles from "./AdminLayout.module.css";
 
 export default function AdminLayout({ children }) {
@@ -17,6 +18,16 @@ export default function AdminLayout({ children }) {
     const [isChatOpen, setIsChatOpen] = useState(false);
 
     const closeSidebar = () => setIsSidebarOpen(false);
+
+    const [activeInGym, setActiveInGym] = useState(null);
+    const [date] = useState(() => 
+            new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())
+        );
+    useEffect(() => {
+        api(`/attendance/analysis?date=${date}`)
+            .then((data) => setActiveInGym(data?.activeInGym ?? 0))
+            .catch((err) => console.error("Error fetching live gym count:", err));
+    }, [date]);
 
     return (
         <div className={styles.layoutWrapper}>
@@ -143,7 +154,7 @@ export default function AdminLayout({ children }) {
                         <div className="d-none d-md-flex align-items-center gap-3">
                             <div className={styles.gymStatus}>
                                 <span className={styles.statusDot}></span> Gym
-                                Open - 24 Active Members
+                                Open - {activeInGym !== null ? activeInGym : "..."} Active Members
                             </div>
                             <span className={styles.branchInfo}>
                                 San Jose · 5:48 PM

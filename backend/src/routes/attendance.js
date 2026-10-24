@@ -23,7 +23,7 @@ router.get('/attendance/me', requireAuth, requireRole('member'), async (req, res
   }
 });
 
-router.get('/attendance/analysis', requireAuth, requireRole('admin', 'clerk'), async (req, res, next) => {
+router.get('/attendance/analysis', requireAuth, requireRole('admin', 'clerk', 'member'), async (req, res, next) => {
   try {
     const date = String(req.query.date || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()));
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'Invalid attendance date.' });

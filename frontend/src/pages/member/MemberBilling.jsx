@@ -4,18 +4,56 @@ import styles from "./MemberBilling.module.css";
 import { api } from "../../lib/api";
 
 export default function MemberBilling() {
+    const [profile, setProfile] = useState(null);
+    const [data, setData] = useState(null);
+    const [dashboard, setDashboard] = useState(null);
     const [billing, setBilling] = useState([]);
     const [membership, setMembership] = useState(null);
     const [error, setError] = useState("");
+    const expiration = membership?.end_date ? new Date(membership.end_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "...";
+    useEffect(() => { api("/member/membership").then(setData).catch((err) => setError(err.message)); }, []);
+    useEffect(() => { api("/member/dashboard").then(setDashboard).catch((err) => setError(err.message)); }, []);
+    useEffect(() => { api("/me").then(setProfile).catch((err) => setError(err.message)); }, []);
     useEffect(() => {
         Promise.all([api("/member/billing"), api("/member/membership")])
             .then(([payments, memberships]) => { setBilling(payments); setMembership(memberships.current); })
             .catch((err) => setError(err.message));
     }, []);
+    const save = async (event) => {
+        event.preventDefault();
+        const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+        try {
+            const result = await api("/me", { method: "PATCH", body: {
+                full_name: `${data.first_name || ""} ${data.last_name || ""}`.trim(),
+                phone: data.phone,
+                gender: data.gender,
+                emergency_contact_name: data.emergency_contact_name,
+                emergency_contact_phone: data.emergency_contact_phone,
+            }});
+            setProfile(result); setSaved(true);
+        } catch (err) { setError(err.message); }
+    };
     const plan = membership?.membership_plans;
     const totalPaid = billing.filter((item) => item.status === "paid").reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const nextDate = membership?.end_date ? new Date(membership.end_date).toLocaleDateString() : "...";
     const pendingPayments = billing.filter((item) => item.status === "pending");
+    const getDaysRemainingText = (expiration) => {
+    if (!expiration) return "";
+    // Set both dates to midnight to ensure an accurate day calculation regardless of current time
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const expDate = new Date(expiration);
+    expDate.setHours(0, 0, 0, 0);
+
+    const diffInMs = expDate - today;
+    const diffInDays = Math.round(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInDays < 0) return "Expired";
+    if (diffInDays === 0) return "Expires Today";
+    if (diffInDays === 1) return "1 Day Remaining";
+    return `${diffInDays} Days Remaining`;
+    };
     return (
         <MemberLayout>
             {error && <div className="alert alert-danger">{error}</div>}
@@ -88,8 +126,7 @@ export default function MemberBilling() {
                         <h3 className={styles.kpiValue}>{nextDate}</h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
                             <span className={styles.kpiSub}>
-                                <i className="fa-regular fa-clock"></i> 14 Days
-                                Remaining
+                                <i className="fa-regular fa-clock"></i> {getDaysRemainingText(expiration)}
                             </span>
                             <span className={styles.kpiSub}>
                                 {plan?.name || "Membership"}
@@ -118,7 +155,7 @@ export default function MemberBilling() {
                         </div>
                         <h3 className={styles.kpiValueBlue}>₱{plan ? Number(plan.price).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}</h3>
                         <p className={styles.kpiDescBlue}>
-                            Monthly Regular ₱990 + Coach Mark ₱500
+                            {getDaysRemainingText(expiration)} - Next monthly renewal for {plan?.name || "your plan"}.
                         </p>
                         <div className={styles.settleNotice}>
                             <i className="fa-solid fa-circle-info"></i> Settled
@@ -154,7 +191,7 @@ export default function MemberBilling() {
                                     />
                                 </div>
                                 <button className={styles.btnFilter}>
-                                    All Payments{" "}
+                                    All Payments{""}
                                     <i className="fa-solid fa-chevron-down"></i>
                                 </button>
                             </div>
@@ -445,7 +482,7 @@ export default function MemberBilling() {
                                 </span>
                             </div>
                             <p className={styles.receiptAddress}>
-                                Purok 3, San Isidro St. Main Gym Hub
+                                4th floor Less Consumo Building beside 7/11, San Jose, Batangas, Philippines, 4227
                             </p>
                         </div>
 
@@ -456,7 +493,7 @@ export default function MemberBilling() {
                                         Member Name
                                     </span>
                                     <span className={styles.recValue}>
-                                        Michael Andre Tanza
+                                        {profile?.full_name ? profile.full_name : "Member Name"}
                                     </span>
                                 </div>
                                 <div className="col-6">
@@ -578,7 +615,7 @@ export default function MemberBilling() {
                                 <p className="mb-0 lh-base">
                                     Official digital copy sent to:
                                     <br />
-                                    michael.tanza@example.com
+                                    {profile?.email ? profile.email : "No email available"}
                                 </p>
                             </div>
                             <button className={styles.btnDownload}>
@@ -601,7 +638,7 @@ export default function MemberBilling() {
                             className="text-center text-secondary mb-4"
                             style={{ fontSize: "0.8rem" }}
                         >
-                            Keep fit, stay healthy · See you tomorrow Michael!
+                            Keep fit, stay healthy · See you again, {profile?.full_name?.split(" ")[0] || ", User"}!
                         </p>
                         <div
                             className="d-flex align-items-start gap-3 p-3 rounded"

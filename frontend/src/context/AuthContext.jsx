@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { api } from "../lib/api";
+import {setSessionPersistence, isSessionPersisted } from "../lib/supabase";
 
 const AuthContext = createContext(null);
 
@@ -61,7 +62,9 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         if (!loading && session && (!profile || profile.status !== "active")) {
             supabase.auth.signOut();
-        }
+        } else if (!loading && session && profile && profile.role !== "member" && isSessionPersisted()) {
+        supabase.auth.signOut();
+    }
     }, [loading, session, profile]);
 
     const signIn = async (identifier, password) => {
@@ -70,6 +73,7 @@ export function AuthProvider({ children }) {
                 method: "POST",
                 body: { identifier: identifier.trim(), password },
             });
+            setSessionPersistence(result.profile.role === "member");
             const { error } = await supabase.auth.setSession(result.session);
             if (error) {
                 return { error: "Unable to establish a session. Please try again." };
