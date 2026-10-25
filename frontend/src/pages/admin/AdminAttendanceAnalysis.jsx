@@ -1,11 +1,11 @@
 import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
     BarElement,
+    CategoryScale,
+    Chart as ChartJS,
+    Legend,
+    LinearScale,
     Title,
     Tooltip,
-    Legend,
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
 import { useEffect, useMemo, useState } from "react";
@@ -13,79 +13,72 @@ import AdminLayout from "../../components/admin/AdminLayout";
 import { api } from "../../lib/api";
 import styles from "./AdminAttendanceAnalysis.module.css";
 
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend,
-);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+
+const LIMIT = 10;
+const ranges = [
+    { value: "today", label: "Today" },
+    { value: "7d", label: "7 days" },
+    { value: "30d", label: "30 days" },
+];
+
+const formatTime = (value) => value
+    ? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" }).format(new Date(value))
+    : "-";
+
+const initials = (name) => name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
 export default function AdminAttendanceAnalysis() {
     const [analysis, setAnalysis] = useState(null);
     const [error, setError] = useState("");
-    useEffect(() => {
-        api("/attendance/analysis").then(setAnalysis).catch((err) => setError(err.message));
-    }, []);
-    const chartData = useMemo(() => ({
-        labels: [
-            "6 AM",
-            "8 AM",
-            "10 AM",
-            "12 PM",
-            "2 PM",
-            "4 PM",
-            "6 PM",
-            "8 PM",
-        ],
-        datasets: [
-            {
-                label: "Visits",
-                data: analysis?.hourly || [0, 0, 0, 0, 0, 0, 0, 0],
-                backgroundColor: (context) => {
-                    const value = context.raw;
-                    return value === 28 ? "#f59e0b" : "#38bdf8";
-                },
-                borderRadius: 4,
-                barPercentage: 0.8,
-                categoryPercentage: 0.6,
-            },
-        ],
-    }), [analysis]);
+    const [loading, setLoading] = useState(true);
+    const [range, setRange] = useState("today");
+    const [plan, setPlan] = useState("all");
+    const [page, setPage] = useState(1);
+    const [search, setSearch] = useState("");
 
+    useEffect(() => {
+        let active = true;
+        api(`/attendance/analysis?range=${range}&plan=${plan}&page=${page}&limit=${LIMIT}`)
+            .then((data) => { if (active) setAnalysis(data); })
+            .catch((err) => { if (active) setError(err.message); })
+            .finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
+    }, [range, plan, page]);
+
+    const kpis = analysis?.kpis;
+    const hourly = useMemo(() => analysis?.hourly || [], [analysis]);
+    const chartData = useMemo(() => ({
+        labels: hourly.map((bucket) => bucket.label),
+        datasets: [{
+            label: "Visits",
+            data: hourly.map((bucket) => bucket.visits),
+            backgroundColor: hourly.map((bucket) => bucket.label === kpis?.busiestHourLabel ? "#f59e0b" : "#38bdf8"),
+            borderRadius: 4,
+            barPercentage: 0.8,
+            categoryPercentage: 0.6,
+        }],
+    }), [hourly, kpis]);
     const chartOptions = {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                backgroundColor: "#1e293b",
-                titleColor: "#f8fafc",
-                bodyColor: "#94a3b8",
-                borderColor: "#334155",
-                borderWidth: 1,
-            },
-        },
+        plugins: { legend: { display: false } },
         scales: {
-            x: {
-                grid: { display: false, drawBorder: false },
-                ticks: {
-                    color: (context) =>
-                        context.tick.label === "6 PM" ? "#f59e0b" : "#94a3b8",
-                    font: {
-                        size: 11,
-                        family: "Inter, sans-serif",
-                        weight: (context) =>
-                            context.tick.label === "6 PM" ? "bold" : "normal",
-                    },
-                },
-            },
-            y: {
-                display: false,
-                beginAtZero: true,
-            },
+            x: { grid: { display: false }, ticks: { color: "#94a3b8", font: { size: 11 } } },
+            y: { display: false, beginAtZero: true },
         },
+    };
+    const records = (analysis?.records || []).filter((row) => row.member_name.toLowerCase().includes(search.toLowerCase()));
+    const maxWeekday = Math.max(...(analysis?.weekday || []).map((day) => day.visits), 1);
+    const changeLabel = kpis?.changePct === null || kpis?.changePct === undefined
+        ? "No previous data"
+        : `${kpis.changePct >= 0 ? "+" : ""}${kpis.changePct}% vs previous period`;
+
+    const selectRange = (value) => {
+        setLoading(true);
+        setError("");
+        setRange(value);
+        setPage(1);
     };
 
     return (
@@ -93,319 +86,63 @@ export default function AdminAttendanceAnalysis() {
             {error && <div className="alert alert-danger">{error}</div>}
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <h1 className={styles.pageTitle}>Attendance Analysis</h1>
-                <p className={styles.pageDesc}>
-                    Review daily member check-ins, peak visiting hours, and gym
-                    foot traffic
-                </p>
+                <p className={styles.pageDesc}>Review daily member check-ins, peak visiting hours, and gym foot traffic</p>
             </div>
 
+            {loading && !analysis && <div className="text-secondary mb-4">Loading attendance analysis...</div>}
             <div className="row g-3 mb-4">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
-                        <div className={styles.kpiHeader}>
-                            <span>Today's Total Check-Ins</span>
-                            <div className={styles.iconBoxPrimary}>
-                                <i className="fa-solid fa-list-check"></i>
-                            </div>
-                        </div>
-                        <h3 className={styles.kpiValue}>
-                            {analysis ? analysis.totalCheckIns : "..."}{" "}
-                            <span className={styles.kpiValueUnit}>visits</span>
-                        </h3>
-                        <div className="d-flex justify-content-between align-items-center mt-2">
-                            <span className={styles.kpiPositive}>
-                                <i className="fa-solid fa-arrow-up"></i> +12% vs
-                                yesterday
-                            </span>
-                            <span className={styles.kpiSub}>Target: 70</span>
-                        </div>
+                        <div className={styles.kpiHeader}><span>Check-Ins</span><div className={styles.iconBoxPrimary}><i className="fa-solid fa-list-check"></i></div></div>
+                        <h3 className={styles.kpiValue}>{kpis?.totalCheckIns ?? "..."} <span className={styles.kpiValueUnit}>visits</span></h3>
+                        <div className="d-flex justify-content-between align-items-center mt-2"><span className={styles.kpiPositive}>{changeLabel}</span><span className={styles.kpiSub}>Target: {kpis?.target ?? "..."}</span></div>
                     </div>
                 </div>
-
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
-                        <div className={styles.kpiHeader}>
-                            <span>Current People in Gym</span>
-                            <div className={styles.iconBoxSuccess}>
-                                <i className="fa-solid fa-users"></i>
-                            </div>
-                        </div>
-                        <h3 className={styles.kpiValue}>
-                            {analysis ? analysis.activeInGym : "..."}{" "}
-                            <span className={styles.kpiValueUnit}>
-                                active members
-                            </span>
-                        </h3>
-                        <div className="d-flex justify-content-between align-items-center mt-2">
-                            <span className={styles.kpiLive}>
-                                <span className={styles.liveDot}></span> Floor
-                                capacity: 48% full
-                            </span>
-                            <span className={styles.kpiSub}>Live</span>
-                        </div>
+                        <div className={styles.kpiHeader}><span>Current People in Gym</span><div className={styles.iconBoxSuccess}><i className="fa-solid fa-users"></i></div></div>
+                        <h3 className={styles.kpiValue}>{kpis?.activeInGym ?? "..."} <span className={styles.kpiValueUnit}>active</span></h3>
+                        <div className="d-flex justify-content-between align-items-center mt-2"><span className={styles.kpiLive}><span className={styles.liveDot}></span> Live</span><span className={styles.kpiSub}>Open check-ins</span></div>
                     </div>
                 </div>
-
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
-                        <div className={styles.kpiHeader}>
-                            <span>Busiest Time of Day</span>
-                            <div className={styles.iconBoxWarning}>
-                                <i className="fa-regular fa-clock"></i>
-                            </div>
-                        </div>
-                        <h3 className={styles.kpiValueText}>
-                            5:30 PM - 7:30 PM
-                        </h3>
-                        <div className="d-flex justify-content-between align-items-center mt-2">
-                            <span className={styles.kpiWarning}>
-                                <i className="fa-solid fa-fire"></i> Evening
-                                Rush
-                            </span>
-                            <span className={styles.kpiSub}>
-                                ~28 checked in
-                            </span>
-                        </div>
+                        <div className={styles.kpiHeader}><span>Busiest Time of Day</span><div className={styles.iconBoxWarning}><i className="fa-regular fa-clock"></i></div></div>
+                        <h3 className={styles.kpiValueText}>{kpis?.busiestWindowLabel || "No data"}</h3>
+                        <div className="d-flex justify-content-between align-items-center mt-2"><span className={styles.kpiWarning}><i className="fa-solid fa-fire"></i> Peak window</span><span className={styles.kpiSub}>{kpis?.busiestHourLabel || "No data"}</span></div>
                     </div>
                 </div>
-
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
-                        <div className={styles.kpiHeader}>
-                            <span>Most Active Day</span>
-                            <div className={styles.iconBoxPrimary}>
-                                <i className="fa-regular fa-calendar"></i>
-                            </div>
-                        </div>
-                        <h3 className={styles.kpiValueText}>Mon & Wed</h3>
-                        <div className="d-flex justify-content-between align-items-center mt-2">
-                            <span className={styles.kpiPrimary}>
-                                Avg 68 visits
-                            </span>
-                            <span className={styles.kpiSub}>Weekly peak</span>
-                        </div>
+                        <div className={styles.kpiHeader}><span>Most Active Day</span><div className={styles.iconBoxPrimary}><i className="fa-regular fa-calendar"></i></div></div>
+                        <h3 className={styles.kpiValueText}>{kpis?.mostActiveWeekdays?.map((day) => day.weekday).join(" & ") || "No data"}</h3>
+                        <div className="d-flex justify-content-between align-items-center mt-2"><span className={styles.kpiPrimary}>{kpis?.mostActiveWeekdays?.[0]?.visits || 0} visits</span><span className={styles.kpiSub}>Selected range</span></div>
                     </div>
                 </div>
             </div>
 
             <div className="row g-4 mb-4">
-                <div
-                    className="col-12 col-xl-8"
-                    data-aos="fade-up"
-                    data-aos-delay="100"
-                >
+                <div className="col-12 col-xl-8" data-aos="fade-up" data-aos-delay="100">
                     <div className={styles.chartCard}>
                         <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3">
-                            <div>
-                                <h4 className={styles.panelTitle}>
-                                    Today's Check-Ins by Hour
-                                </h4>
-                                <p className={styles.panelDesc}>
-                                    6:00 AM to 9:30 PM · Highlighting Evening
-                                    Rush
-                                </p>
-                            </div>
-                            <div className={styles.chartLegendOutline}>
-                                <span className={styles.dotWarning}></span> Peak
-                                Window: <strong>5:30 PM - 7:30 PM</strong>
-                            </div>
+                            <div><h4 className={styles.panelTitle}>Check-Ins by Hour</h4><p className={styles.panelDesc}>All times shown in Asia/Manila</p></div>
+                            <div className={styles.chartLegendOutline}><span className={styles.dotWarning}></span> Peak: <strong>{kpis?.busiestHourLabel || "No data"}</strong></div>
                         </div>
-
-                        <div className={styles.chartWrapper}>
-                            <Bar data={chartData} options={chartOptions} />
-                        </div>
-
-                        <div
-                            className="d-flex justify-content-between align-items-center mt-4 pt-3 border-top border-secondary text-secondary"
-                            style={{ fontSize: "0.8rem" }}
-                        >
-                            <div className="d-flex gap-4">
-                                <span className="d-flex align-items-center gap-2">
-                                    <div
-                                        className={styles.legendBoxPrimary}
-                                    ></div>{" "}
-                                    Standard Hours
-                                </span>
-                                <span className="d-flex align-items-center gap-2">
-                                    <div
-                                        className={styles.legendBoxWarning}
-                                    ></div>{" "}
-                                    Peak Rush (5:30 - 7:30 PM)
-                                </span>
-                            </div>
-                            <span>Recorded via Front Desk Log</span>
-                        </div>
+                        <div className={styles.chartWrapper}>{hourly.length ? <Bar data={chartData} options={chartOptions} /> : <div className="text-secondary">No attendance data for this range.</div>}</div>
+                        <div className="d-flex justify-content-between align-items-center mt-4 pt-3 border-top border-secondary text-secondary" style={{ fontSize: "0.8rem" }}><span>Blue: standard hours</span><span>Orange: busiest hour</span></div>
                     </div>
                 </div>
-
-                <div
-                    className="col-12 col-xl-4"
-                    data-aos="fade-left"
-                    data-aos-delay="200"
-                >
+                <div className="col-12 col-xl-4" data-aos="fade-left" data-aos-delay="200">
                     <div className={styles.panelCard}>
-                        <div className="mb-4">
-                            <h4 className={styles.panelTitle}>
-                                Day of Week Comparison
-                            </h4>
-                            <p className={styles.panelDesc}>
-                                Average attendance per weekday
-                            </p>
-                        </div>
-
+                        <div className="mb-4"><h4 className={styles.panelTitle}>Day of Week Comparison</h4><p className={styles.panelDesc}>Visits in the selected range</p></div>
                         <div className="d-flex flex-column gap-3 mb-4">
-                            <div className={styles.progressItem}>
-                                <div className="d-flex justify-content-between align-items-end mb-1">
-                                    <span className="text-white fw-bold">
-                                        Mon
-                                    </span>
-                                    <span
-                                        className="text-white"
-                                        style={{ fontSize: "0.8rem" }}
-                                    >
-                                        70 visits (Peak)
-                                    </span>
+                            {(analysis?.weekday || []).map((day) => (
+                                <div className={styles.progressItem} key={day.weekday}>
+                                    <div className="d-flex justify-content-between align-items-end mb-1"><span className={day.visits === maxWeekday ? "text-white fw-bold" : "text-secondary"}>{day.weekday}</span><span className="text-secondary" style={{ fontSize: "0.8rem" }}>{day.visits} visits</span></div>
+                                    <div className={styles.progressBarBg}><div className={day.visits === maxWeekday ? styles.progressBarFillPrimary : styles.progressBarFillSecondary} style={{ width: `${Math.round((day.visits / maxWeekday) * 100)}%` }}></div></div>
                                 </div>
-                                <div className={styles.progressBarBg}>
-                                    <div
-                                        className={
-                                            styles.progressBarFillPrimary
-                                        }
-                                        style={{ width: "100%" }}
-                                    ></div>
-                                </div>
-                            </div>
-
-                            <div className={styles.progressItem}>
-                                <div className="d-flex justify-content-between align-items-end mb-1">
-                                    <span className="text-secondary">Tue</span>
-                                    <span
-                                        className="text-secondary"
-                                        style={{ fontSize: "0.8rem" }}
-                                    >
-                                        52 visits
-                                    </span>
-                                </div>
-                                <div className={styles.progressBarBg}>
-                                    <div
-                                        className={
-                                            styles.progressBarFillSecondary
-                                        }
-                                        style={{ width: "74%" }}
-                                    ></div>
-                                </div>
-                            </div>
-
-                            <div className={styles.progressItem}>
-                                <div className="d-flex justify-content-between align-items-end mb-1">
-                                    <span className="text-white fw-bold">
-                                        Wed
-                                    </span>
-                                    <span
-                                        className="text-white"
-                                        style={{ fontSize: "0.8rem" }}
-                                    >
-                                        66 visits (Peak)
-                                    </span>
-                                </div>
-                                <div className={styles.progressBarBg}>
-                                    <div
-                                        className={
-                                            styles.progressBarFillPrimary
-                                        }
-                                        style={{ width: "94%" }}
-                                    ></div>
-                                </div>
-                            </div>
-
-                            <div className={styles.progressItem}>
-                                <div className="d-flex justify-content-between align-items-end mb-1">
-                                    <span className="text-secondary">Thu</span>
-                                    <span
-                                        className="text-secondary"
-                                        style={{ fontSize: "0.8rem" }}
-                                    >
-                                        48 visits
-                                    </span>
-                                </div>
-                                <div className={styles.progressBarBg}>
-                                    <div
-                                        className={
-                                            styles.progressBarFillSecondary
-                                        }
-                                        style={{ width: "68%" }}
-                                    ></div>
-                                </div>
-                            </div>
-
-                            <div className={styles.progressItem}>
-                                <div className="d-flex justify-content-between align-items-end mb-1">
-                                    <span className="text-secondary">Fri</span>
-                                    <span
-                                        className="text-secondary"
-                                        style={{ fontSize: "0.8rem" }}
-                                    >
-                                        58 visits
-                                    </span>
-                                </div>
-                                <div className={styles.progressBarBg}>
-                                    <div
-                                        className={
-                                            styles.progressBarFillSecondary
-                                        }
-                                        style={{ width: "82%" }}
-                                    ></div>
-                                </div>
-                            </div>
-
-                            <div className={styles.progressItem}>
-                                <div className="d-flex justify-content-between align-items-end mb-1">
-                                    <span className="text-secondary">Sat</span>
-                                    <span
-                                        className="text-secondary"
-                                        style={{ fontSize: "0.8rem" }}
-                                    >
-                                        42 visits
-                                    </span>
-                                </div>
-                                <div className={styles.progressBarBg}>
-                                    <div
-                                        className={
-                                            styles.progressBarFillSecondary
-                                        }
-                                        style={{ width: "60%" }}
-                                    ></div>
-                                </div>
-                            </div>
-
-                            <div className={styles.progressItem}>
-                                <div className="d-flex justify-content-between align-items-end mb-1">
-                                    <span className="text-secondary">Sun</span>
-                                    <span
-                                        className="text-secondary"
-                                        style={{ fontSize: "0.8rem" }}
-                                    >
-                                        25 visits
-                                    </span>
-                                </div>
-                                <div className={styles.progressBarBg}>
-                                    <div
-                                        className={
-                                            styles.progressBarFillSecondary
-                                        }
-                                        style={{ width: "35%" }}
-                                    ></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="pt-3 border-top border-secondary text-center">
-                            <span
-                                className="text-secondary"
-                                style={{ fontSize: "0.8rem" }}
-                            >
-                                Weekend schedule: 7:00 AM - 7:00 PM
-                            </span>
+                            ))}
+                            {!analysis?.weekday?.length && <span className="text-secondary">No attendance data for this range.</span>}
                         </div>
                     </div>
                 </div>
@@ -415,327 +152,23 @@ export default function AdminAttendanceAnalysis() {
                 <div className="col-12" data-aos="fade-up" data-aos-delay="300">
                     <div className={styles.panelCard}>
                         <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center mb-4 gap-3">
-                            <div>
-                                <h4 className={styles.panelTitle}>
-                                    Check-In History Log
-                                </h4>
-                                <p className={styles.panelDesc}>
-                                    Real-time attendance ledger recorded by
-                                    staff
-                                </p>
-                            </div>
-                            <div className="d-flex flex-column flex-sm-row gap-3">
-                                <div className={styles.searchBox}>
-                                    <i className="fa-solid fa-magnifying-glass"></i>
-                                    <input
-                                        type="text"
-                                        placeholder="Search member name..."
-                                    />
-                                </div>
-                                <div className={styles.filterGroup}>
-                                    <button className={styles.filterBtnActive}>
-                                        Today
-                                    </button>
-                                    <button className={styles.filterBtn}>
-                                        Yesterday
-                                    </button>
-                                    <button className={styles.filterBtn}>
-                                        This Week
-                                    </button>
-                                </div>
-                                <select className={styles.filterSelect}>
-                                    <option>All Plans</option>
-                                    <option>Monthly</option>
-                                    <option>Student</option>
-                                    <option>Walk-In</option>
-                                </select>
+                            <div><h4 className={styles.panelTitle}>Check-In Log</h4><p className={styles.panelDesc}>{analysis?.total || 0} visits in selected range</p></div>
+                            <div className="d-flex flex-wrap gap-2">
+                                <div className={styles.searchBox}><i className="fa-solid fa-magnifying-glass"></i><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search member name..." /></div>
+                                <div className={styles.filterGroup}>{ranges.map((item) => <button key={item.value} className={range === item.value ? styles.filterBtnActive : styles.filterBtn} onClick={() => selectRange(item.value)}>{item.label}</button>)}</div>
+                                <select className={styles.filterSelect} value={plan} onChange={(event) => { setLoading(true); setError(""); setPlan(event.target.value); setPage(1); }}><option value="all">All Plans</option>{(analysis?.byPlan || []).map((item) => <option value={item.planId} key={item.planId}>{item.plan}</option>)}</select>
                             </div>
                         </div>
-
                         <div className="table-responsive">
                             <table className={`table ${styles.customTable}`}>
-                                <thead>
-                                    <tr>
-                                        <th>MEMBER NAME</th>
-                                        <th>MEMBERSHIP PLAN</th>
-                                        <th>TIME IN</th>
-                                        <th>RECORDED BY</th>
-                                        <th className="text-end">ACTION</th>
-                                    </tr>
-                                </thead>
+                                <thead><tr><th>MEMBER NAME</th><th>MEMBERSHIP PLAN</th><th>TIME IN</th><th>RECORDED BY</th><th className="text-end">STATUS</th></tr></thead>
                                 <tbody>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div className={styles.avatar}>
-                                                    RC
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Roberto Cruz
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberId
-                                                        }
-                                                    >
-                                                        Member #0421
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeOutline
-                                                }
-                                            >
-                                                Monthly Unlimited
-                                            </span>
-                                        </td>
-                                        <td className="text-white fw-bold">
-                                            06:14 PM
-                                        </td>
-                                        <td>
-                                            <span className="d-flex align-items-center gap-2">
-                                                <span
-                                                    className={styles.dotGreen}
-                                                ></span>{" "}
-                                                Staff Juan
-                                            </span>
-                                        </td>
-                                        <td className="text-end">
-                                            <button
-                                                className={styles.btnActionIcon}
-                                            >
-                                                <i className="fa-solid fa-ellipsis-vertical"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarPrimary
-                                                    }
-                                                >
-                                                    MA
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Maria Angela Reyes
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberId
-                                                        }
-                                                    >
-                                                        Member #0189
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgePrimary
-                                                }
-                                            >
-                                                Student Pass
-                                            </span>
-                                        </td>
-                                        <td className="text-white fw-bold">
-                                            05:55 PM
-                                        </td>
-                                        <td>
-                                            <span className="d-flex align-items-center gap-2">
-                                                <span
-                                                    className={styles.dotGreen}
-                                                ></span>{" "}
-                                                Staff Maria
-                                            </span>
-                                        </td>
-                                        <td className="text-end">
-                                            <button
-                                                className={styles.btnActionIcon}
-                                            >
-                                                <i className="fa-solid fa-ellipsis-vertical"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSuccess
-                                                    }
-                                                >
-                                                    CD
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Christian Dave Tan
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberId
-                                                        }
-                                                    >
-                                                        Walk-in #0988
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeWarning
-                                                }
-                                            >
-                                                Daily Walk-In
-                                            </span>
-                                        </td>
-                                        <td className="text-white fw-bold">
-                                            05:42 PM
-                                        </td>
-                                        <td>
-                                            <span className="d-flex align-items-center gap-2">
-                                                <span
-                                                    className={styles.dotGreen}
-                                                ></span>{" "}
-                                                Staff Juan
-                                            </span>
-                                        </td>
-                                        <td className="text-end">
-                                            <button
-                                                className={styles.btnActionIcon}
-                                            >
-                                                <i className="fa-solid fa-ellipsis-vertical"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarPrimary
-                                                    }
-                                                >
-                                                    GP
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Gabriel Panganiban
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberId
-                                                        }
-                                                    >
-                                                        Member #0034
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgePrimary
-                                                }
-                                            >
-                                                Annual VIP
-                                            </span>
-                                        </td>
-                                        <td className="text-white fw-bold">
-                                            05:35 PM
-                                        </td>
-                                        <td>
-                                            <span className="d-flex align-items-center gap-2">
-                                                <span
-                                                    className={styles.dotGreen}
-                                                ></span>{" "}
-                                                Staff Maria
-                                            </span>
-                                        </td>
-                                        <td className="text-end">
-                                            <button
-                                                className={styles.btnActionIcon}
-                                            >
-                                                <i className="fa-solid fa-ellipsis-vertical"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div className={styles.avatar}>
-                                                    JL
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Jessica Lim
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.memberId
-                                                        }
-                                                    >
-                                                        Member #0211
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeOutline
-                                                }
-                                            >
-                                                Monthly Unlimited
-                                            </span>
-                                        </td>
-                                        <td className="text-white fw-bold">
-                                            05:12 PM
-                                        </td>
-                                        <td>
-                                            <span className="d-flex align-items-center gap-2">
-                                                <span
-                                                    className={styles.dotGreen}
-                                                ></span>{" "}
-                                                Staff Juan
-                                            </span>
-                                        </td>
-                                        <td className="text-end">
-                                            <button
-                                                className={styles.btnActionIcon}
-                                            >
-                                                <i className="fa-solid fa-ellipsis-vertical"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
+                                    {records.map((row) => <tr key={row.id}><td><div className="d-flex align-items-center gap-3"><div className={styles.avatar}>{initials(row.member_name)}</div><div><strong className="d-block text-white mb-1">{row.member_name}</strong><span className={styles.memberId}>{row.member_id ? `Member ${row.member_id.slice(0, 8)}` : "Walk-in guest"}</span></div></div></td><td><span className={styles.planBadgeOutline}>{row.plan_name}</span></td><td className="text-white fw-bold">{formatTime(row.check_in_at)}</td><td><span className="d-flex align-items-center gap-2"><span className={styles.dotGreen}></span>{row.recorded_by_name}</span></td><td className="text-end text-secondary">{row.status}</td></tr>)}
                                 </tbody>
                             </table>
                         </div>
-
-                        <div className="d-flex flex-column flex-sm-row justify-content-between align-items-center mt-4">
-                            <span
-                                className="text-secondary"
-                                style={{ fontSize: "0.85rem" }}
-                            >
-                                Showing 5 of 56 visits recorded today
-                            </span>
-                            <div className="d-flex gap-2 mt-3 mt-sm-0">
-                                <button className={styles.pageBtnText} disabled>
-                                    Previous
-                                </button>
-                                <button className={styles.pageBtnTextActive}>
-                                    Next
-                                </button>
-                            </div>
-                        </div>
+                        {!loading && !records.length && <div className="text-secondary py-3">No check-ins match the selected filters.</div>}
+                        <div className="d-flex flex-column flex-sm-row justify-content-between align-items-center mt-4"><span className="text-secondary" style={{ fontSize: "0.85rem" }}>Page {analysis?.page || page} of {Math.max(1, Math.ceil((analysis?.total || 0) / LIMIT))}</span><div className="d-flex gap-2 mt-3 mt-sm-0"><button className={styles.pageBtnText} disabled={page <= 1 || loading} onClick={() => { setLoading(true); setPage((value) => value - 1); }}>Previous</button><button className={styles.pageBtnTextActive} disabled={page * LIMIT >= (analysis?.total || 0) || loading} onClick={() => { setLoading(true); setPage((value) => value + 1); }}>Next</button></div></div>
                     </div>
                 </div>
             </div>
