@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import PDFDocument from 'pdfkit';
 import rateLimit from 'express-rate-limit';
 import { createRequire } from 'node:module';
 import { supabaseAdmin } from '../config/supabase.js';
@@ -6,12 +7,14 @@ import { notifyStaff } from '../services/notify.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { enqueueEmail } from '../services/emailQueue.js';
 import { dayStart, nextDayStart } from '../utils/time.js';
+import { addDays, manilaDateString, manilaHour, rangeFromDates } from '../lib/time.js';
 import { clearSettingsCache, getGymSettings } from '../services/maintenance.js';
 
 const router = Router();
 router.use('/admin', requireAuth, requireRole('admin'));
 const backupLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 3, message: { error: 'Export limit reached. Try again later.' } });
 const PAYMENT_MODES = ['cash', 'gcash', 'maya'];
+const UUID_PATTERN = /^[0-9a-f-]{36}$/i;
 const TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/;
 const timeValue = (value) => {
   if (!TIME_RE.test(String(value || ''))) return null;
@@ -80,13 +83,143 @@ const zip = (files) => {
   return Buffer.concat([...locals, centralData, end]);
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => manilaDateString();
 const dateOr = (value, fallback) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? value : fallback;
 const range = (query) => {
   const end = dateOr(query.end, today());
   const start = dateOr(query.start, new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10));
   return { start, end };
 };
+const reportTypes = new Set(['sales', 'collections', 'attendance', 'members']);
+const reportShifts = new Set(['all', 'morning', 'evening']);
+const reportTypeNames = {
+  sales: 'Monthly Sales Summary',
+  collections: 'Daily Cash & GCash Collection Log',
+  attendance: 'Member Attendance Summary',
+  members: 'Expired & Inactive Members List',
+};
+const reportShiftMatches = (value, shift) => {
+  if (!shift || shift === 'all') return true;
+  const hour = manilaHour(value);
+  return shift === 'morning' ? hour >= 6 && hour < 14 : hour >= 14 && hour < 22;
+};
+const reportFilters = (query) => {
+  const { start, end } = range(query);
+  const plan = query.plan && query.plan !== 'all' ? String(query.plan) : 'all';
+  const shift = String(query.shift || 'all');
+  if (!reportTypes.has(String(query.type))) throw new Error('Invalid report type.');
+  if (!['csv', 'pdf'].includes(String(query.format))) throw new Error('Invalid report format.');
+  if (!reportShifts.has(shift)) throw new Error('Invalid report shift.');
+  if (plan !== 'all' && plan !== 'walk-ins' && !UUID_PATTERN.test(plan)) throw new Error('Invalid report plan.');
+  return { start, end, plan, shift };
+};
+const reportRows = async ({ type, start, end, plan, shift }) => {
+  const { from, to } = rangeFromDates(start, addDays(end, 1));
+  if (type === 'sales' || type === 'collections') {
+    const { data, error } = await supabaseAdmin
+      .from('payments')
+      .select('id, amount, gross_amount, discount, method, status, reference_number, receipt_number, provider, provider_payment_id, paid_at, created_at, plan_id, membership_id, walk_in_visit_id, memberships(plan_id, membership_plans(name)), walk_in_visits(plan_id, membership_plans(name))')
+      .gte('created_at', from)
+      .lt('created_at', to)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    const filtered = (data || []).filter((payment) => {
+      const timestamp = payment.paid_at || payment.created_at;
+      const linkedPlan = payment.plan_id || payment.memberships?.plan_id || payment.walk_in_visits?.plan_id || null;
+      return reportShiftMatches(timestamp, shift)
+        && (plan === 'all' || (plan === 'walk-ins' ? !linkedPlan : linkedPlan === plan));
+    });
+    if (type === 'collections') {
+      const grouped = new Map();
+      for (const payment of filtered) {
+        const key = `${manilaDateString(payment.paid_at || payment.created_at)}|${payment.method}`;
+        const current = grouped.get(key) || { date: key.split('|')[0], method: payment.method, transactions: 0, paid_amount: 0, voided_amount: 0, refunded_amount: 0 };
+        current.transactions += 1;
+        if (payment.status === 'paid') current.paid_amount += Number(payment.amount || 0);
+        if (payment.status === 'voided') current.voided_amount += Number(payment.amount || 0);
+        if (payment.status === 'refunded') current.refunded_amount += Number(payment.amount || 0);
+        grouped.set(key, current);
+      }
+      return [...grouped.values()];
+    }
+    return filtered.map((payment) => ({
+      date: manilaDateString(payment.paid_at || payment.created_at),
+      receipt_number: payment.receipt_number,
+      plan: payment.memberships?.membership_plans?.name || payment.walk_in_visits?.membership_plans?.name || 'Walk-in',
+      method: payment.method,
+      status: payment.status,
+      gross_amount: Number(payment.gross_amount ?? payment.amount ?? 0),
+      discount: Number(payment.discount || 0),
+      net_amount: Number(payment.amount || 0),
+      reference_number: payment.reference_number || '',
+      provider: payment.provider || '',
+      provider_payment_id: payment.provider_payment_id || '',
+    }));
+  }
+  if (type === 'attendance') {
+    const { data, error } = await supabaseAdmin
+      .from('attendance')
+      .select('id, check_in_at, check_out_at, method, status, member_id, memberships(membership_plans(name)), walk_in_visits(guest_name, membership_plans(name))')
+      .gte('check_in_at', from)
+      .lt('check_in_at', to)
+      .order('check_in_at', { ascending: true });
+    if (error) throw error;
+    const memberIds = [...new Set((data || []).map((row) => row.member_id).filter(Boolean))];
+    const profiles = memberIds.length ? await supabaseAdmin.from('profiles').select('id, full_name, phone, email').in('id', memberIds) : { data: [], error: null };
+    if (profiles.error) throw profiles.error;
+    const names = new Map((profiles.data || []).map((profile) => [profile.id, profile]));
+    return (data || []).filter((row) => row.status !== 'cancelled' && reportShiftMatches(row.check_in_at, shift)).map((row) => ({
+      date: manilaDateString(row.check_in_at),
+      member: names.get(row.member_id)?.full_name || row.walk_in_visits?.guest_name || 'Walk-in Guest',
+      plan: row.memberships?.membership_plans?.name || row.walk_in_visits?.membership_plans?.name || 'Walk-in',
+      check_in: row.check_in_at,
+      check_out: row.check_out_at || '',
+      method: row.method,
+      duration_hours: row.check_out_at ? ((new Date(row.check_out_at) - new Date(row.check_in_at)) / 3600000).toFixed(2) : '',
+    }));
+  }
+  const { data: profiles, error: profileError } = await supabaseAdmin.from('profiles').select('id, full_name, phone, email').eq('role', 'member').order('full_name');
+  if (profileError) throw profileError;
+  const ids = (profiles || []).map((profile) => profile.id);
+  const memberships = ids.length ? await supabaseAdmin.from('memberships').select('member_id, plan_id, end_date, status, membership_plans(name)').in('member_id', ids).order('end_date', { ascending: false }) : { data: [], error: null };
+  if (memberships.error) throw memberships.error;
+  const visits = ids.length ? await supabaseAdmin.from('attendance').select('member_id, check_in_at').in('member_id', ids).neq('status', 'cancelled').order('check_in_at', { ascending: false }) : { data: [], error: null };
+  if (visits.error) throw visits.error;
+  const latestMembership = new Map();
+  for (const membership of memberships.data || []) if (!latestMembership.has(membership.member_id)) latestMembership.set(membership.member_id, membership);
+  const latestVisit = new Map();
+  for (const visit of visits.data || []) if (!latestVisit.has(visit.member_id)) latestVisit.set(visit.member_id, visit.check_in_at);
+  const todayDate = new Date(`${today()}T00:00:00+08:00`);
+  return (profiles || []).map((profile) => {
+    const membership = latestMembership.get(profile.id);
+    const lastVisit = latestVisit.get(profile.id) || null;
+    const expiry = membership?.end_date || null;
+    const expiryDate = expiry ? new Date(`${expiry}T00:00:00+08:00`) : null;
+    const daysInactive = lastVisit ? Math.max(0, Math.floor((todayDate - new Date(lastVisit)) / 86400000)) : null;
+    return { member: profile.full_name || 'Unnamed member', plan_id: membership?.plan_id || null, plan: membership?.membership_plans?.name || 'No active plan', expiry_date: expiry || '', phone: profile.phone || '', email: profile.email || '', last_visit: lastVisit ? manilaDateString(lastVisit) : '', days_inactive: daysInactive ?? '' };
+  }).filter((row) => (plan === 'all' || (plan !== 'walk-ins' && row.plan_id === plan) || (plan === 'walk-ins' && !row.plan_id))
+    && (row.expiry_date && new Date(`${row.expiry_date}T00:00:00+08:00`) < todayDate || row.days_inactive === '' || Number(row.days_inactive) >= 30));
+};
+const pdfBuffer = ({ title, start, end, generatedBy, rows }) => new Promise((resolve, reject) => {
+  const document = new PDFDocument({ margin: 36, size: 'A4', layout: 'landscape' });
+  const chunks = [];
+  document.on('data', (chunk) => chunks.push(chunk));
+  document.on('end', () => resolve(Buffer.concat(chunks)));
+  document.on('error', reject);
+  document.fontSize(16).text(`Analyn's Fitness Gym - ${title}`);
+  document.fontSize(9).text(`Period: ${start} to ${end} | Generated by: ${generatedBy} | Generated at: ${new Date().toISOString()}`);
+  document.moveDown();
+  const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const formatValue = (key, value) => {
+    if (value === null || value === undefined) return '';
+    if (/(amount|revenue|price|discount)/i.test(key) && value !== '') return `₱${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return value;
+  };
+  const lines = [keys, ...rows.map((row) => keys.map((key) => formatValue(key, row[key])))];
+  document.fontSize(7);
+  for (const line of lines) document.text(line.map((value) => String(value).replaceAll('\n', ' ')).join(' | '), { lineGap: 2 });
+  document.end();
+});
 const readView = async (name, query = {}, dateColumn = 'period') => {
   let request = supabaseAdmin.from(name).select('*');
   if (query.start) request = request.gte(dateColumn, query.start);
@@ -282,10 +415,83 @@ router.get('/admin/predictive', async (_req, res, next) => {
 
 router.get('/admin/reports', async (req, res, next) => {
   try {
-    const { data, error } = await supabaseAdmin.from('reports').select('*').order('generated_at', { ascending: false }).limit(100);
-    if (error) return next(error);
-    res.json(data);
+    const [reportsResult, downloadsResult] = await Promise.all([
+      supabaseAdmin.from('reports').select('id, report_type, period_start, period_end, filters, generated_by, generated_at, result').order('generated_at', { ascending: false }).limit(100),
+      supabaseAdmin.from('report_downloads').select('id, report_type, period_start, period_end, filters, format, generated_by, created_at').order('created_at', { ascending: false }).limit(100),
+    ]);
+    if (reportsResult.error) return next(reportsResult.error);
+    if (downloadsResult.error) return next(downloadsResult.error);
+    const ids = [...new Set([...(reportsResult.data || []), ...(downloadsResult.data || [])].map((row) => row.generated_by).filter(Boolean))];
+    const profiles = ids.length ? await supabaseAdmin.from('profiles').select('id, full_name').in('id', ids) : { data: [], error: null };
+    if (profiles.error) return next(profiles.error);
+    const names = new Map((profiles.data || []).map((profile) => [profile.id, profile.full_name || 'Unknown user']));
+    res.json({
+      reports: (reportsResult.data || []).map((row) => ({ ...row, generated_by_name: names.get(row.generated_by) || 'Unknown user' })),
+      downloads: (downloadsResult.data || []).map((row) => ({ ...row, generated_by_name: names.get(row.generated_by) || 'Unknown user' })),
+    });
   } catch (error) { next(error); }
+});
+
+router.get('/admin/reports/summary', async (req, res, next) => {
+  try {
+    const { start, end } = range(req.query || {});
+    const plan = req.query.plan && req.query.plan !== 'all' && req.query.plan !== 'walk-ins' ? String(req.query.plan) : null;
+    const shift = ['all', 'morning', 'evening'].includes(String(req.query.shift || 'all')) ? String(req.query.shift || 'all') : null;
+    if (req.query.plan && req.query.plan !== 'all' && req.query.plan !== 'walk-ins' && !UUID_PATTERN.test(plan)) return res.status(400).json({ error: 'Invalid report plan.' });
+    if (!shift) return res.status(400).json({ error: 'Invalid report shift.' });
+    const { data, error } = await supabaseAdmin.rpc('reports_summary', { p_start: start, p_end: end, p_plan: plan, p_shift: shift, p_walk_ins: req.query.plan === 'walk-ins' });
+    if (error) return next(error);
+    res.json({ ...data, period: { start, end }, loadedAt: new Date().toISOString() });
+  } catch (error) { next(error); }
+});
+
+router.get('/admin/reports/export', async (req, res, next) => {
+  try {
+    const type = String(req.query.type || '');
+    const format = String(req.query.format || '');
+    const filters = reportFilters({ ...req.query, type, format });
+    const rows = await reportRows({ type, ...filters });
+    const profile = await supabaseAdmin.from('profiles').select('full_name').eq('id', req.user.id).single();
+    if (profile.error) return next(profile.error);
+    const generatedBy = profile.data?.full_name || 'Unknown user';
+    const filterDetails = { plan: filters.plan, shift: filters.shift };
+    let content;
+    let headers;
+    if (format === 'csv') {
+      content = csv(rows);
+      headers = {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="fitmetrics-${type}-${filters.start}-to-${filters.end}.csv"`,
+      };
+    } else {
+      content = await pdfBuffer({ title: reportTypeNames[type], start: filters.start, end: filters.end, generatedBy, rows });
+      headers = {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="fitmetrics-${type}-${filters.start}-to-${filters.end}.pdf"`,
+      };
+    }
+    const { data: download, error: downloadError } = await supabaseAdmin.from('report_downloads').insert({
+      report_type: type,
+      period_start: filters.start,
+      period_end: filters.end,
+      filters: filterDetails,
+      format,
+      generated_by: req.user.id,
+    }).select().single();
+    if (downloadError) return next(downloadError);
+    const { error: auditError } = await supabaseAdmin.from('audit_log').insert({
+      actor_id: req.user.id,
+      action: 'report_downloaded',
+      entity_type: 'report_download',
+      entity_id: download.id,
+      details: { report_type: type, format, period_start: filters.start, period_end: filters.end, filters: filterDetails, row_count: rows.length },
+    });
+    if (auditError) return next(auditError);
+    return res.status(200).set(headers).send(content);
+  } catch (error) {
+    if (error.message?.startsWith('Invalid report')) return res.status(400).json({ error: error.message });
+    next(error);
+  }
 });
 
 router.post('/admin/reports', async (req, res, next) => {
@@ -293,13 +499,16 @@ router.post('/admin/reports', async (req, res, next) => {
     const type = ['revenue', 'attendance', 'memberships'].includes(req.body?.report_type) ? req.body.report_type : null;
     if (!type) return res.status(400).json({ error: 'Report type must be revenue, attendance, or memberships.' });
     const { start, end } = range(req.body || {});
-    const view = type === 'revenue' ? 'revenue_daily_summary' : type === 'attendance' ? 'attendance_daily_summary' : 'membership_type_distribution';
-    const result = type === 'memberships'
-      ? await readView(view)
-      : await readView(view, { start, end }, type === 'revenue' ? 'revenue_date' : 'attendance_date');
-    const insert = await supabaseAdmin.from('reports').insert({ report_type: type, period_start: start, period_end: end, filters: req.body.filters || {}, generated_by: req.user.id, result }).select().single();
+    const filters = req.body.filters && typeof req.body.filters === 'object' && !Array.isArray(req.body.filters) ? req.body.filters : {};
+    const plan = filters.plan && filters.plan !== 'all' ? String(filters.plan) : null;
+    const shift = ['all', 'morning', 'evening'].includes(String(filters.shift || 'all')) ? String(filters.shift || 'all') : 'all';
+    if (plan && plan !== 'walk-ins' && !UUID_PATTERN.test(plan)) return res.status(400).json({ error: 'Invalid report plan.' });
+    const summary = await supabaseAdmin.rpc('reports_summary', { p_start: start, p_end: end, p_plan: plan === 'walk-ins' ? null : plan, p_shift: shift, p_walk_ins: plan === 'walk-ins' });
+    if (summary.error) return next(summary.error);
+    const insert = await supabaseAdmin.from('reports').insert({ report_type: type, period_start: start, period_end: end, filters: { ...filters, shift, plan }, generated_by: req.user.id, result: summary.data }).select().single();
     if (insert.error) return next(insert.error);
-    res.status(201).json(insert.data);
+    const profile = await supabaseAdmin.from('profiles').select('full_name').eq('id', req.user.id).single();
+    res.status(201).json({ ...insert.data, generated_by_name: profile.data?.full_name || 'Unknown user' });
   } catch (error) { next(error); }
 });
 

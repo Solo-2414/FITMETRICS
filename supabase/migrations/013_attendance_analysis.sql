@@ -20,7 +20,7 @@ where a.status <> 'cancelled'
 group by 1, 2
 order by visits desc;
 
-revoke all on public.attendance_daily_summary, public.attendance_peak_analysis from anon, authenticated;
+revoke all on public.attendance_daily_summary, public.attendance_peak_analysis from public, anon, authenticated;
 
 create or replace function public.attendance_analysis_summary(
   p_from date,

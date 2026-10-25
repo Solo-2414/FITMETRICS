@@ -1,29 +1,79 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminReports.module.css";
-import { api } from "../../lib/api";
+import { api, downloadApi } from "../../lib/api";
 
 export default function AdminReports() {
-    const [reports, setReports] = useState([]);
+    const [downloads, setDownloads] = useState([]);
+    const [plans, setPlans] = useState([]);
     const [error, setError] = useState("");
     const [generating, setGenerating] = useState(false);
     const [summary, setSummary] = useState(null);
-    useEffect(() => { api("/admin/reports").then(setReports).catch((err) => setError(err.message)); }, []);
+    const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+    const [plan, setPlan] = useState("all");
+    const [shift, setShift] = useState("all");
+    const [loadedAt, setLoadedAt] = useState(null);
+    const months = useMemo(() => Array.from({ length: 12 }, (_, index) => {
+        const date = new Date();
+        date.setDate(1);
+        date.setMonth(date.getMonth() - index);
+        return { value: date.toISOString().slice(0, 7), label: date.toLocaleDateString("en-US", { month: "long", year: "numeric" }) };
+    }), []);
+    const period = useMemo(() => {
+        const [year, monthNumber] = month.split("-").map(Number);
+        const end = new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
+        return { start: `${month}-01`, end };
+    }, [month]);
+    const fetchData = useCallback(async () => {
+        const query = new URLSearchParams({ start: period.start, end: period.end, plan, shift });
+        return Promise.all([
+            api("/admin/reports"),
+            api(`/admin/reports/summary?${query}`),
+            api("/membership-plans"),
+        ]);
+    }, [period.end, period.start, plan, shift]);
+    useEffect(() => {
+        fetchData().then(([reportData, summaryData, planData]) => {
+            setDownloads(reportData.downloads || []);
+            setSummary(summaryData);
+            setLoadedAt(summaryData.loadedAt);
+            setPlans(planData || []);
+        }).catch((err) => setError(err.message));
+    }, [fetchData]);
     const generate = async (type) => {
         setGenerating(true);
         try {
-            const end = new Date().toISOString().slice(0, 10);
-            const startDate = new Date();
-            startDate.setDate(startDate.getDate() - 29);
-            const report = await api("/admin/reports", { method: "POST", body: { report_type: type, start: startDate.toISOString().slice(0, 10), end } });
-            setReports((items) => [report, ...items]);
-            setSummary(report);
+            await api("/admin/reports", { method: "POST", body: { report_type: type, start: period.start, end: period.end, filters: { plan, shift } } });
+            const [reportData, summaryData] = await fetchData();
+            setDownloads(reportData.downloads || []);
+            setSummary(summaryData);
+            setLoadedAt(summaryData.loadedAt);
         } catch (err) { setError(err.message); } finally { setGenerating(false); }
     };
+    const exportReport = async (type, format) => {
+        setError("");
+        try {
+            const query = new URLSearchParams({ type, format, start: period.start, end: period.end, plan, shift });
+            const blob = await downloadApi(`/admin/reports/export?${query}`);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `fitmetrics-${type}-${period.start}-to-${period.end}.${format}`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+            const [reportData] = await fetchData();
+            setDownloads(reportData.downloads || []);
+        } catch (err) { setError(err.message); }
+    };
+    const revenue = summary?.revenue || {};
+    const attendance = summary?.attendance || {};
+    const members = summary?.members || {};
+    const money = (value) => Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return (
         <AdminLayout>
             {error && <div className="alert alert-danger">{error}</div>}
-            {summary && <div className="alert alert-success">Generated {summary.report_type} report.</div>}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                 data-aos="fade-down"
@@ -37,7 +87,7 @@ export default function AdminReports() {
                 </div>
                 <div className={styles.syncBadge}>
                     <i className="fa-regular fa-clock"></i> Last synchronized:
-                    Today at 2:45 PM
+                    {loadedAt ? new Date(loadedAt).toLocaleString() : "..."}
                 </div>
             </div>
 
@@ -51,32 +101,30 @@ export default function AdminReports() {
                         <label className={styles.filterLabel}>
                             REPORT MONTH
                         </label>
-                        <select className={styles.filterSelect}>
-                            <option>October 2026</option>
-                            <option>September 2026</option>
-                            <option>August 2026</option>
+                        <select className={styles.filterSelect} value={month} onChange={(event) => setMonth(event.target.value)}>
+                            {months.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
                         </select>
                     </div>
                     <div className="col-12 col-md-3">
                         <label className={styles.filterLabel}>
                             PLAN CATEGORY
                         </label>
-                        <select className={styles.filterSelect}>
-                            <option>All Plans</option>
-                            <option>Monthly Plans</option>
-                            <option>Student Passes</option>
-                            <option>Walk-Ins</option>
+                        <select className={styles.filterSelect} value={plan} onChange={(event) => setPlan(event.target.value)}>
+                            <option value="all">All Plans</option>
+                            {plans.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
+                            <option value="walk-ins">Walk-ins</option>
                         </select>
                     </div>
                     <div className="col-12 col-md-4">
                         <label className={styles.filterLabel}>
                             SHIFT WINDOW
                         </label>
-                        <select className={styles.filterSelect}>
-                            <option>All Shifts (Morning & Evening)</option>
-                            <option>Morning (06:00 - 14:00)</option>
-                            <option>Evening (14:00 - 22:00)</option>
+                        <select className={styles.filterSelect} value={shift} onChange={(event) => setShift(event.target.value)}>
+                            <option value="all">All Shifts (Morning & Evening)</option>
+                            <option value="morning">Morning (06:00 - 14:00)</option>
+                            <option value="evening">Evening (14:00 - 22:00)</option>
                         </select>
+                        <small className="text-secondary">Shift uses Manila time: morning 06:00-13:59, evening 14:00-21:59.</small>
                     </div>
                     <div className="col-12 col-md-2">
                         <button className={styles.btnGenerate} type="button" disabled={generating} onClick={() => generate("revenue")}>
@@ -100,17 +148,17 @@ export default function AdminReports() {
                                 <i className="fa-solid fa-money-bill"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>₱{reports.length ? reports.filter((r) => r.report_type === "revenue").reduce((sum, r) => sum + (r.result || []).reduce((total, row) => total + Number(row.revenue || 0), 0), 0).toLocaleString() : "..."}</h3>
+                        <h3 className={styles.kpiValue}>₱{money(revenue.total)}</h3>
                         <div className="d-flex align-items-center gap-2 mb-3">
                             <span className={styles.kpiPositive}>
                                 <i className="fa-solid fa-arrow-trend-up"></i>{" "}
-                                14.2%
+                                {revenue.total ? `${Math.round(((Number(revenue.total) - Number(revenue.previousTotal || 0)) / Math.max(1, Number(revenue.previousTotal || 0))) * 100)}%` : "0%"}
                             </span>
                             <span className={styles.kpiSub}>(Memberships)</span>
                         </div>
                         <div className="d-flex justify-content-between align-items-center mt-auto border-top border-secondary pt-3">
                             <span className={styles.kpiSub}>
-                                Day Passes: ₱4,500
+                                Discounts: ₱{money(revenue.discounts)}
                             </span>
                             <span className={styles.kpiStatusSuccess}>
                                 Healthy
@@ -127,18 +175,18 @@ export default function AdminReports() {
                                 <i className="fa-solid fa-cash-register"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>₱42,150</h3>
+                        <h3 className={styles.kpiValue}>₱{money(revenue.cash)}</h3>
                         <div className="mb-3">
                             <span className={styles.kpiSub}>
-                                61.5% of total revenue
+                                {revenue.total ? `${Math.round((Number(revenue.cash || 0) / Number(revenue.total)) * 100)}% of total revenue` : "0% of total revenue"}
                             </span>
                         </div>
                         <div className="d-flex justify-content-between align-items-center mt-auto border-top border-secondary pt-3">
                             <span className={styles.kpiSub}>
-                                Drawer count verified
+                                {revenue.cashCount || 0} paid transactions
                             </span>
                             <span className={styles.kpiStatusNeutral}>
-                                Front Desk Lockbox
+                                Cash
                             </span>
                         </div>
                     </div>
@@ -152,17 +200,17 @@ export default function AdminReports() {
                                 <i className="fa-solid fa-mobile-screen"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>₱26,300</h3>
+                        <h3 className={styles.kpiValue}>₱{money(revenue.online)}</h3>
                         <div className="d-flex align-items-center gap-2 mb-3">
                             <span className={styles.kpiPositive}>
                                 <i className="fa-solid fa-arrow-trend-up"></i>{" "}
-                                22.8%
+                                {revenue.onlineCount || 0} paid transactions
                             </span>
                             <span className={styles.kpiSub}>QR Transfers</span>
                         </div>
                         <div className="d-flex justify-content-between align-items-center mt-auto border-top border-secondary pt-3">
                             <span className={styles.kpiSub}>
-                                GCash Express QR #0917
+                                {revenue.total ? `${Math.round((Number(revenue.online || 0) / Number(revenue.total)) * 100)}% of total revenue` : "0% of total revenue"}
                             </span>
                             <span className={styles.kpiStatusPrimary}>
                                 Direct E-wallet
@@ -180,21 +228,21 @@ export default function AdminReports() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            1,420{" "}
+                            {attendance.total || 0}{" "}
                             <span className={styles.kpiValueUnit}>visits</span>
                         </h3>
                         <div className="d-flex align-items-center gap-2 mb-3">
                             <span className={styles.kpiPositive}>
                                 <i className="fa-solid fa-arrow-trend-up"></i>{" "}
-                                52 visits/day avg
+                                {attendance.averagePerDay || 0} visits/day avg
                             </span>
                         </div>
                         <div className="d-flex justify-content-between align-items-center mt-auto border-top border-secondary pt-3">
                             <span className={styles.kpiSub}>
-                                Peak: 5:30 PM - 8:00 PM
+                                Peak: {attendance.peak ? `${attendance.peak.startHour}:00 - ${attendance.peak.endHour}:00` : "No data"}
                             </span>
                             <span className={styles.kpiStatusNeutral}>
-                                Turnstile active
+                                {members.inactive || 0} inactive members
                             </span>
                         </div>
                     </div>
@@ -241,16 +289,15 @@ export default function AdminReports() {
                             <span className={styles.badgePrimary}>Revenue</span>
                         </div>
                         <ul className={styles.bulletList}>
-                            <li>Monthly VIP Passes (78 sold)</li>
-                            <li>Weekly & 2-Week Passes (42 sold)</li>
-                            <li>Daily Walk-Ins (194 passes)</li>
+                            {(summary?.salesByPlan || []).map((item) => <li key={item.plan}>{item.plan} ({item.sold || 0} sold)</li>)}
+                            {!summary?.salesByPlan?.length && <li>No sales in this period.</li>}
                         </ul>
                         <div className="d-flex flex-column flex-sm-row gap-3 mt-4">
-                            <button className={styles.btnExportPrimary}>
+                            <button className={styles.btnExportPrimary} type="button" onClick={() => exportReport("sales", "pdf")}>
                                 <i className="fa-solid fa-file-pdf"></i>{" "}
                                 Download PDF
                             </button>
-                            <button className={styles.btnExportSecondary}>
+                            <button className={styles.btnExportSecondary} type="button" onClick={() => exportReport("sales", "csv")}>
                                 <i className="fa-solid fa-file-csv"></i> Export
                                 Excel / CSV
                             </button>
@@ -281,16 +328,16 @@ export default function AdminReports() {
                             </span>
                         </div>
                         <ul className={styles.bulletList}>
-                            <li>Opening & Closing drawer cash match</li>
-                            <li>GCash confirmation ref code logs</li>
-                            <li>Shift handover signoffs</li>
+                            <li>Cash collected: ₱{money(revenue.cash)}</li>
+                            <li>Online collected: ₱{money(revenue.online)}</li>
+                            <li>{Number(revenue.cashCount || 0) + Number(revenue.onlineCount || 0)} paid transactions</li>
                         </ul>
                         <div className="d-flex flex-column flex-sm-row gap-3 mt-4">
-                            <button className={styles.btnExportPrimary}>
+                            <button className={styles.btnExportPrimary} type="button" onClick={() => exportReport("collections", "pdf")}>
                                 <i className="fa-solid fa-file-pdf"></i>{" "}
                                 Download PDF
                             </button>
-                            <button className={styles.btnExportSecondary}>
+                            <button className={styles.btnExportSecondary} type="button" onClick={() => exportReport("collections", "csv")}>
                                 <i className="fa-solid fa-file-csv"></i> Export
                                 Excel / CSV
                             </button>
@@ -319,16 +366,16 @@ export default function AdminReports() {
                             <span className={styles.badgeInfo}>Traffic</span>
                         </div>
                         <ul className={styles.bulletList}>
-                            <li>Peak hours: 5:00 PM - 8:30 PM (68% load)</li>
-                            <li>Morning warrior cohort (6 AM - 9 AM)</li>
-                            <li>Weekend visitor volume comparison</li>
+                            <li>Total visits: {attendance.total || 0}</li>
+                            <li>Average per day: {attendance.averagePerDay || 0}</li>
+                            <li>Peak: {attendance.peak ? `${attendance.peak.startHour}:00 - ${attendance.peak.endHour}:00` : "No data"}</li>
                         </ul>
                         <div className="d-flex flex-column flex-sm-row gap-3 mt-4">
-                            <button className={styles.btnExportPrimary}>
+                            <button className={styles.btnExportPrimary} type="button" onClick={() => exportReport("attendance", "pdf")}>
                                 <i className="fa-solid fa-file-pdf"></i>{" "}
                                 Download PDF
                             </button>
-                            <button className={styles.btnExportSecondary}>
+                            <button className={styles.btnExportSecondary} type="button" onClick={() => exportReport("attendance", "csv")}>
                                 <i className="fa-solid fa-file-csv"></i> Export
                                 Excel / CSV
                             </button>
@@ -359,16 +406,16 @@ export default function AdminReports() {
                             </span>
                         </div>
                         <ul className={styles.bulletList}>
-                            <li>18 Members expired past 7 days</li>
-                            <li>14 Expiring within 48 hours</li>
-                            <li>Includes mobile numbers for SMS promo</li>
+                            <li>{members.expiredLast7Days || 0} expired in the last 7 days</li>
+                            <li>{members.expiringWithin48Hours || 0} expiring within 48 hours</li>
+                            <li>{members.inactive || 0} inactive members</li>
                         </ul>
                         <div className="d-flex flex-column flex-sm-row gap-3 mt-4">
-                            <button className={styles.btnExportPrimary}>
+                            <button className={styles.btnExportPrimary} type="button" onClick={() => exportReport("members", "pdf")}>
                                 <i className="fa-solid fa-file-pdf"></i>{" "}
                                 Download PDF
                             </button>
-                            <button className={styles.btnExportSecondary}>
+                            <button className={styles.btnExportSecondary} type="button" onClick={() => exportReport("members", "csv")}>
                                 <i className="fa-solid fa-file-csv"></i> Export
                                 Excel / CSV
                             </button>
@@ -410,72 +457,17 @@ export default function AdminReports() {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>
-                                    <div className="d-flex align-items-center gap-2 text-white fw-bold">
-                                        <i className="fa-solid fa-file-invoice text-secondary"></i>
-                                        Monthly Sales Summary (October)
-                                    </div>
-                                </td>
-                                <td>Oct 01 - Oct 28, 2026</td>
-                                <td>Zhaider Mendoza</td>
-                                <td>
-                                    <span className={styles.formatBadgePrimary}>
-                                        .PDF
-                                    </span>
-                                </td>
-                                <td>Today, 2:40 PM</td>
-                                <td className="text-end">
-                                    <button className={styles.btnActionLink}>
-                                        <i className="fa-solid fa-download"></i>{" "}
-                                        Re-download
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div className="d-flex align-items-center gap-2 text-white fw-bold">
-                                        <i className="fa-regular fa-clock text-secondary"></i>
-                                        Daily Shift Log (Morning Drawer)
-                                    </div>
-                                </td>
-                                <td>Oct 28, 2026 (Morning)</td>
-                                <td>Staff Mark B.</td>
-                                <td>
-                                    <span className={styles.formatBadgeSuccess}>
-                                        .CSV
-                                    </span>
-                                </td>
-                                <td>Today, 2:02 PM</td>
-                                <td className="text-end">
-                                    <button className={styles.btnActionLink}>
-                                        <i className="fa-solid fa-download"></i>{" "}
-                                        Re-download
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div className="d-flex align-items-center gap-2 text-white fw-bold">
-                                        <i className="fa-solid fa-address-card text-secondary"></i>
-                                        Expired Members (Oct Renewal Target)
-                                    </div>
-                                </td>
-                                <td>Past 14 Days</td>
-                                <td>Zhaider Mendoza</td>
-                                <td>
-                                    <span className={styles.formatBadgePrimary}>
-                                        .XLSX
-                                    </span>
-                                </td>
-                                <td>Yesterday, 6:15 PM</td>
-                                <td className="text-end">
-                                    <button className={styles.btnActionLink}>
-                                        <i className="fa-solid fa-download"></i>{" "}
-                                        Re-download
-                                    </button>
-                                </td>
-                            </tr>
+                            {!downloads.length && <tr><td colSpan="6" className="text-center text-secondary py-4">No downloads recorded yet.</td></tr>}
+                            {downloads.map((download) => (
+                                <tr key={download.id}>
+                                    <td><div className="d-flex align-items-center gap-2 text-white fw-bold"><i className="fa-solid fa-file-invoice text-secondary"></i>{download.report_type}</div></td>
+                                    <td>{download.period_start} - {download.period_end}</td>
+                                    <td>{download.generated_by_name}</td>
+                                    <td><span className={download.format === "pdf" ? styles.formatBadgePrimary : styles.formatBadgeSuccess}>.{download.format.toUpperCase()}</span></td>
+                                    <td>{new Date(download.created_at).toLocaleString()}</td>
+                                    <td className="text-end"><span className="text-secondary">Logged</span></td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
