@@ -54,11 +54,11 @@ export default function AdminReports() {
         setError("");
         try {
             const query = new URLSearchParams({ type, format, start: period.start, end: period.end, plan, shift });
-            const blob = await downloadApi(`/admin/reports/export?${query}`);
+            const { blob, filename } = await downloadApi(`/admin/reports/export?${query}`);
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
-            link.download = `fitmetrics-${type}-${period.start}-to-${period.end}.${format}`;
+            link.download = filename || `fitmetrics-${type}-${period.start}-to-${period.end}.${format}`;
             document.body.appendChild(link);
             link.click();
             link.remove();
@@ -258,7 +258,7 @@ export default function AdminReports() {
                     <i className="fa-solid fa-download me-2"></i> Quick Export
                 </h3>
                 <span className={styles.sectionSubtitle}>
-                    Instant CSV table exports & ready-to-print administrative
+                    Downloadable Excel tables and ready-to-print administrative
                     PDFs
                 </span>
             </div>
@@ -297,9 +297,9 @@ export default function AdminReports() {
                                 <i className="fa-solid fa-file-pdf"></i>{" "}
                                 Download PDF
                             </button>
-                            <button className={styles.btnExportSecondary} type="button" onClick={() => exportReport("sales", "csv")}>
+                            <button className={styles.btnExportSecondary} type="button" onClick={() => exportReport("sales", "xlsx")}>
                                 <i className="fa-solid fa-file-csv"></i> Export
-                                Excel / CSV
+                                Download Excel (.xlsx)
                             </button>
                         </div>
                     </div>
@@ -337,9 +337,9 @@ export default function AdminReports() {
                                 <i className="fa-solid fa-file-pdf"></i>{" "}
                                 Download PDF
                             </button>
-                            <button className={styles.btnExportSecondary} type="button" onClick={() => exportReport("collections", "csv")}>
+                            <button className={styles.btnExportSecondary} type="button" onClick={() => exportReport("collections", "xlsx")}>
                                 <i className="fa-solid fa-file-csv"></i> Export
-                                Excel / CSV
+                                Download Excel (.xlsx)
                             </button>
                         </div>
                     </div>
@@ -375,9 +375,9 @@ export default function AdminReports() {
                                 <i className="fa-solid fa-file-pdf"></i>{" "}
                                 Download PDF
                             </button>
-                            <button className={styles.btnExportSecondary} type="button" onClick={() => exportReport("attendance", "csv")}>
+                            <button className={styles.btnExportSecondary} type="button" onClick={() => exportReport("attendance", "xlsx")}>
                                 <i className="fa-solid fa-file-csv"></i> Export
-                                Excel / CSV
+                                Download Excel (.xlsx)
                             </button>
                         </div>
                     </div>
@@ -415,9 +415,9 @@ export default function AdminReports() {
                                 <i className="fa-solid fa-file-pdf"></i>{" "}
                                 Download PDF
                             </button>
-                            <button className={styles.btnExportSecondary} type="button" onClick={() => exportReport("members", "csv")}>
+                            <button className={styles.btnExportSecondary} type="button" onClick={() => exportReport("members", "xlsx")}>
                                 <i className="fa-solid fa-file-csv"></i> Export
-                                Excel / CSV
+                                Download Excel (.xlsx)
                             </button>
                         </div>
                     </div>

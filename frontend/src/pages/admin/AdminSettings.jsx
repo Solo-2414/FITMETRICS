@@ -52,11 +52,11 @@ export default function AdminSettings() {
     };
     const downloadExport = async () => {
         try {
-            const blob = await downloadApi("/admin/maintenance/backups", { method: "POST" });
+            const { blob, filename } = await downloadApi("/admin/maintenance/backups", { method: "POST" });
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
-            link.download = `fitmetrics-data-export-${new Date().toISOString().slice(0, 10)}.zip`;
+            link.download = filename || `fitmetrics-data-export-${new Date().toISOString().slice(0, 10)}.zip`;
             link.click();
             URL.revokeObjectURL(url);
             const [info, history] = await Promise.all([api("/admin/system-info"), api("/admin/maintenance/backups")]);

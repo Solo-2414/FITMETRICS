@@ -9,14 +9,15 @@ export default function MemberNotifications() {
 
     const [notifications, setNotifications] = useState([]);
     const [error, setError] = useState("");
+    const [loading, setLoading] = useState(true);
     useEffect(() => {
         api("/member/notifications").then((rows) => setNotifications(rows.map((row) => ({
             ...row,
             isRead: Boolean(row.read_at),
             time: new Date(row.created_at).toLocaleString(),
-            icon: row.type === "payment" ? "fa-solid fa-file-invoice-dollar" : row.type === "alert" ? "fa-solid fa-clock" : "fa-solid fa-bullhorn",
-            iconColor: row.type === "alert" ? "text-warning" : "text-primary",
-        })))).catch((err) => setError(err.message));
+            icon: row.type === "payment" ? "fa-solid fa-file-invoice-dollar" : row.type === "alert" ? "fa-solid fa-clock" : row.type === "announcement" ? "fa-solid fa-bullhorn" : "fa-solid fa-bell",
+            iconColor: row.type === "alert" ? "text-warning" : row.type === "announcement" ? "text-success" : "text-primary",
+        })))).catch((err) => setError(err.message)).finally(() => setLoading(false));
     }, []);
     /* const notifications = [
         {
@@ -121,7 +122,7 @@ export default function MemberNotifications() {
                 </div>
 
                 <div className={styles.notificationList}>
-                    {filteredNotifications.length > 0 ? (
+                    {loading ? <div className={styles.emptyState}><p>Loading notifications...</p></div> : filteredNotifications.length > 0 ? (
                         filteredNotifications.map((note) => (
                             <div
                                 key={note.id}

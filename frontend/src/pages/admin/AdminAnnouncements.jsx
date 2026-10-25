@@ -1,424 +1,133 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminAnnouncements.module.css";
 import { api } from "../../lib/api";
 
+const formatDate = (value) => value ? new Date(value).toLocaleString() : "No date";
+const audienceLabel = (value) => ({ all: "Everyone", member: "Members", clerk: "Clerks", admin: "Admins" }[value] || value);
+
 export default function AdminAnnouncements() {
     const [announcements, setAnnouncements] = useState([]);
+    const [summary, setSummary] = useState({});
     const [error, setError] = useState("");
-    useEffect(() => { api("/admin/announcements").then(setAnnouncements).catch((err) => setError(err.message)); }, []);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [bodyLength, setBodyLength] = useState(0);
+    const formRef = useRef(null);
+
+    const fetchAnnouncements = () => Promise.all([
+        api("/admin/announcements"),
+        api("/admin/announcements/summary"),
+    ]);
+    const load = async () => {
+        setLoading(true);
+        try {
+            const [list, totals] = await fetchAnnouncements();
+            setAnnouncements(list);
+            setSummary(totals);
+            setError("");
+        } catch (err) { setError(err.message); } finally { setLoading(false); }
+    };
+    useEffect(() => {
+        let cancelled = false;
+        fetchAnnouncements().then(([list, totals]) => {
+            if (!cancelled) { setAnnouncements(list); setSummary(totals); setError(""); setLoading(false); }
+        }).catch((err) => { if (!cancelled) { setError(err.message); setLoading(false); } });
+        return () => { cancelled = true; };
+    }, []);
+
+    const updateAnnouncement = async (id, updates) => {
+        try {
+            const updated = await api(`/admin/announcements/${id}`, { method: "PATCH", body: updates });
+            setAnnouncements((items) => items.map((item) => item.id === id ? { ...item, ...updated } : item));
+            await load();
+        } catch (err) { setError(err.message); }
+    };
+
     const createAnnouncement = async (event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
+        const sendEmail = form.get("send_email") === "on";
+        if (sendEmail) {
+            const count = Number(summary.active_recipients?.[form.get("audience")] ?? summary.active_recipients?.all ?? 0);
+            if (!window.confirm(`This will send an email to exactly ${count} active recipient${count === 1 ? "" : "s"}. Continue?`)) return;
+        }
+        setSaving(true);
         try {
             const created = await api("/admin/announcements", { method: "POST", body: {
-                title: form.get("title"), body: form.get("body"), audience: form.get("audience"), expires_at: form.get("expires_at") || null,
+                title: form.get("title"), body: form.get("body"), audience: form.get("audience"),
+                status: form.get("status"), publish_at: form.get("publish_at") || null,
+                expires_at: form.get("expires_at") || null, pinned: form.get("pinned") === "on", send_email: sendEmail,
             }});
             setAnnouncements((items) => [created, ...items]);
-            event.currentTarget.reset();
+            formRef.current?.reset();
+            setBodyLength(0);
+            await load();
+        } catch (err) { setError(err.message); } finally { setSaving(false); }
+    };
+
+    const removeAnnouncement = async (item) => {
+        if (!window.confirm(item.status === "draft" ? "Delete this draft?" : "Archive this announcement?")) return;
+        try {
+            await api(`/admin/announcements/${item.id}`, { method: "DELETE" });
+            await load();
         } catch (err) { setError(err.message); }
     };
+
+    const editText = async (item) => {
+        const title = window.prompt("Announcement title", item.title);
+        if (title === null) return;
+        const body = window.prompt("Announcement text", item.body);
+        if (body === null) return;
+        await updateAnnouncement(item.id, { title, body });
+    };
+
     return (
         <AdminLayout>
             {error && <div className="alert alert-danger">{error}</div>}
-            <div
-                className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
-                data-aos="fade-down"
-            >
-                <div>
-                    <h1 className={styles.pageTitle}>Announcements</h1>
-                    <p className={styles.pageDesc}>
-                        Post updates, holiday schedules, and gym notices for
-                        members and staff
-                    </p>
-                </div>
-                <button
-                    className={styles.btnPrimary}
-                    onClick={() =>
-                        document
-                            .getElementById("create-announcement")
-                            .scrollIntoView({ behavior: "smooth" })
-                    }
-                >
-                    <i className="fa-solid fa-plus"></i> Create Announcement
-                </button>
+            <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3" data-aos="fade-down">
+                <div><h1 className={styles.pageTitle}>Announcements</h1><p className={styles.pageDesc}>Post updates, holiday schedules, and gym notices for members and staff</p></div>
+                <button className={styles.btnPrimary} onClick={() => document.getElementById("create-announcement")?.scrollIntoView({ behavior: "smooth" })}><i className="fa-solid fa-plus"></i> Create Announcement</button>
             </div>
 
-            <div
-                className="row g-3 mb-5"
-                data-aos="fade-up"
-                data-aos-delay="100"
-            >
-                <div className="col-12 col-md-4">
-                    <div className={styles.kpiCard}>
-                        <div className={styles.kpiHeader}>
-                            <span>Active Member Notices</span>
-                            <div className={styles.iconBoxPrimary}>
-                                <i className="fa-solid fa-bullhorn"></i>
-                            </div>
-                        </div>
-                        <h3 className={styles.kpiValue}>{announcements.filter((item) => item.status === "published").length}</h3>
-                        <div className="d-flex align-items-center gap-2 mt-2">
-                            <span className={styles.kpiPositive}>
-                                <i className="fa-regular fa-eye"></i>{" "}
-                                Broadcasting on mobile & lobby portal
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="col-12 col-md-4">
-                    <div className={styles.kpiCard}>
-                        <div className={styles.kpiHeader}>
-                            <span>Estimated Member Reach</span>
-                            <div className={styles.iconBoxSecondary}>
-                                <i className="fa-solid fa-users"></i>
-                            </div>
-                        </div>
-                        <h3 className={styles.kpiValue}>418</h3>
-                        <div className="d-flex align-items-center gap-2 mt-2">
-                            <span className={styles.kpiSub}>
-                                <i className="fa-regular fa-envelope"></i>{" "}
-                                In-app delivery & email summary
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="col-12 col-md-4">
-                    <div className={styles.kpiCard}>
-                        <div className={styles.kpiHeader}>
-                            <span>Communication Channel</span>
-                            <div className={styles.iconBoxSuccess}>
-                                <i className="fa-regular fa-comments"></i>
-                            </div>
-                        </div>
-                        <h3 className={styles.kpiValueText}>Email / In-App</h3>
-                        <div className="d-flex align-items-center gap-2 mt-2">
-                            <span className={styles.kpiSub}>
-                                <i className="fa-solid fa-shield-halved"></i>{" "}
-                                Zero-spam compliant feed
-                            </span>
-                        </div>
-                    </div>
-                </div>
+            <div className="row g-3 mb-5" data-aos="fade-up">
+                {[
+                    ["Published announcements", summary.active ?? announcements.filter((item) => item.status === "published").length, "fa-bullhorn", styles.iconBoxPrimary],
+                    ["In-app deliveries", summary.delivered ?? 0, "fa-users", styles.iconBoxSecondary],
+                    ["Read rate", `${summary.readRate ?? 0}%`, "fa-chart-line", styles.iconBoxSuccess],
+                ].map(([label, value, icon, iconStyle]) => <div className="col-12 col-md-4" key={label}><div className={styles.kpiCard}><div className={styles.kpiHeader}><span>{label}</span><div className={iconStyle}><i className={`fa-solid ${icon}`}></i></div></div><h3 className={styles.kpiValue}>{value}</h3><span className={styles.kpiSub}>Based on current announcement delivery data</span></div></div>)}
             </div>
 
             <div className="row g-4">
-                <div
-                    className="col-12 col-xl-8"
-                    data-aos="fade-right"
-                    data-aos-delay="200"
-                >
-                    <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mb-4 gap-3">
-                        <div className="d-flex align-items-center gap-3">
-                            <h4 className={styles.sectionTitle}>
-                                Active & Scheduled Announcements
-                            </h4>
-                            <span className={styles.countBadge}>{announcements.length} Total</span>
-                        </div>
-                        <div className="d-flex align-items-center gap-2">
-                            <span
-                                className="text-secondary"
-                                style={{ fontSize: "0.85rem" }}
-                            >
-                                Filter:
-                            </span>
-                            <button className={styles.btnFilterActive}>
-                                All
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="d-flex flex-column gap-3">
-                        <div className={styles.announcementCard}>
-                            <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-                                <div className="d-flex gap-2 align-items-center flex-wrap">
-                                    <span className={styles.statusPublished}>
-                                        <span
-                                            className={styles.dotGreen}
-                                        ></span>{" "}
-                                        Published · Visible to all members
-                                    </span>
-                                    <span className={styles.statusPinned}>
-                                        <i className="fa-solid fa-thumbtack"></i>{" "}
-                                        Pinned
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className={styles.metaText}>
-                                <i className="fa-regular fa-clock"></i> Posted
-                                Oct 24 · Expires Nov 02
-                            </div>
-
-                            <h3 className={styles.cardTitle}>
-                                Panagbenga Festival Weekend Schedule
-                            </h3>
-                            <p className={styles.cardDesc}>
-                                Analyn's Fitness Gym will remain open from 6:00
-                                AM to 6:00 PM during festival Friday and
-                                Saturday. Regular hours resume Sunday.
-                            </p>
-
-                            <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mt-4 gap-3">
-                                <div className={styles.cardMetrics}>
-                                    <span>
-                                        <i className="fa-regular fa-envelope"></i>{" "}
-                                        In-App & Email Feed
-                                    </span>
-                                    <span className={styles.metricSeparator}>
-                                        •
-                                    </span>
-                                    <span>Read receipts: 92%</span>
-                                </div>
-                                <div className="d-flex gap-2">
-                                    <button
-                                        className={styles.btnActionSecondary}
-                                    >
-                                        <i className="fa-solid fa-thumbtack"></i>{" "}
-                                        Pin to Member Portal
-                                    </button>
-                                    <button className={styles.btnActionIcon}>
-                                        <i className="fa-solid fa-pen"></i>
-                                    </button>
-                                    <button
-                                        className={styles.btnActionIconDanger}
-                                    >
-                                        <i className="fa-regular fa-trash-can"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className={styles.announcementCard}>
-                            <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-                                <span className={styles.statusPublished}>
-                                    <span className={styles.dotGreen}></span>{" "}
-                                    Published · Visible to all members
-                                </span>
-                                <span className={styles.metaText}>
-                                    <i className="fa-regular fa-clock"></i>{" "}
-                                    Posted Oct 18
-                                </span>
-                            </div>
-
-                            <h3 className={styles.cardTitle}>
-                                New Dumbbell & Barbell Sets Arrived!
-                            </h3>
-                            <p className={styles.cardDesc}>
-                                We have upgraded our free-weights corner with
-                                new rubber hex dumbbells (5kg to 35kg). Please
-                                remember to re-rack your weights after use!
-                            </p>
-
-                            <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mt-4 gap-3">
-                                <div className={styles.cardMetrics}>
-                                    <span>
-                                        <i className="fa-solid fa-dumbbell"></i>{" "}
-                                        Equipment Notice
-                                    </span>
-                                    <span className={styles.metricSeparator}>
-                                        •
-                                    </span>
-                                    <span>Audience: All Members</span>
-                                </div>
-                                <div className="d-flex gap-2">
-                                    <button
-                                        className={styles.btnActionIconOutline}
-                                    >
-                                        <i className="fa-solid fa-thumbtack"></i>{" "}
-                                        Pin
-                                    </button>
-                                    <button className={styles.btnActionIcon}>
-                                        <i className="fa-solid fa-pen"></i>
-                                    </button>
-                                    <button
-                                        className={styles.btnActionIconDanger}
-                                    >
-                                        <i className="fa-regular fa-trash-can"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className={styles.announcementCardInactive}>
-                            <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-                                <span className={styles.statusCompleted}>
-                                    <span className={styles.dotGray}></span>{" "}
-                                    Completed
-                                </span>
-                                <span className={styles.metaText}>
-                                    <i className="fa-regular fa-clock"></i>{" "}
-                                    Posted Oct 10
-                                </span>
-                            </div>
-
-                            <h3 className={styles.cardTitleInactive}>
-                                Air Conditioning Maintenance Notice
-                            </h3>
-                            <p className={styles.cardDescInactive}>
-                                AC unit servicing is complete. The gym floor
-                                temperature is returning to optimal cool levels
-                                for your comfort.
-                            </p>
-
-                            <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mt-4 gap-3">
-                                <div className={styles.cardMetricsInactive}>
-                                    <span>
-                                        <i className="fa-solid fa-fan"></i>{" "}
-                                        Facility Service
-                                    </span>
-                                    <span className={styles.metricSeparator}>
-                                        •
-                                    </span>
-                                    <span>Archived automatically</span>
-                                </div>
-                                <div className="d-flex gap-2">
-                                    <button className={styles.btnActionIcon}>
-                                        <i className="fa-solid fa-box-archive"></i>
-                                    </button>
-                                    <button
-                                        className={styles.btnActionIconDanger}
-                                    >
-                                        <i className="fa-regular fa-trash-can"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div className="col-12 col-xl-8" data-aos="fade-right">
+                    <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mb-4 gap-3"><div className="d-flex align-items-center gap-3"><h4 className={styles.sectionTitle}>Announcements</h4><span className={styles.countBadge}>{announcements.length} Total</span></div></div>
+                    {loading ? <div className="text-secondary py-5">Loading announcements...</div> : announcements.length === 0 ? <div className="text-secondary py-5">No announcements yet.</div> : <div className="d-flex flex-column gap-3">
+                        {announcements.map((item) => <div className={item.status === "expired" || item.status === "archived" ? styles.announcementCardInactive : styles.announcementCard} key={item.id}>
+                            <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2"><span className={item.status === "published" ? styles.statusPublished : styles.statusCompleted}><span className={item.status === "published" ? styles.dotGreen : styles.dotGray}></span> {item.status}</span>{item.pinned && <span className={styles.statusPinned}><i className="fa-solid fa-thumbtack"></i> Pinned</span>}</div>
+                            <div className={styles.metaText}><i className="fa-regular fa-clock"></i> {audienceLabel(item.audience)} · Published {formatDate(item.publish_at)} · Expires {formatDate(item.expires_at)}</div>
+                            <h3 className={styles.cardTitle}>{item.title}</h3><p className={styles.cardDesc}>{item.body}</p>
+                            <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mt-4 gap-3"><div className={styles.cardMetrics}><span><i className="fa-regular fa-bell"></i> {item.delivery?.inAppDelivered ?? 0} delivered</span><span className={styles.metricSeparator}>•</span><span>{item.delivery?.readRate ?? 0}% read</span><span className={styles.metricSeparator}>•</span><span><i className="fa-regular fa-envelope"></i> {item.delivery?.emailsSent ?? 0}/{item.email_total ?? 0} emails sent</span></div><div className="d-flex gap-2 flex-wrap">
+                                {item.status === "draft" && <button className={styles.btnActionSecondary} onClick={() => updateAnnouncement(item.id, { status: "published" })}><i className="fa-solid fa-paper-plane"></i> Publish</button>}
+                                {item.status !== "archived" && <button className={styles.btnActionIconOutline} onClick={() => updateAnnouncement(item.id, { pinned: !item.pinned })}><i className="fa-solid fa-thumbtack"></i> {item.pinned ? "Unpin" : "Pin"}</button>}
+                                {item.status !== "archived" && <button className={styles.btnActionIcon} onClick={() => editText(item)}><i className="fa-solid fa-pen"></i></button>}
+                                <button className={styles.btnActionIconDanger} onClick={() => removeAnnouncement(item)}><i className="fa-regular fa-trash-can"></i></button>
+                            </div></div>
+                        </div>)}
+                    </div>}
                 </div>
 
-                <div
-                    className="col-12 col-xl-4"
-                    id="create-announcement"
-                    data-aos="fade-left"
-                    data-aos-delay="300"
-                >
-                    <div className={styles.formCard}>
-                        <div className="d-flex justify-content-between align-items-start mb-4 pb-3 border-bottom border-secondary">
-                            <div>
-                                <h3 className={styles.formTitle}>
-                                    Create Announcement
-                                </h3>
-                                <p className={styles.formDesc}>
-                                    Dispatches to Member Portal & In-App
-                                    Notification
-                                </p>
-                            </div>
-                            <div className={styles.iconBoxPrimarySmall}>
-                                <i className="fa-solid fa-paper-plane"></i>
-                            </div>
-                        </div>
-
-                        <form onSubmit={createAnnouncement}>
-                            <div className="mb-4">
-                                <label className={styles.formLabel}>
-                                    Announcement Title{" "}
-                                    <span className="text-danger">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    className={styles.formInput}
-                                    name="title"
-                                    placeholder="e.g., Holy Week Gym Schedule & Holiday Hours"
-                                    required
-                                />
-                            </div>
-
-                            <div className="mb-4">
-                                <label className={styles.formLabel}>
-                                    Target Audience{" "}
-                                    <span className="text-danger">*</span>
-                                </label>
-                                <div className="d-flex gap-3">
-                                    <label className={styles.radioLabelActive}>
-                                        <input
-                                            type="radio"
-                                            name="audience"
-                                            value="all"
-                                            defaultChecked
-                                            className={styles.radioInput}
-                                        />
-                                        <span
-                                            className={styles.radioCustom}
-                                        ></span>
-                                        All Members
-                                    </label>
-                                    <label className={styles.radioLabel}>
-                                        <input
-                                            type="radio"
-                                            name="audience"
-                                            value="clerk"
-                                            className={styles.radioInput}
-                                        />
-                                        <span
-                                            className={styles.radioCustom}
-                                        ></span>
-                                        Staff Only
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div className="mb-4">
-                                <label className={styles.formLabel}>
-                                    Message Text{" "}
-                                    <span className="text-danger">*</span>
-                                </label>
-                                <textarea
-                                    className={styles.formTextarea}
-                                    name="body"
-                                    rows="5"
-                                    placeholder="Provide complete details regarding schedules, maintenance, equipment guidelines, or gym announcements..."
-                                    required
-                                ></textarea>
-                                <div className="d-flex justify-content-between mt-2">
-                                    <span className={styles.helperText}>
-                                        Supports plain text & emojis
-                                    </span>
-                                    <span className={styles.helperText}>
-                                        0 / 500 chars
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="mb-4">
-                                <label className={styles.formLabel}>
-                                    Expiry Date{" "}
-                                    <span className="text-secondary fw-normal">
-                                        (Optional)
-                                    </span>
-                                </label>
-                                <div className={styles.inputGroup}>
-                                    <input
-                                        type="date"
-                                        className={styles.formInputDate}
-                                        name="expires_at"
-                                    />
-                                </div>
-                                <span className={styles.helperTextBlock}>
-                                    Notice will automatically complete and
-                                    archive after this date.
-                                </span>
-                            </div>
-
-                            <div className={styles.infoAlert}>
-                                <i className="fa-solid fa-circle-info"></i>
-                                <span>
-                                    Publishing delivers instantly to the gym
-                                    member mobile portal and weekly email
-                                    digest. No high-cost telecom SMS gateways
-                                    required.
-                                </span>
-                            </div>
-
-                            <button
-                                type="submit"
-                                className={styles.btnPrimaryFull}
-                            >
-                                <i className="fa-regular fa-paper-plane"></i>{" "}
-                                Publish Announcement
-                            </button>
+                <div className="col-12 col-xl-4" id="create-announcement" data-aos="fade-left">
+                    <div className={styles.formCard}><div className="d-flex justify-content-between align-items-start mb-4 pb-3 border-bottom border-secondary"><div><h3 className={styles.formTitle}>Create Announcement</h3><p className={styles.formDesc}>Dispatches to Member Portal & In-App Notification</p></div><div className={styles.iconBoxPrimarySmall}><i className="fa-solid fa-paper-plane"></i></div></div>
+                        <form ref={formRef} onSubmit={createAnnouncement}>
+                            <div className="mb-3"><label className={styles.formLabel}>Announcement Title <span className="text-danger">*</span></label><input className={styles.formInput} name="title" minLength="3" maxLength="120" required /></div>
+                            <div className="mb-3"><label className={styles.formLabel}>Target Audience</label><select className={styles.formInput} name="audience" defaultValue="all"><option value="all">Everyone</option><option value="member">Members</option><option value="clerk">Clerks</option><option value="admin">Admins</option></select></div>
+                            <div className="mb-3"><label className={styles.formLabel}>Message Text <span className="text-danger">*</span></label><textarea className={styles.formTextarea} name="body" rows="5" maxLength="500" required onChange={(event) => setBodyLength(event.target.value.length)} /><div className="d-flex justify-content-between mt-2"><span className={styles.helperText}>Plain text only</span><span className={styles.helperText}>{bodyLength}/500</span></div></div>
+                            <div className="mb-3"><label className={styles.formLabel}>Publish</label><select className={styles.formInput} name="status" defaultValue="published"><option value="published">Publish now</option><option value="scheduled">Schedule</option><option value="draft">Save as draft</option></select></div>
+                            <div className="mb-3"><label className={styles.formLabel}>Publish date and time (for scheduled)</label><input className={styles.formInputDate} type="datetime-local" name="publish_at" /></div>
+                            <div className="mb-3"><label className={styles.formLabel}>Expiry (optional)</label><input className={styles.formInputDate} type="datetime-local" name="expires_at" /></div>
+                            <div className="form-check mb-3"><input className="form-check-input" type="checkbox" name="pinned" id="announcement-pinned" /><label className="form-check-label text-secondary" htmlFor="announcement-pinned">Pin to member portal</label></div>
+                            <div className="form-check mb-4"><input className="form-check-input" type="checkbox" name="send_email" id="announcement-email" /><label className="form-check-label text-secondary" htmlFor="announcement-email">Also send by email</label></div>
+                            <button className={styles.btnPrimaryFull} type="submit" disabled={saving}><i className="fa-solid fa-paper-plane"></i> {saving ? "Saving..." : "Create Announcement"}</button>
                         </form>
                     </div>
                 </div>

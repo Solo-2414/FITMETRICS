@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { enqueueEmail, processEmailQueue } from '../services/emailQueue.js';
 import { notifyStaff } from '../services/notify.js';
 import { today } from '../utils/time.js';
+import { publishDueAnnouncements } from '../services/announcements.js';
 
 const expiryDate = (days) => {
   const date = new Date();
@@ -45,5 +46,6 @@ export const runDailyEmailJobs = async () => {
 
 export const startEmailJobs = () => {
   cron.schedule('*/1 * * * *', () => processEmailQueue().catch((error) => console.error(`Email queue worker failed: ${error.message}`)));
+  cron.schedule('* * * * *', () => publishDueAnnouncements().catch((error) => console.error(`Announcement scheduler failed: ${error.message}`)));
   cron.schedule('5 0 * * *', () => runDailyEmailJobs().catch((error) => console.error(`Daily membership job failed: ${error.message}`)), { timezone: process.env.CRON_TIMEZONE || 'Asia/Manila' });
 };

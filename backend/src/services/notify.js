@@ -8,6 +8,7 @@ export const notifyUser = async (userId, { type, title, message, meta = {} }) =>
     title,
     message,
     related_member_id: meta.member_id || null,
+    announcement_id: meta.announcement_id || null,
   }).select().single();
   if (error) throw error;
   return data;
@@ -24,6 +25,7 @@ export const notifyStaff = async ({ type, title, message, meta = {} }) => {
     title,
     message,
     related_member_id: meta.member_id || null,
+    announcement_id: meta.announcement_id || null,
   }));
   const result = await supabaseAdmin.from('notifications').insert(rows).select();
   if (result.error) throw result.error;

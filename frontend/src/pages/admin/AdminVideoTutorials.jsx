@@ -1,528 +1,101 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
+import { api } from "../../lib/api";
+import { VIDEO_CATEGORIES } from "../../lib/videoCategories";
 import styles from "./AdminVideoTutorials.module.css";
 
-export default function AdminVideoTutorials() {
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [showEditModal, setShowEditModal] = useState(false);
+const emptyForm = { title: "", category: "", difficulty: "", duration: "", video_url: "", visibility: "public" };
+const formatDuration = (seconds) => seconds == null ? "No duration" : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
-    const handleFormSubmit = (e, closeModal) => {
-        e.preventDefault();
-        closeModal(false);
+export default function AdminVideoTutorials() {
+    const [videos, setVideos] = useState([]);
+    const [form, setForm] = useState(emptyForm);
+    const [editing, setEditing] = useState(null);
+    const [showModal, setShowModal] = useState(false);
+    const [filter, setFilter] = useState("");
+    const [search, setSearch] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        let cancelled = false;
+        const query = new URLSearchParams();
+        if (filter) query.set("category", filter);
+        if (search.trim()) query.set("search", search.trim());
+        Promise.resolve().then(() => {
+            if (cancelled) return null;
+            setLoading(true);
+            return api(`/admin/videos${query.toString() ? `?${query}` : ""}`);
+        }).then((data) => {
+            if (!cancelled && data) { setVideos(data); setError(""); setLoading(false); }
+        }).catch((err) => { if (!cancelled) { setError(err.message); setLoading(false); } });
+        return () => { cancelled = true; };
+    }, [filter, search]);
+
+    const counts = useMemo(() => ({
+        published: videos.filter((video) => video.visibility === "public").length,
+        hidden: videos.filter((video) => video.visibility === "hidden").length,
+    }), [videos]);
+
+    const openAdd = () => { setEditing(null); setForm(emptyForm); setShowModal(true); };
+    const openEdit = (video) => {
+        setEditing(video);
+        setForm({ title: video.title, category: video.category, difficulty: video.difficulty || "", duration: video.duration_seconds == null ? "" : formatDuration(video.duration_seconds), video_url: video.video_url, visibility: video.visibility });
+        setShowModal(true);
+    };
+    const submit = async (event) => {
+        event.preventDefault();
+        setSaving(true);
+        try {
+            const saved = await api(editing ? `/admin/videos/${editing.id}` : "/admin/videos", { method: editing ? "PATCH" : "POST", body: form });
+            setVideos((items) => editing ? items.map((item) => item.id === saved.id ? saved : item) : [saved, ...items]);
+            setShowModal(false);
+            setError("");
+        } catch (err) { setError(err.message); } finally { setSaving(false); }
+    };
+    const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+    const toggleVisibility = async (video) => {
+        try {
+            const updated = await api(`/admin/videos/${video.id}`, { method: "PATCH", body: { visibility: video.visibility === "public" ? "hidden" : "public" } });
+            setVideos((items) => items.map((item) => item.id === updated.id ? updated : item));
+        } catch (err) { setError(err.message); }
+    };
+    const remove = async (video) => {
+        if (!window.confirm(`Delete “${video.title}”? This cannot be undone.`)) return;
+        try {
+            await api(`/admin/videos/${video.id}`, { method: "DELETE" });
+            setVideos((items) => items.filter((item) => item.id !== video.id));
+        } catch (err) { setError(err.message); }
     };
 
-    return (
-        <AdminLayout>
-            <div
-                className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
-                data-aos="fade-down"
-            >
-                <div>
-                    <h1 className={styles.pageTitle}>
-                        Workout Video Tutorials
-                    </h1>
-                    <p className={styles.pageDesc}>
-                        Upload and manage exercise guides and form tutorials for
-                        gym members
-                    </p>
-                </div>
-                <button
-                    className={styles.btnPrimary}
-                    onClick={() => setShowAddModal(true)}
-                >
-                    <i className="fa-solid fa-plus"></i> Add New Video Tutorial
-                </button>
-            </div>
-
-            <div
-                className={styles.infoBanner}
-                data-aos="fade-up"
-                data-aos-delay="100"
-            >
-                <div className="d-flex align-items-center gap-3">
-                    <div className={styles.bannerIconBox}>
-                        <i className="fa-solid fa-photo-film"></i>
-                    </div>
-                    <div>
-                        <h4 className={styles.bannerTitle}>
-                            24 Video Tutorials Published
-                        </h4>
-                        <p className={styles.bannerDesc}>
-                            All active gym tier members have instant streaming
-                            and form validation access.
-                        </p>
-                    </div>
-                </div>
-                <div className={styles.bannerStatBox}>
-                    <i className="fa-regular fa-eye"></i> 579 Total Views
-                </div>
-            </div>
-
-            <div
-                className="row g-4 mb-5"
-                data-aos="fade-up"
-                data-aos-delay="200"
-            >
-                <div className="col-12 col-md-6 col-xl-4">
-                    <div className={styles.videoCard}>
-                        <div className={styles.videoThumbnail}>
-                            <div className={styles.playButtonWrapper}>
-                                <i className="fa-solid fa-play"></i>
-                            </div>
-                            <span className={styles.durationBadge}>
-                                4:25 min
-                            </span>
-                        </div>
-                        <div className={styles.videoBody}>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <span className={styles.tagBadge}>
-                                    Chest / Triceps
-                                </span>
-                                <span className={styles.viewCount}>
-                                    <i className="fa-regular fa-eye"></i> 142
-                                    member views
-                                </span>
-                            </div>
-                            <h3 className={styles.videoTitle}>
-                                Proper Barbell Bench Press Setup & Shoulder
-                                Retraction
-                            </h3>
-                        </div>
-                        <div className={styles.videoFooter}>
-                            <button
-                                className={styles.btnActionText}
-                                onClick={() => setShowEditModal(true)}
-                            >
-                                <i className="fa-solid fa-pen"></i> Edit Details
-                            </button>
-                            <div className="d-flex gap-2">
-                                <button className={styles.btnActionIcon}>
-                                    <i className="fa-regular fa-eye-slash"></i>
-                                </button>
-                                <button className={styles.btnActionIconDanger}>
-                                    <i className="fa-regular fa-trash-can"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="col-12 col-md-6 col-xl-4">
-                    <div className={styles.videoCard}>
-                        <div className={styles.videoThumbnail}>
-                            <div className={styles.playButtonWrapper}>
-                                <i className="fa-solid fa-play"></i>
-                            </div>
-                            <span className={styles.durationBadge}>
-                                5:12 min
-                            </span>
-                        </div>
-                        <div className={styles.videoBody}>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <span className={styles.tagBadge}>
-                                    Legs & Glutes
-                                </span>
-                                <span className={styles.viewCount}>
-                                    <i className="fa-regular fa-eye"></i> 98
-                                    member views
-                                </span>
-                            </div>
-                            <h3 className={styles.videoTitle}>
-                                Barbell Romanian Deadlift (RDL) Form & Hip Hinge
-                            </h3>
-                        </div>
-                        <div className={styles.videoFooter}>
-                            <button
-                                className={styles.btnActionText}
-                                onClick={() => setShowEditModal(true)}
-                            >
-                                <i className="fa-solid fa-pen"></i> Edit Details
-                            </button>
-                            <div className="d-flex gap-2">
-                                <button className={styles.btnActionIcon}>
-                                    <i className="fa-regular fa-eye-slash"></i>
-                                </button>
-                                <button className={styles.btnActionIconDanger}>
-                                    <i className="fa-regular fa-trash-can"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="col-12 col-md-6 col-xl-4">
-                    <div className={styles.videoCard}>
-                        <div className={styles.videoThumbnail}>
-                            <div className={styles.playButtonWrapper}>
-                                <i className="fa-solid fa-play"></i>
-                            </div>
-                            <span className={styles.durationBadge}>
-                                3:45 min
-                            </span>
-                        </div>
-                        <div className={styles.videoBody}>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <span className={styles.tagBadge}>
-                                    Back & Biceps
-                                </span>
-                                <span className={styles.viewCount}>
-                                    <i className="fa-regular fa-eye"></i> 115
-                                    member views
-                                </span>
-                            </div>
-                            <h3 className={styles.videoTitle}>
-                                Lat Pulldown vs Pull-Up: Engaging the Lats
-                            </h3>
-                        </div>
-                        <div className={styles.videoFooter}>
-                            <button
-                                className={styles.btnActionText}
-                                onClick={() => setShowEditModal(true)}
-                            >
-                                <i className="fa-solid fa-pen"></i> Edit Details
-                            </button>
-                            <div className="d-flex gap-2">
-                                <button className={styles.btnActionIcon}>
-                                    <i className="fa-regular fa-eye-slash"></i>
-                                </button>
-                                <button className={styles.btnActionIconDanger}>
-                                    <i className="fa-regular fa-trash-can"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="col-12 col-md-6 col-xl-4">
-                    <div className={styles.videoCard}>
-                        <div className={styles.videoThumbnail}>
-                            <div className={styles.playButtonWrapper}>
-                                <i className="fa-solid fa-play"></i>
-                            </div>
-                            <span className={styles.durationBadge}>
-                                4:10 min
-                            </span>
-                        </div>
-                        <div className={styles.videoBody}>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <span className={styles.tagBadge}>Chest</span>
-                                <span className={styles.viewCount}>
-                                    <i className="fa-regular fa-eye"></i> 74
-                                    member views
-                                </span>
-                            </div>
-                            <h3 className={styles.videoTitle}>
-                                Dumbbell Incline Chest Press: Optimum Bench
-                                Angle
-                            </h3>
-                        </div>
-                        <div className={styles.videoFooter}>
-                            <button
-                                className={styles.btnActionText}
-                                onClick={() => setShowEditModal(true)}
-                            >
-                                <i className="fa-solid fa-pen"></i> Edit Details
-                            </button>
-                            <div className="d-flex gap-2">
-                                <button className={styles.btnActionIcon}>
-                                    <i className="fa-regular fa-eye-slash"></i>
-                                </button>
-                                <button className={styles.btnActionIconDanger}>
-                                    <i className="fa-regular fa-trash-can"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="col-12 col-md-6 col-xl-4">
-                    <div className={styles.videoCard}>
-                        <div className={styles.videoThumbnail}>
-                            <div className={styles.playButtonWrapper}>
-                                <i className="fa-solid fa-play"></i>
-                            </div>
-                            <span className={styles.durationBadge}>
-                                4:00 min
-                            </span>
-                        </div>
-                        <div className={styles.videoBody}>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <span className={styles.tagBadge}>
-                                    Shoulders & Core
-                                </span>
-                                <span className={styles.viewCount}>
-                                    <i className="fa-regular fa-eye"></i> 88
-                                    member views
-                                </span>
-                            </div>
-                            <h3 className={styles.videoTitle}>
-                                Standing Overhead Barbell Military Press
-                            </h3>
-                        </div>
-                        <div className={styles.videoFooter}>
-                            <button
-                                className={styles.btnActionText}
-                                onClick={() => setShowEditModal(true)}
-                            >
-                                <i className="fa-solid fa-pen"></i> Edit Details
-                            </button>
-                            <div className="d-flex gap-2">
-                                <button className={styles.btnActionIcon}>
-                                    <i className="fa-regular fa-eye-slash"></i>
-                                </button>
-                                <button className={styles.btnActionIconDanger}>
-                                    <i className="fa-regular fa-trash-can"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="col-12 col-md-6 col-xl-4">
-                    <div className={styles.videoCard}>
-                        <div className={styles.videoThumbnail}>
-                            <div className={styles.playButtonWrapper}>
-                                <i className="fa-solid fa-play"></i>
-                            </div>
-                            <span className={styles.durationBadge}>
-                                3:15 min
-                            </span>
-                        </div>
-                        <div className={styles.videoBody}>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <span className={styles.tagBadge}>Triceps</span>
-                                <span className={styles.viewCount}>
-                                    <i className="fa-regular fa-eye"></i> 62
-                                    member views
-                                </span>
-                            </div>
-                            <h3 className={styles.videoTitle}>
-                                Cable Tricep Pushdown vs Overhead Rope Extension
-                            </h3>
-                        </div>
-                        <div className={styles.videoFooter}>
-                            <button
-                                className={styles.btnActionText}
-                                onClick={() => setShowEditModal(true)}
-                            >
-                                <i className="fa-solid fa-pen"></i> Edit Details
-                            </button>
-                            <div className="d-flex gap-2">
-                                <button className={styles.btnActionIcon}>
-                                    <i className="fa-regular fa-eye-slash"></i>
-                                </button>
-                                <button className={styles.btnActionIconDanger}>
-                                    <i className="fa-regular fa-trash-can"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {showAddModal && (
-                <div className={styles.modalOverlay}>
-                    <div className={styles.modalContent}>
-                        <div className={styles.modalHeader}>
-                            <h3>Add New Video Tutorial</h3>
-                            <button onClick={() => setShowAddModal(false)}>
-                                <i className="fa-solid fa-xmark"></i>
-                            </button>
-                        </div>
-                        <form
-                            onSubmit={(e) =>
-                                handleFormSubmit(e, setShowAddModal)
-                            }
-                            className={styles.modalBody}
-                        >
-                            <div className="mb-4">
-                                <label className={styles.formLabel}>
-                                    Video Title{" "}
-                                    <span className="text-danger">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    className={styles.formInput}
-                                    placeholder="e.g. Proper Deadlift Form"
-                                    required
-                                />
-                            </div>
-                            <div className="row g-3 mb-4">
-                                <div className="col-12 col-sm-6">
-                                    <label className={styles.formLabel}>
-                                        Target Muscle Group{" "}
-                                        <span className="text-danger">*</span>
-                                    </label>
-                                    <select
-                                        className={styles.formSelect}
-                                        required
-                                    >
-                                        <option value="">
-                                            Select Category
-                                        </option>
-                                        <option value="Chest / Triceps">
-                                            Chest / Triceps
-                                        </option>
-                                        <option value="Back / Biceps">
-                                            Back / Biceps
-                                        </option>
-                                        <option value="Legs / Glutes">
-                                            Legs / Glutes
-                                        </option>
-                                        <option value="Shoulders / Core">
-                                            Shoulders / Core
-                                        </option>
-                                        <option value="Full Body / Mobility">
-                                            Full Body / Mobility
-                                        </option>
-                                    </select>
-                                </div>
-                                <div className="col-12 col-sm-6">
-                                    <label className={styles.formLabel}>
-                                        Duration (mm:ss){" "}
-                                        <span className="text-danger">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        className={styles.formInput}
-                                        placeholder="e.g. 05:30"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <div className="mb-4">
-                                <label className={styles.formLabel}>
-                                    Video Source URL{" "}
-                                    <span className="text-danger">*</span>
-                                </label>
-                                <input
-                                    type="url"
-                                    className={styles.formInput}
-                                    placeholder="https://..."
-                                    required
-                                />
-                                <span className={styles.helperText}>
-                                    Provide a direct link to the hosted MP4 or
-                                    video source.
-                                </span>
-                            </div>
-                            <div className={styles.modalFooter}>
-                                <button
-                                    type="button"
-                                    className={styles.btnCancel}
-                                    onClick={() => setShowAddModal(false)}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className={styles.btnPrimaryModal}
-                                >
-                                    Publish Tutorial
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {showEditModal && (
-                <div className={styles.modalOverlay}>
-                    <div className={styles.modalContent}>
-                        <div className={styles.modalHeader}>
-                            <h3>Edit Video Details</h3>
-                            <button onClick={() => setShowEditModal(false)}>
-                                <i className="fa-solid fa-xmark"></i>
-                            </button>
-                        </div>
-                        <form
-                            onSubmit={(e) =>
-                                handleFormSubmit(e, setShowEditModal)
-                            }
-                            className={styles.modalBody}
-                        >
-                            <div className="mb-4">
-                                <label className={styles.formLabel}>
-                                    Video Title
-                                </label>
-                                <input
-                                    type="text"
-                                    className={styles.formInput}
-                                    defaultValue="Proper Barbell Bench Press Setup & Shoulder Retraction"
-                                    required
-                                />
-                            </div>
-                            <div className="row g-3 mb-4">
-                                <div className="col-12 col-sm-6">
-                                    <label className={styles.formLabel}>
-                                        Target Muscle Group
-                                    </label>
-                                    <select
-                                        className={styles.formSelect}
-                                        defaultValue="Chest / Triceps"
-                                        required
-                                    >
-                                        <option value="Chest / Triceps">
-                                            Chest / Triceps
-                                        </option>
-                                        <option value="Back / Biceps">
-                                            Back / Biceps
-                                        </option>
-                                        <option value="Legs / Glutes">
-                                            Legs / Glutes
-                                        </option>
-                                        <option value="Shoulders / Core">
-                                            Shoulders / Core
-                                        </option>
-                                        <option value="Full Body / Mobility">
-                                            Full Body / Mobility
-                                        </option>
-                                    </select>
-                                </div>
-                                <div className="col-12 col-sm-6">
-                                    <label className={styles.formLabel}>
-                                        Duration (mm:ss)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        className={styles.formInput}
-                                        defaultValue="4:25"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <div className="mb-4">
-                                <label className={styles.formLabel}>
-                                    Visibility Status
-                                </label>
-                                <select className={styles.formSelect}>
-                                    <option value="public">
-                                        Published (Visible to all members)
-                                    </option>
-                                    <option value="hidden">
-                                        Hidden (Draft / Archived)
-                                    </option>
-                                </select>
-                            </div>
-                            <div className={styles.modalFooter}>
-                                <button
-                                    type="button"
-                                    className={styles.btnCancel}
-                                    onClick={() => setShowEditModal(false)}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className={styles.btnPrimaryModal}
-                                >
-                                    Save Changes
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-        </AdminLayout>
-    );
+    return <AdminLayout>
+        {error && <div className="alert alert-danger">{error}</div>}
+        <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3">
+            <div><h1 className={styles.pageTitle}>Workout Video Tutorials</h1><p className={styles.pageDesc}>Manage YouTube and Vimeo exercise guides for gym members.</p></div>
+            <button className={styles.btnPrimary} onClick={openAdd}><i className="fa-solid fa-plus"></i> Add New Video Tutorial</button>
+        </div>
+        <div className={styles.infoBanner}>
+            <div className="d-flex align-items-center gap-3"><div className={styles.bannerIconBox}><i className="fa-solid fa-photo-film"></i></div><div><h4 className={styles.bannerTitle}>{counts.published} Video Tutorials Published</h4><p className={styles.bannerDesc}>{counts.hidden} hidden from members.</p></div></div>
+        </div>
+        <div className="d-flex flex-column flex-md-row gap-3 mb-4">
+            <input className={styles.formInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tutorials..." />
+            <select className={styles.formSelect} value={filter} onChange={(event) => setFilter(event.target.value)}><option value="">All categories</option>{VIDEO_CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select>
+        </div>
+        {loading ? <div className="text-secondary py-5">Loading video tutorials...</div> : videos.length === 0 ? <div className="text-secondary py-5">No video tutorials found.</div> : <div className="row g-4">
+            {videos.map((video) => <div className="col-12 col-md-6 col-xl-4" key={video.id}><div className={styles.videoCard}>
+                <div className={styles.videoThumbnail} style={video.thumbnailUrl ? { backgroundImage: `linear-gradient(rgba(15, 23, 42, .35), rgba(15, 23, 42, .7)), url(${video.thumbnailUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}><div className={styles.playButtonWrapper}><i className="fa-solid fa-play"></i></div><span className={styles.durationBadge}>{formatDuration(video.duration_seconds)}</span></div>
+                <div className={styles.videoBody}><div className="d-flex justify-content-between align-items-center mb-2"><span className={styles.tagBadge}>{video.category}</span><span className="text-secondary small">{video.visibility}</span></div><h3 className={styles.videoTitle}>{video.title}</h3><small className="text-secondary">{video.difficulty || "Difficulty not set"} · {video.provider}</small></div>
+                <div className={styles.videoFooter}><button className={styles.btnActionText} onClick={() => openEdit(video)}><i className="fa-solid fa-pen"></i> Edit</button><div className="d-flex gap-2"><button className={styles.btnActionIcon} title={video.visibility === "public" ? "Hide video" : "Publish video"} onClick={() => toggleVisibility(video)}><i className={`fa-regular ${video.visibility === "public" ? "fa-eye-slash" : "fa-eye"}`}></i></button><button className={styles.btnActionIconDanger} title="Delete video" onClick={() => remove(video)}><i className="fa-regular fa-trash-can"></i></button></div></div>
+            </div></div>)}
+        </div>}
+        {showModal && <div className={styles.modalOverlay}><div className={styles.modalContent}><div className={styles.modalHeader}><h3>{editing ? "Edit Video Tutorial" : "Add New Video Tutorial"}</h3><button onClick={() => setShowModal(false)}><i className="fa-solid fa-xmark"></i></button></div><form onSubmit={submit} className={styles.modalBody}>
+            <label className={styles.formLabel}>Video title <span className="text-danger">*</span></label><input className={styles.formInput} value={form.title} onChange={(event) => update("title", event.target.value)} minLength="3" maxLength="120" required />
+            <div className="row g-3 mt-1"><div className="col-sm-6"><label className={styles.formLabel}>Category <span className="text-danger">*</span></label><select className={styles.formSelect} value={form.category} onChange={(event) => update("category", event.target.value)} required><option value="">Select category</option>{VIDEO_CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select></div><div className="col-sm-6"><label className={styles.formLabel}>Difficulty</label><select className={styles.formSelect} value={form.difficulty} onChange={(event) => update("difficulty", event.target.value)}><option value="">Not set</option><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option></select></div></div>
+            <label className={`${styles.formLabel} mt-3`}>Duration (mm:ss)</label><input className={styles.formInput} value={form.duration} onChange={(event) => update("duration", event.target.value)} placeholder="05:30" />
+            <label className={`${styles.formLabel} mt-3`}>YouTube or Vimeo URL <span className="text-danger">*</span></label><input type="url" className={styles.formInput} value={form.video_url} onChange={(event) => update("video_url", event.target.value)} placeholder="https://youtu.be/..." required />
+            <label className={`${styles.formLabel} mt-3`}>Visibility</label><select className={styles.formSelect} value={form.visibility} onChange={(event) => update("visibility", event.target.value)}><option value="public">Published</option><option value="hidden">Hidden</option></select>
+            <div className={styles.modalFooter}><button type="button" className={styles.btnCancel} onClick={() => setShowModal(false)}>Cancel</button><button className={styles.btnPrimaryModal} disabled={saving}>{saving ? "Saving..." : "Save tutorial"}</button></div>
+        </form></div></div>}
+    </AdminLayout>;
 }

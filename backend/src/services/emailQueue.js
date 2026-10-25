@@ -15,7 +15,7 @@ const limits = () => ({
 
 const retryAt = (attempts) => new Date(Date.now() + RETRY_BASE_MINUTES * 60_000 * (2 ** Math.max(0, attempts - 1))).toISOString();
 
-export const enqueueEmail = async ({ emailType, recipient, payload, dedupeKey = null }) => {
+export const enqueueEmail = async ({ emailType, recipient, payload, dedupeKey = null, priority = null }) => {
   if (!recipient) return null;
   if (dedupeKey) {
     const existing = await supabaseAdmin.from('email_log').select('id, status').eq('email_type', emailType).eq('recipient', recipient).contains('payload', { dedupe_key: dedupeKey }).in('status', ['queued', 'sent']).limit(1);
@@ -29,7 +29,7 @@ export const enqueueEmail = async ({ emailType, recipient, payload, dedupeKey = 
     recipient,
     status: 'queued',
     payload: { ...payload, dedupe_key: dedupeKey },
-    priority: isTransactional(emailType) ? 0 : 10,
+    priority: priority ?? (isTransactional(emailType) ? 1 : 5),
     next_attempt_at: now,
   }).select().single();
   if (logError) throw logError;
@@ -37,7 +37,7 @@ export const enqueueEmail = async ({ emailType, recipient, payload, dedupeKey = 
   const { error: queueError } = await supabaseAdmin.from('email_queue').insert({
     email_log_id: log.id,
     next_attempt_at: now,
-    priority: isTransactional(emailType) ? 0 : 10,
+    priority: priority ?? (isTransactional(emailType) ? 1 : 5),
   });
   if (queueError) {
     await supabaseAdmin.from('email_log').update({ status: 'failed', error: queueError.message }).eq('id', log.id);
@@ -81,6 +81,9 @@ const capacity = async (emailType) => {
   const current = { primary: await sentCount('primary', start, end), backup: await sentCount('backup', start, end) };
   const config = limits();
   const transactional = isTransactional(emailType);
+  const dailyLimit = Number(process.env.EMAIL_DAILY_LIMIT || 400);
+  const dailySent = current.primary + current.backup;
+  if (dailySent >= dailyLimit) return { providers: [], retryAt: tomorrow() };
   const bulkLimit = Number(process.env.EMAIL_BULK_PER_MINUTE || 20);
   if (!transactional && await bulkMinuteCount() >= bulkLimit) return { providers: [], retryAt: new Date(Date.now() + 60_000).toISOString() };
   const providers = ['primary', 'backup'].filter((provider) => current[provider] < (transactional ? config[provider] : Math.max(0, config[provider] - config.reserve)));

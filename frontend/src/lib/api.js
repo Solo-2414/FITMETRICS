@@ -39,5 +39,9 @@ export async function downloadApi(path, { method = "GET", body } = {}) {
         const json = await res.json().catch(() => ({}));
         throw new Error(json.error || `Request failed (${res.status})`);
     }
-    return res.blob();
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const encodedFilename = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+    const plainFilename = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+    const filename = encodedFilename ? decodeURIComponent(encodedFilename) : plainFilename || null;
+    return { blob: await res.blob(), filename };
 }
