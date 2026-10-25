@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth, homePathForRole } from "../context/AuthContext";
 import "../App.css";
+import { api } from "../lib/api";
 
 export default function Login() {
     const [showPassword, setShowPassword] = useState(false);
@@ -11,6 +12,8 @@ export default function Login() {
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [maintenance, setMaintenance] = useState(null);
+    useEffect(() => { api("/public/status").then((status) => setMaintenance(status.maintenance ? status : null)).catch(() => {}); }, []);
 
     // Already logged in? Go straight to your own dashboard.
     if (!loading && session && profile) {
@@ -85,6 +88,7 @@ export default function Login() {
                     <p className="card-subtitle mb-4">
                         Log in to your account to continue.
                     </p>
+                    {maintenance && <div className="alert alert-warning">{maintenance.message} Staff access remains available.</div>}
 
                     <form onSubmit={handleSubmit}>
                         <div className="mb-3">

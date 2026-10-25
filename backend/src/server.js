@@ -12,6 +12,7 @@ import adminRoutes from './routes/admin.js';
 import memberRoutes from './routes/member.js';
 import { startEmailJobs } from './jobs/emailJobs.js';
 import { paymongoWebhookRouter } from './routes/paymongo.js';
+import publicRoutes from './routes/public.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,6 +25,7 @@ app.use('/api', rateLimit({ windowMs: 60_000, limit: 120 }));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);
+app.use('/api', publicRoutes);
 app.use('/api', paymongoWebhookRouter);
 app.use('/api', userRoutes);
 app.use('/api', planRoutes);

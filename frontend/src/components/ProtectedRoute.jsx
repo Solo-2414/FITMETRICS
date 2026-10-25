@@ -1,5 +1,8 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useAuth, homePathForRole } from "../context/AuthContext";
+import { api } from "../lib/api";
+import MaintenanceScreen from "./MaintenanceScreen";
 
 /**
  * <Route element={<ProtectedRoute roles={["admin"]} />}> ...child routes... </Route>
@@ -9,6 +12,22 @@ import { useAuth, homePathForRole } from "../context/AuthContext";
 export default function ProtectedRoute({ roles }) {
     const { session, profile, loading } = useAuth();
     const location = useLocation();
+    const [maintenance, setMaintenance] = useState(null);
+    const memberRoute = roles?.includes("member");
+    useEffect(() => {
+        if (!memberRoute) return undefined;
+        let active = true;
+        const refresh = () => api("/public/status").then((status) => { if (active) setMaintenance(status.maintenance ? status : null); }).catch(() => {});
+        refresh();
+        const interval = window.setInterval(refresh, 60_000);
+        const onMaintenance = (event) => { if (active) setMaintenance(event.detail); };
+        window.addEventListener("fitmetrics:maintenance", onMaintenance);
+        return () => {
+            active = false;
+            window.clearInterval(interval);
+            window.removeEventListener("fitmetrics:maintenance", onMaintenance);
+        };
+    }, [memberRoute]);
 
     if (loading) {
         return (
@@ -31,6 +50,7 @@ export default function ProtectedRoute({ roles }) {
     if (roles && !roles.includes(profile.role)) {
         return <Navigate to={homePathForRole(profile.role)} replace />;
     }
+    if (profile.role === "member" && maintenance) return <MaintenanceScreen {...maintenance} />;
 
     return <Outlet />;
 }

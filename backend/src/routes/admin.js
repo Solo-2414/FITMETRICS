@@ -1,12 +1,84 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
+import { createRequire } from 'node:module';
 import { supabaseAdmin } from '../config/supabase.js';
 import { notifyStaff } from '../services/notify.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { enqueueEmail } from '../services/emailQueue.js';
 import { dayStart, nextDayStart } from '../utils/time.js';
+import { clearSettingsCache, getGymSettings } from '../services/maintenance.js';
 
 const router = Router();
 router.use('/admin', requireAuth, requireRole('admin'));
+const backupLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 3, message: { error: 'Export limit reached. Try again later.' } });
+const PAYMENT_MODES = ['cash', 'gcash', 'maya'];
+const TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/;
+const timeValue = (value) => {
+  if (!TIME_RE.test(String(value || ''))) return null;
+  const [hours, minutes, seconds = 0] = String(value).split(':').map(Number);
+  return hours < 24 && minutes < 60 && seconds < 60 ? hours * 60 + minutes : null;
+};
+const validateSettings = (body, current = {}) => {
+  const allowed = ['gym_name', 'address', 'phone', 'email', 'monday_saturday_open', 'monday_saturday_close', 'sunday_open', 'sunday_close', 'expiry_reminder_days', 'notifications', 'maintenance_enabled', 'maintenance_message', 'payment_modes', 'allow_member_registrations', 'show_live_capacity', 'maintenance_starts_at'];
+  const updates = Object.fromEntries(allowed.filter((key) => Object.hasOwn(body || {}, key)).map((key) => [key, body[key]]));
+  if (Object.hasOwn(updates, 'gym_name') && (typeof updates.gym_name !== 'string' || updates.gym_name.trim().length < 1 || updates.gym_name.length > 100)) throw new Error('Gym name must be 1-100 characters.');
+  if (Object.hasOwn(updates, 'email') && updates.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) throw new Error('Contact email must be valid or empty.');
+  if (Object.hasOwn(updates, 'phone') && (typeof updates.phone !== 'string' || updates.phone.length > 30)) throw new Error('Contact phone must be at most 30 characters.');
+  for (const [label, pair] of [['Monday to Saturday', ['monday_saturday_open', 'monday_saturday_close']], ['Sunday', ['sunday_open', 'sunday_close']]]) {
+    if (pair.some((key) => Object.hasOwn(updates, key))) {
+      const opening = updates[pair[0]] ?? current[pair[0]];
+      const closing = updates[pair[1]] ?? current[pair[1]];
+      const openingMinutes = timeValue(opening);
+      const closingMinutes = timeValue(closing);
+      if (openingMinutes === null || closingMinutes === null) throw new Error(`${label}: enter opening and closing times in a valid time format.`);
+      if (closingMinutes <= openingMinutes) throw new Error(`${label}: closing time must be later than opening time.`);
+    }
+  }
+  if (Object.hasOwn(updates, 'expiry_reminder_days') && (!Number.isInteger(updates.expiry_reminder_days) || updates.expiry_reminder_days < 1 || updates.expiry_reminder_days > 30)) throw new Error('Expiration reminder days must be an integer from 1 to 30.');
+  if (Object.hasOwn(updates, 'payment_modes') && (!Array.isArray(updates.payment_modes) || !updates.payment_modes.every((mode) => PAYMENT_MODES.includes(mode)) || updates.payment_modes.length === 0)) throw new Error('Select at least one valid payment mode.');
+  for (const key of ['maintenance_enabled', 'allow_member_registrations', 'show_live_capacity']) if (Object.hasOwn(updates, key) && typeof updates[key] !== 'boolean') throw new Error(`${key} must be a boolean.`);
+  if (Object.hasOwn(updates, 'maintenance_message') && (typeof updates.maintenance_message !== 'string' || updates.maintenance_message.length > 300)) throw new Error('Maintenance message must be at most 300 characters.');
+  if (Object.hasOwn(updates, 'maintenance_starts_at') && updates.maintenance_starts_at !== null && Number.isNaN(Date.parse(updates.maintenance_starts_at))) throw new Error('Maintenance start time must be a valid date.');
+  return updates;
+};
+const crcTable = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k += 1) c = (c & 1) ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+const crc32 = (buffer) => buffer.reduce((crc, byte) => crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8), 0xffffffff) ^ 0xffffffff;
+const csv = (rows) => {
+  const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const clean = (value) => {
+    const text = value === null || value === undefined ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+    return /^[=+\-@]/.test(text) ? `'${text}` : text;
+  };
+  const quote = (value) => `"${clean(value).replaceAll('"', '""')}"`;
+  return `\uFEFF${keys.map(quote).join(',')}\n${rows.map((row) => keys.map((key) => quote(row[key])).join(',')).join('\n')}\n`;
+};
+const zip = (files) => {
+  const locals = [], centrals = [];
+  let offset = 0;
+  for (const [name, content] of Object.entries(files)) {
+    const nameBuffer = Buffer.from(name);
+    const data = Buffer.from(content, 'utf8');
+    const crc = crc32(data);
+    const local = Buffer.alloc(30 + nameBuffer.length);
+    local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0, 8); local.writeUInt16LE(0, 10); local.writeUInt16LE(0, 12); local.writeUInt32LE(crc >>> 0, 14);
+    local.writeUInt32LE(data.length, 18); local.writeUInt32LE(data.length, 22); local.writeUInt16LE(nameBuffer.length, 26); nameBuffer.copy(local, 30);
+    locals.push(Buffer.concat([local, data]));
+    const central = Buffer.alloc(46 + nameBuffer.length);
+    central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6); central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(0, 10); central.writeUInt16LE(0, 12); central.writeUInt16LE(0, 14); central.writeUInt32LE(crc >>> 0, 16);
+    central.writeUInt32LE(data.length, 20); central.writeUInt32LE(data.length, 24); central.writeUInt16LE(nameBuffer.length, 28); nameBuffer.copy(central, 46);
+    central.writeUInt32LE(offset, 42); centrals.push(central); offset += local.length + data.length;
+  }
+  const centralData = Buffer.concat(centrals);
+  const end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(centrals.length, 8); end.writeUInt16LE(centrals.length, 10);
+  end.writeUInt32LE(centralData.length, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, centralData, end]);
+};
 
 const today = () => new Date().toISOString().slice(0, 10);
 const dateOr = (value, fallback) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? value : fallback;
@@ -270,9 +342,7 @@ router.delete('/admin/announcements/:id', async (req, res, next) => {
 
 router.get('/admin/settings', async (_req, res, next) => {
   try {
-    const { data, error } = await supabaseAdmin.from('gym_settings').select('*').eq('id', true).maybeSingle();
-    if (error) return next(error);
-    res.json(data);
+    res.json(await getGymSettings());
   } catch (error) { next(error); }
 });
 
@@ -305,11 +375,30 @@ router.get('/admin/email-status', async (_req, res, next) => {
 
 router.patch('/admin/settings', async (req, res, next) => {
   try {
-    const allowed = ['gym_name', 'address', 'phone', 'email', 'monday_saturday_open', 'monday_saturday_close', 'sunday_open', 'sunday_close', 'expiry_reminder_days', 'notifications', 'maintenance_enabled', 'maintenance_message'];
-    const updates = Object.fromEntries(allowed.filter((key) => Object.hasOwn(req.body || {}, key)).map((key) => [key, req.body[key]]));
-    const { data, error } = await supabaseAdmin.from('gym_settings').upsert({ id: true, ...updates, updated_by: req.user.id }).select().single();
+    const current = await getGymSettings();
+    const updates = validateSettings(req.body, current);
+    const changed = Object.fromEntries(Object.entries(updates).filter(([key, value]) => JSON.stringify(current[key]) !== JSON.stringify(value)));
+    if (Object.keys(changed).length === 0) return res.json(current);
+    const { data, error } = await supabaseAdmin.from('gym_settings').update({ ...updates, updated_by: req.user.id }).eq('id', true).select().single();
     if (error) return next(error);
+    const { error: auditError } = await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'settings_updated', entity_type: 'gym_settings', details: { changes: Object.fromEntries(Object.keys(changed).map((key) => [key, { from: current[key] ?? null, to: changed[key] }])) } });
+    if (auditError) return next(auditError);
+    clearSettingsCache();
     res.json(data);
+  } catch (error) { if (error.message?.includes('must be') || error.message?.includes('must have') || error.message?.includes('Select') || error.message?.includes('characters') || error.message?.includes('valid')) return res.status(400).json({ error: error.message }); next(error); }
+});
+
+router.get('/admin/system-info', async (_req, res, next) => {
+  try {
+    const require = createRequire(import.meta.url);
+    const packageJson = require('../../package.json');
+    const [{ data: size, error: sizeError }, { data: lastBackup, error: backupError }] = await Promise.all([
+      supabaseAdmin.rpc('get_database_size_bytes'),
+      supabaseAdmin.from('maintenance_backups').select('*').eq('status', 'completed').order('completed_at', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    if (sizeError) return next(sizeError);
+    if (backupError) return next(backupError);
+    res.json({ version: packageJson.version, databaseSizeBytes: Number(size || 0), databaseLimitBytes: Number(process.env.DB_PLAN_LIMIT_MB || 500) * 1024 * 1024, lastBackup });
   } catch (error) { next(error); }
 });
 
@@ -321,12 +410,27 @@ router.get('/admin/maintenance/backups', async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/admin/maintenance/backups', async (req, res, next) => {
+router.post('/admin/maintenance/backups', backupLimiter, async (req, res, next) => {
   try {
-    const { data, error } = await supabaseAdmin.from('maintenance_backups').insert({ provider: 'supabase', status: 'requested', requested_by: req.user.id }).select().single();
+    const tables = ['profiles', 'member_details', 'memberships', 'membership_plans', 'payments', 'attendance', 'walk_in_visits', 'announcements', 'notifications', 'promos', 'gym_settings', 'audit_log'];
+    const summary = {};
+    const files = {};
+    for (const table of tables) {
+      const { data, error } = await supabaseAdmin.from(table).select('*');
+      if (error) throw error;
+      summary[table] = data?.length || 0;
+      files[`${table}.csv`] = csv(data || []);
+    }
+    const archive = zip(files);
+    const { data: backup, error } = await supabaseAdmin.from('maintenance_backups').insert({ provider: 'data-export', status: 'completed', requested_by: req.user.id, summary, started_at: new Date().toISOString(), completed_at: new Date().toISOString() }).select().single();
     if (error) return next(error);
-    res.status(201).json(data);
-  } catch (error) { next(error); }
+    const { error: auditError } = await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'data_exported', entity_type: 'maintenance_backup', entity_id: backup.id, details: { summary } });
+    if (auditError) return next(auditError);
+    res.status(200).set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="fitmetrics-data-export-${new Date().toISOString().slice(0, 10)}.zip"` }).send(archive);
+  } catch (error) {
+    await supabaseAdmin.from('maintenance_backups').insert({ provider: 'data-export', status: 'failed', requested_by: req.user.id, error: error.message, completed_at: new Date().toISOString() });
+    next(error);
+  }
 });
 
 export default router;

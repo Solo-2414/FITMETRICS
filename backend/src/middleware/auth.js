@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { getGymSettings, maintenanceStatus } from '../services/maintenance.js';
 
 /**
  * Verifies the Supabase access token (JWT) sent by the frontend as
@@ -27,6 +28,10 @@ export async function requireAuth(req, res, next) {
     }
     if (profile.status !== 'active') {
       return res.status(403).json({ error: `Account is ${profile.status}.` });
+    }
+    if (profile.role === 'member') {
+      const status = maintenanceStatus(await getGymSettings());
+      if (status.maintenance) return res.status(503).json(status);
     }
 
     req.user = data.user;

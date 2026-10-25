@@ -7,14 +7,15 @@ router.use('/member', requireAuth, requireRole('member'));
 
 router.get('/member/dashboard', async (req, res, next) => {
   try {
-    const [membership, attendance, notifications] = await Promise.all([
+    const [membership, attendance, notifications, settings] = await Promise.all([
       supabaseAdmin.from('memberships').select('*, membership_plans(*), coaches(*)').eq('member_id', req.user.id).order('end_date', { ascending: false }).limit(1).maybeSingle(),
       supabaseAdmin.from('member_attendance_summary').select('*').eq('member_id', req.user.id).maybeSingle(),
       supabaseAdmin.from('notifications').select('id, title, message, type, read_at, created_at').eq('user_id', req.user.id).order('created_at', { ascending: false }).limit(5),
+      supabaseAdmin.from('gym_settings').select('show_live_capacity').eq('id', true).maybeSingle(),
     ]);
-    const failure = [membership, attendance, notifications].find((item) => item.error);
+    const failure = [membership, attendance, notifications, settings].find((item) => item.error);
     if (failure) return next(failure.error);
-    res.json({ membership: membership.data, attendance: attendance.data, notifications: notifications.data || [] });
+    res.json({ membership: membership.data, attendance: attendance.data, notifications: notifications.data || [], showLiveCapacity: settings.data?.show_live_capacity ?? true });
   } catch (error) { next(error); }
 });
 
@@ -65,4 +66,3 @@ router.patch('/member/notifications', async (req, res, next) => {
 });
 
 export default router;
-

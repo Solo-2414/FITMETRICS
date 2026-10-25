@@ -3,6 +3,7 @@ import multer from 'multer';
 import { supabaseAdmin } from '../config/supabase.js';
 import { supabaseAuth } from '../config/supabase.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { getGymSettings } from '../services/maintenance.js';
 
 const router = Router();
 const ROLES = ['admin', 'clerk', 'member'];
@@ -136,6 +137,9 @@ router.post('/users', requireAuth, requireRole('admin', 'clerk'), async (req, re
   if (!ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role.' });
   if (req.profile.role === 'clerk' && role !== 'member') {
     return res.status(403).json({ error: 'Clerks can only register members.' });
+  }
+  if (role === 'member' && !(await getGymSettings()).allow_member_registrations) {
+    return res.status(403).json({ error: 'Member registrations are currently disabled in gym settings.' });
   }
   if (!emailOk(email)) return res.status(400).json({ error: 'A valid email is required.' });
   if (username !== undefined && !usernameOk(username)) {

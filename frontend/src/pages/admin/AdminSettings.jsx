@@ -1,18 +1,68 @@
 import { useEffect, useRef, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminSettings.module.css";
-import { api } from "../../lib/api";
+import { api, downloadApi } from "../../lib/api";
 
 export default function AdminSettings() {
     const formRef = useRef(null);
     const [settings, setSettings] = useState(null);
     const [error, setError] = useState("");
     const [saved, setSaved] = useState(false);
-    useEffect(() => { api("/admin/settings").then(setSettings).catch((err) => setError(err.message)); }, []);
+    const [saving, setSaving] = useState(false);
+    const [systemInfo, setSystemInfo] = useState(null);
+    const [backups, setBackups] = useState([]);
+    const focusTimeField = (message) => {
+        const field = message.startsWith("Sunday")
+            ? formRef.current?.querySelector('[name="sunday_open"]')
+            : message.startsWith("Monday")
+                ? formRef.current?.querySelector('[name="monday_saturday_open"]')
+                : null;
+        field?.focus();
+    };
+    useEffect(() => {
+        api("/admin/settings")
+            .then(setSettings)
+            .catch((err) => setError(err.message));
+        Promise.allSettled([api("/admin/system-info"), api("/admin/maintenance/backups")])
+            .then(([infoResult, historyResult]) => {
+                if (infoResult.status === "fulfilled") setSystemInfo(infoResult.value);
+                if (historyResult.status === "fulfilled") setBackups(historyResult.value);
+            });
+    }, []);
     const save = async (event) => {
         event.preventDefault();
-        const data = Object.fromEntries(new FormData(formRef.current).entries());
-        try { const result = await api("/admin/settings", { method: "PATCH", body: { ...data, expiry_reminder_days: Number(data.expiry_reminder_days || 3) } }); setSettings(result); setSaved(true); } catch (err) { setError(err.message); }
+        setSaving(true); setError(""); setSaved(false);
+        const form = new FormData(formRef.current);
+        const data = Object.fromEntries(form.entries());
+        try {
+            const result = await api("/admin/settings", { method: "PATCH", body: {
+                ...data,
+                expiry_reminder_days: Number(data.expiry_reminder_days),
+                payment_modes: form.getAll("payment_modes"),
+                maintenance_enabled: form.has("maintenance_enabled"),
+                allow_member_registrations: form.has("allow_member_registrations"),
+                show_live_capacity: form.has("show_live_capacity"),
+                maintenance_starts_at: data.maintenance_starts_at || null,
+            }});
+            setSettings(result); setSaved(true);
+        } catch (err) {
+            setError(err.message);
+            focusTimeField(err.message);
+        } finally { setSaving(false); }
+    };
+    const downloadExport = async () => {
+        try {
+            const blob = await downloadApi("/admin/maintenance/backups", { method: "POST" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `fitmetrics-data-export-${new Date().toISOString().slice(0, 10)}.zip`;
+            link.click();
+            URL.revokeObjectURL(url);
+            const [info, history] = await Promise.all([api("/admin/system-info"), api("/admin/maintenance/backups")]);
+            setSystemInfo(info);
+            setBackups(history);
+        } catch (err) { setError(err.message); }
     };
     return (
         <AdminLayout>
@@ -34,14 +84,14 @@ export default function AdminSettings() {
                         <i className="fa-solid fa-rotate-left"></i> Discard
                         Changes
                     </button>
-                    <button type="submit" className={styles.btnPrimary}>
-                        <i className="fa-solid fa-floppy-disk"></i> Save
+                    <button type="submit" form="settings-form" className={styles.btnPrimary} disabled={saving}>
+                        <i className="fa-solid fa-floppy-disk"></i>                         {saving ? "Saving..." : "Save"}
                         Settings
                     </button>
                 </div>
             </div>
 
-            <form ref={formRef} onSubmit={save} key={settings?.updated_at || "settings-loading"}>
+            <form id="settings-form" ref={formRef} onSubmit={save} key={settings?.updated_at || "settings-loading"}>
                 <div
                     className="row g-4 mb-5"
                     data-aos="fade-up"
@@ -221,7 +271,8 @@ export default function AdminSettings() {
                                     </label>
                                     <select
                                         className={styles.formSelect}
-                                        defaultValue="3"
+                                        name="expiry_reminder_days"
+                                        defaultValue={settings?.expiry_reminder_days || 3}
                                     >
                                         <option value="1">
                                             1 day before expiration
@@ -251,7 +302,9 @@ export default function AdminSettings() {
                                             </div>
                                             <input
                                                 type="checkbox"
-                                                defaultChecked
+                                                name="payment_modes"
+                                                value="cash"
+                                                defaultChecked={settings?.payment_modes?.includes("cash") ?? true}
                                                 className={
                                                     styles.customCheckbox
                                                 }
@@ -264,7 +317,9 @@ export default function AdminSettings() {
                                             </div>
                                             <input
                                                 type="checkbox"
-                                                defaultChecked
+                                                name="payment_modes"
+                                                value="gcash"
+                                                defaultChecked={settings?.payment_modes?.includes("gcash") ?? true}
                                                 className={
                                                     styles.customCheckbox
                                                 }
@@ -277,7 +332,9 @@ export default function AdminSettings() {
                                             </div>
                                             <input
                                                 type="checkbox"
-                                                defaultChecked
+                                                name="payment_modes"
+                                                value="maya"
+                                                defaultChecked={settings?.payment_modes?.includes("maya") ?? true}
                                                 className={
                                                     styles.customCheckbox
                                                 }
@@ -298,7 +355,7 @@ export default function AdminSettings() {
                                             Allow Member Registrations
                                         </span>
                                         <label className={styles.toggleSwitch}>
-                                            <input type="checkbox" />
+                                            <input type="checkbox" name="allow_member_registrations" defaultChecked={settings?.allow_member_registrations ?? true} />
                                             <span
                                                 className={styles.toggleSlider}
                                             ></span>
@@ -314,7 +371,8 @@ export default function AdminSettings() {
                                         <label className={styles.toggleSwitch}>
                                             <input
                                                 type="checkbox"
-                                                defaultChecked
+                                                name="show_live_capacity"
+                                                defaultChecked={settings?.show_live_capacity ?? true}
                                             />
                                             <span
                                                 className={styles.toggleSlider}
@@ -354,7 +412,7 @@ export default function AdminSettings() {
                                             Enable Maintenance Mode
                                         </strong>
                                         <label className={styles.toggleSwitch}>
-                                            <input type="checkbox" />
+                                            <input type="checkbox" name="maintenance_enabled" defaultChecked={settings?.maintenance_enabled ?? false} />
                                             <span
                                                 className={styles.toggleSlider}
                                             ></span>
@@ -379,6 +437,8 @@ export default function AdminSettings() {
                                         <input
                                             type="datetime-local"
                                             className={styles.formInput}
+                                            name="maintenance_starts_at"
+                                            defaultValue={settings?.maintenance_starts_at ? new Date(settings.maintenance_starts_at).toISOString().slice(0, 16) : ""}
                                         />
                                     </div>
                                 </div>
@@ -389,8 +449,9 @@ export default function AdminSettings() {
                                     </label>
                                     <textarea
                                         className={styles.formTextarea}
+                                        name="maintenance_message"
                                         rows="3"
-                                        defaultValue="Analyn's Fitness Gym portal is currently undergoing scheduled maintenance. We will be back online shortly."
+                                        defaultValue={settings?.maintenance_message || "Analyn's Fitness Gym portal is currently undergoing scheduled maintenance. We will be back online shortly."}
                                     ></textarea>
                                 </div>
                             </div>
@@ -433,7 +494,7 @@ export default function AdminSettings() {
                                                 fontWeight: "600",
                                             }}
                                         >
-                                            Local Database Backup
+                                            Data Export
                                         </span>
                                         <i className="fa-regular fa-circle-check text-success"></i>
                                     </div>
@@ -445,14 +506,13 @@ export default function AdminSettings() {
                                             fontWeight: "700",
                                         }}
                                     >
-                                        Today at 2:00 AM
+                                        {systemInfo?.lastBackup?.completed_at ? new Date(systemInfo.lastBackup.completed_at).toLocaleString() : "No export completed yet"}
                                     </h4>
                                     <p
                                         className="text-secondary m-0"
                                         style={{ fontSize: "0.75rem" }}
                                     >
-                                        Automated nightly snapshot stored on
-                                        local drive
+                                        Exported CSV files from approved operational tables.
                                     </p>
                                 </div>
 
@@ -471,7 +531,7 @@ export default function AdminSettings() {
                                                 fontWeight: "600",
                                             }}
                                         >
-                                            99.9% Uptime
+                                            Version {systemInfo?.version || "..."}
                                         </span>
                                     </div>
                                     <div className="d-flex justify-content-between align-items-center mb-3">
@@ -485,44 +545,43 @@ export default function AdminSettings() {
                                             <span
                                                 className={styles.dotGreen}
                                             ></span>{" "}
-                                            Local Server Online
+                                            Database size
                                         </div>
                                         <div
                                             className="text-primary"
                                             style={{ fontSize: "0.85rem" }}
                                         >
-                                            Storage 24% used
+                                            {systemInfo ? `${(systemInfo.databaseSizeBytes / systemInfo.databaseLimitBytes * 100).toFixed(1)}% used` : "..."}
                                         </div>
                                     </div>
                                     <div className={styles.storageBarBg}>
                                         <div
                                             className={styles.storageBarFill}
-                                            style={{ width: "24%" }}
+                                            style={{ width: `${Math.min(100, systemInfo ? systemInfo.databaseSizeBytes / systemInfo.databaseLimitBytes * 100 : 0)}%` }}
                                         ></div>
                                     </div>
                                     <div
                                         className="d-flex justify-content-between mt-2 text-secondary"
                                         style={{ fontSize: "0.7rem" }}
                                     >
-                                        <span>14.4 GB of 60 GB</span>
-                                        <span>45.6 GB free</span>
+                                        <span>{systemInfo ? `${(systemInfo.databaseSizeBytes / 1024 / 1024).toFixed(1)} MB of ${(systemInfo.databaseLimitBytes / 1024 / 1024).toFixed(0)} MB` : "Loading database size..."}</span>
+                                        <span>{backups.length} recent exports</span>
                                     </div>
                                 </div>
 
                                 <button
                                     type="button"
                                     className={styles.btnPrimaryFull}
+                                    onClick={downloadExport}
                                 >
                                     <i className="fa-solid fa-cloud-arrow-down"></i>{" "}
-                                    Backup Database Now
+                                    Download data export
                                 </button>
                                 <p
                                     className="text-center text-secondary mt-2 mb-0"
                                     style={{ fontSize: "0.7rem" }}
                                 >
-                                    Creates an instant compressed archive of
-                                    member profiles, attendance logs, and
-                                    billing ledgers.
+                                    This is a data export, not a full database backup. Supabase project backups depend on your plan.
                                 </p>
                             </div>
                         </div>
@@ -555,7 +614,7 @@ export default function AdminSettings() {
                 </div>
                 <div className="d-flex gap-3">
                     <span className={styles.badgeOutline}>
-                        Version 2.4.1-local
+                        Version {systemInfo?.version || "..."}
                     </span>
                     <span className={styles.badgeSuccessOutline}>
                         All Systems Operational

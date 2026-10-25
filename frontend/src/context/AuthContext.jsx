@@ -81,6 +81,7 @@ export function AuthProvider({ children }) {
             setProfileResult({ id: result.user.id, data: result.profile });
             return { profile: result.profile };
         } catch (error) {
+            if (error.maintenance) await supabase.auth.signOut();
             return { error: error.message };
         }
     };

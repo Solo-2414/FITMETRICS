@@ -66,8 +66,8 @@ erDiagram
   and maintenance configuration.
 - `audit_log`: sensitive operational action history.
 - `chatbot_conversations`, `chatbot_messages`: admin-scoped AI conversation history.
-- `maintenance_backups`: admin-visible backup request/status records. Actual
-  backup execution remains an external Supabase/platform operation.
+- `maintenance_backups`: admin-visible data-export status records and row-count
+  summaries. These exports are CSV archives, not full Supabase database backups.
 
 ## Rules enforced in SQL
 

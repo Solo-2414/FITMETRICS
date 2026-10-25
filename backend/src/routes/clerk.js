@@ -6,6 +6,7 @@ import { enqueueEmail } from '../services/emailQueue.js';
 import { notifyStaff } from '../services/notify.js';
 import { dayStart, nextDayStart, today } from '../utils/time.js';
 import { getPromo, priceFor } from './paymongo.js';
+import { getGymSettings } from '../services/maintenance.js';
 
 const router = Router();
 router.use('/clerk', requireAuth, requireRole('admin', 'clerk'));
@@ -151,6 +152,8 @@ router.post('/clerk/payments', async (req, res, next) => {
       guest_name, guest_phone, promo_code = null,
     } = req.body || {};
     if (!plan_code) return res.status(400).json({ error: 'A payment plan is required.' });
+    const paymentModes = (await getGymSettings()).payment_modes || ['cash', 'gcash', 'maya'];
+    if (!paymentModes.includes(payment_method)) return res.status(400).json({ error: `Payment method "${payment_method}" is disabled.` });
     const plan = await getPlan(plan_code);
     const promo = await getPromo(promo_code, plan.id);
     const pricing = priceFor(plan, Boolean(is_student), promo);
@@ -221,6 +224,9 @@ router.post('/clerk/register', async (req, res, next) => {
       emergency_contact_name, emergency_contact_phone, birthdate, address,
       is_student = false, plan_code, coach_id, coach_addon_amount = 0, payment_method = 'cash',
     } = req.body || {};
+    const settings = await getGymSettings();
+    if (!settings.allow_member_registrations) return res.status(403).json({ error: 'Member registrations are currently disabled in gym settings.' });
+    if (!(settings.payment_modes || ['cash', 'gcash', 'maya']).includes(payment_method)) return res.status(400).json({ error: `Payment method "${payment_method}" is disabled.` });
     if (!email || !password || !full_name || !plan_code) return res.status(400).json({ error: 'Name, email, password, and membership plan are required.' });
     const plan = await getPlan(plan_code);
     const coach = await getCoach(coach_id);
@@ -265,6 +271,7 @@ router.post('/clerk/register', async (req, res, next) => {
 router.post('/clerk/memberships', async (req, res, next) => {
   try {
     const { member_id, plan_code, coach_id, coach_addon_amount = 0, payment_method = 'cash' } = req.body || {};
+    if (!((await getGymSettings()).payment_modes || ['cash', 'gcash', 'maya']).includes(payment_method)) return res.status(400).json({ error: `Payment method "${payment_method}" is disabled.` });
     if (!member_id || !plan_code) return res.status(400).json({ error: 'Member and plan are required.' });
     const plan = await getPlan(plan_code);
     const coach = await getCoach(coach_id);

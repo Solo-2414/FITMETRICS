@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { supabaseAdmin, supabaseAuth } from '../config/supabase.js';
+import { getGymSettings, maintenanceStatus } from '../services/maintenance.js';
 
 const router = Router();
 const identifierOk = (value) => typeof value === 'string' && value.trim().length >= 3 && value.trim().length <= 254;
@@ -51,7 +52,12 @@ router.post('/login', loginLimiter, async (req, res, next) => {
       return res.status(403).json({ error: `This account is ${profile.status}. Please contact the gym.` });
     }
 
-    res.json({ session: data.session, user: data.user, profile });
+    const status = profile.role === 'member' ? maintenanceStatus(await getGymSettings()) : null;
+    if (status?.maintenance) {
+      await supabaseAuth.auth.signOut();
+      return res.status(503).json({ ...status, error: status.message });
+    }
+    res.json({ session: data.session, user: data.user, profile, maintenance: null });
   } catch (error) {
     next(error);
   }

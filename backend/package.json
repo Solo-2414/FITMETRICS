@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "check:guards": "node scripts/check-guards.mjs"
+    "check:guards": "node scripts/check-guards.mjs",
+    "test:maintenance": "node scripts/test-maintenance.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
