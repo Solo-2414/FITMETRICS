@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
+import { Skeleton } from "../ui/Skeleton";
 import styles from "./AdminLayout.module.css";
 
 export default function AdminLayout({ children }) {
@@ -176,8 +177,8 @@ export default function AdminLayout({ children }) {
                                 className={styles.avatarImg}
                             />
                             <div className="d-none d-sm-block">
-                                <h4>{profile?.full_name || "Admin"}</h4>
-                                <p>Gym Owner / Admin</p>
+                                {profile ? <h4>{profile.full_name}</h4> : <Skeleton w={120} h={14} />}
+                                {profile ? <p>Gym Owner / Admin</p> : <Skeleton w={90} h={10} />}
                             </div>
                         </div>
                     </div>

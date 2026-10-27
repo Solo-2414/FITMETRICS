@@ -1,9 +1,8 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 
-import AOS from "aos";
-import "aos/dist/aos.css";
 import "./App.css";
+import { initMotion, refreshMotion } from "./lib/motion";
 
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
@@ -43,19 +42,14 @@ import ClerkSettings from "./pages/clerk/ClerkSettings";
 function AOSRefresh() {
     const location = useLocation();
     useEffect(() => {
-        AOS.refresh();
+        refreshMotion();
     }, [location]);
     return null;
 }
 
 export default function App() {
     useEffect(() => {
-        AOS.init({
-            duration: 800,
-            once: false,
-            mirror: true,
-            easing: "ease-out-cubic",
-        });
+        initMotion();
     }, []);
 
     return (

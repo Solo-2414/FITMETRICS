@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberBilling.module.css";
 import { api } from "../../lib/api";
+import { SkeletonTable } from "../../components/ui/Skeleton";
 
 export default function MemberBilling() {
     const [profile, setProfile] = useState(null);
@@ -19,20 +20,6 @@ export default function MemberBilling() {
             .then(([payments, memberships]) => { setBilling(payments); setMembership(memberships.current); })
             .catch((err) => setError(err.message));
     }, []);
-    const save = async (event) => {
-        event.preventDefault();
-        const data = Object.fromEntries(new FormData(event.currentTarget).entries());
-        try {
-            const result = await api("/me", { method: "PATCH", body: {
-                full_name: `${data.first_name || ""} ${data.last_name || ""}`.trim(),
-                phone: data.phone,
-                gender: data.gender,
-                emergency_contact_name: data.emergency_contact_name,
-                emergency_contact_phone: data.emergency_contact_phone,
-            }});
-            setProfile(result); setSaved(true);
-        } catch (err) { setError(err.message); }
-    };
     const plan = membership?.membership_plans;
     const totalPaid = billing.filter((item) => item.status === "paid").reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const nextDate = membership?.end_date ? new Date(membership.end_date).toLocaleDateString() : "...";
@@ -57,6 +44,7 @@ export default function MemberBilling() {
     return (
         <MemberLayout>
             {error && <div className="alert alert-danger">{error}</div>}
+            {!profile || !dashboard || !membership || !data ? <SkeletonTable rows={6} cols={5} /> : <>
             {new URLSearchParams(window.location.search).get("payment") === "success" && <div className="alert alert-info">Payment received for verification. Your membership will activate after PayMongo confirms the payment.</div>}
             {pendingPayments.length > 0 && <div className="alert alert-warning">{pendingPayments.length} online payment{pendingPayments.length === 1 ? "" : "s"} pending confirmation.</div>}
             <div
@@ -663,6 +651,7 @@ export default function MemberBilling() {
                     </div>
                 </div>
             </div>
+            </>}
         </MemberLayout>
     );
 }

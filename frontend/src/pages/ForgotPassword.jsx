@@ -251,8 +251,9 @@ export default function ForgotPassword() {
                                 <button
                                     type="submit"
                                     className="btn-primary-action w-100"
+                                    disabled={busy}
                                 >
-                                    Send Verification OTP{" "}
+                                    {busy ? "Sending..." : "Send Verification OTP"}{" "}
                                     <i className="fa-solid fa-arrow-right ms-2"></i>
                                 </button>
                             </form>
@@ -333,9 +334,9 @@ export default function ForgotPassword() {
                                 <button
                                     type="submit"
                                     className="btn-primary-action w-100 mb-4"
-                                    disabled={otp.join("").length !== 6}
+                                    disabled={busy || otp.join("").length !== 6}
                                 >
-                                    Verify OTP & Continue{" "}
+                                    {busy ? "Verifying..." : "Verify OTP & Continue"}{" "}
                                     <i className="fa-solid fa-arrow-right ms-2"></i>
                                 </button>
 

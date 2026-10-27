@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
 import { api } from "../../lib/api";
+import { SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
 import styles from "./ClerkPayments.module.css";
 
 export default function ClerkPayments() {
@@ -18,13 +19,16 @@ export default function ClerkPayments() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    const loadPayments = () => Promise.all([
+    const loadPayments = () => {
+        return Promise.all([
         api("/clerk/plans"),
         api("/clerk/members"),
         api("/clerk/payments"),
         api("/clerk/dashboard"),
-    ]).then(([planRows, memberRows, paymentRows, dashboard]) => {
+        ]).then(([planRows, memberRows, paymentRows, dashboard]) => {
         const livePlans = Object.fromEntries(planRows.filter((plan) => plan.account_eligible || plan.code === "session").map((plan) => [plan.code, {
             ...plan,
             price: Number(plan.price),
@@ -38,7 +42,8 @@ export default function ClerkPayments() {
         const requestedPlan = new URLSearchParams(window.location.search).get("plan");
         if (requestedPlan && livePlans[requestedPlan]) setSelectedPlan(requestedPlan);
         else if (!livePlans[selectedPlan]) setSelectedPlan(Object.keys(livePlans)[0] || "");
-    });
+        }).finally(() => { setLoading(false); setRefreshing(false); });
+    };
 
     useEffect(() => {
         loadPayments().catch((err) => setError(err.message));
@@ -94,6 +99,7 @@ export default function ClerkPayments() {
             setPromoCode("");
             setGuestPhone("");
             setIsStudent(false);
+            setRefreshing(true);
             await loadPayments();
         } catch (err) {
             setError(err.message);
@@ -101,6 +107,15 @@ export default function ClerkPayments() {
             setSaving(false);
         }
     };
+
+    if (loading) {
+        return <ClerkLayout>
+            <h1 className={styles.pageTitle}>Payments</h1>
+            <p className={styles.pageDesc}>Record gym membership payments and manage the daily cash drawer</p>
+            <SkeletonKpiCards count={4} />
+            <SkeletonTable rows={6} cols={5} />
+        </ClerkLayout>;
+    }
 
     return (
         <ClerkLayout>
@@ -156,7 +171,7 @@ export default function ClerkPayments() {
 
                 <div className="row g-3">
                     <div className="col-12 col-sm-6 col-lg">
-                        <div className={styles.statBox}>
+                        <div className={`${styles.statBox} ${refreshing ? "fm-refreshing" : ""}`}>
                             <span className={styles.statLabel}>
                                 STARTING FLOAT (MORNING)
                             </span>

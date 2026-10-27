@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
+import { Skeleton } from "../ui/Skeleton";
 import styles from "./ClerkLayout.module.css";
 
 export default function ClerkLayout({ children }) {
@@ -208,8 +209,8 @@ export default function ClerkLayout({ children }) {
                         <div className={styles.userInfo}>
                             {avatarFailed ? <div className={styles.avatarImg}>{initials}</div> : <img src={profile?.avatar_url || "/placeholder.png"} alt="Clerk Avatar" className={styles.avatarImg} onError={() => setAvatarFailed(true)} />}
                             <div className="d-none d-sm-block">
-                                <h4>{profile?.full_name || "Clerk"}</h4>
-                                <p>Front Desk Staff</p>
+                                {profile ? <h4>{profile.full_name}</h4> : <Skeleton w={120} h={14} />}
+                                {profile ? <p>Front Desk Staff</p> : <Skeleton w={90} h={10} />}
                             </div>
                         </div>
                     </div>

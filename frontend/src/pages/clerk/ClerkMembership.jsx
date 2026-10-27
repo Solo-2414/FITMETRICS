@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
 import { api } from "../../lib/api";
+import { SkeletonCards, SkeletonTable } from "../../components/ui/Skeleton";
 import styles from "./ClerkMembership.module.css";
 
 export default function ClerkMembership() {
@@ -14,6 +15,7 @@ export default function ClerkMembership() {
     const [saving, setSaving] = useState(false);
     const [renewalPlanCode, setRenewalPlanCode] = useState("");
     const [renewalCoachId, setRenewalCoachId] = useState("");
+    const [loading, setLoading] = useState(true);
     const renewalFormRef = useRef(null);
     useEffect(() => {
         Promise.all([api("/clerk/members"), api("/clerk/plans"), api("/clerk/coaches"), api("/clerk/dashboard")])
@@ -23,7 +25,8 @@ export default function ClerkMembership() {
                 setCoaches(coachRows);
                 setExpiring(dashboard.expiringSoon || []);
             })
-            .catch((err) => setError(err.message));
+            .catch((err) => setError(err.message))
+            .finally(() => setLoading(false));
     }, []);
     const submitRenewal = async (event) => {
         event.preventDefault();
@@ -52,6 +55,15 @@ export default function ClerkMembership() {
             setSaving(false);
         }
     };
+
+    if (loading) {
+        return <ClerkLayout>
+            <h1 className={styles.pageTitle}>Membership</h1>
+            <p className={styles.pageDesc}>Manage member plans, counter renewals, and coach assignments</p>
+            <SkeletonCards count={4} colClass="col-12 col-sm-6 col-xl-3" height={120} />
+            <SkeletonTable rows={6} cols={5} />
+        </ClerkLayout>;
+    }
 
     return (
         <ClerkLayout>

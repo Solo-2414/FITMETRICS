@@ -2,18 +2,21 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
 import { api } from "../../lib/api";
+import { SkeletonKpiCards, SkeletonList, SkeletonTable } from "../../components/ui/Skeleton";
 import styles from "./ClerkDashboard.module.css";
 
 export default function ClerkDashboard() {
     const [stats, setStats] = useState(null);
     const [error, setError] = useState("");
     const [plans, setPlans] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [reminderState, setReminderState] = useState("");
     const navigate = useNavigate();
     useEffect(() => {
         Promise.all([api("/clerk/dashboard"), api("/clerk/plans")])
             .then(([dashboard, planRows]) => { setStats(dashboard); setPlans(planRows); })
-            .catch((err) => setError(err.message));
+            .catch((err) => setError(err.message))
+            .finally(() => setLoading(false));
     }, []);
     return (
         <ClerkLayout>
@@ -32,7 +35,8 @@ export default function ClerkDashboard() {
             </div>
 
             {error && <div className="alert alert-danger">{error}</div>}
-            <div className="row g-3 mb-4">
+            {loading && <SkeletonKpiCards count={4} />}
+            <div className="row g-3 mb-4 fm-fade-in">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
                         <div className={styles.kpiHeader}>
@@ -48,8 +52,8 @@ export default function ClerkDashboard() {
                         <div className={styles.progressContainer}>
                             <div className={styles.progressBarBg}>
                                 <div
-                                    className={styles.progressBarFillPrimary}
-                                    style={{ width: `${Math.min(100, ((stats?.activeOnFloor || 0) / 50) * 100)}%` }}
+                                    className={`${styles.progressBarFillPrimary} fm-grow-x`}
+                                    style={{ width: `${Math.min(100, ((stats?.activeOnFloor || 0) / 50) * 100)}%`, "--i": 0 }}
                                 ></div>
                             </div>
                             <div className="d-flex justify-content-between align-items-center mt-2">
@@ -148,7 +152,6 @@ export default function ClerkDashboard() {
                     </div>
                 </div>
             </div>
-
             <div
                 className={styles.quickActionsBar}
                 data-aos="fade-up"
@@ -182,7 +185,8 @@ export default function ClerkDashboard() {
                 </div>
             </div>
 
-            <div className="row g-4 mt-1">
+            {loading && <div className="row g-4 mt-1"><div className="col-12 col-xl-8"><SkeletonTable rows={5} cols={4} /></div><div className="col-12 col-xl-4"><SkeletonList rows={4} /></div></div>}
+            <div className="row g-4 mt-1 fm-fade-in">
                 <div
                     className="col-12 col-xl-8"
                     data-aos="fade-right"
@@ -730,7 +734,7 @@ export default function ClerkDashboard() {
                         </p>
                     </div>
                 </div>
-            </div>
+                </div>
             </div>
         </ClerkLayout>
     );

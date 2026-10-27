@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import { api } from "../../lib/api";
 import styles from "./MemberAttendance.module.css";
+import { SkeletonKpiCards, SkeletonList } from "../../components/ui/Skeleton";
 
 export default function MemberAttendance() {
     const [attendance, setAttendance] = useState([]);
     const [error, setError] = useState("");
+    const [loading, setLoading] = useState(true);
     
     // Default to the current actual month and year
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -26,7 +28,8 @@ export default function MemberAttendance() {
 
         api(`/attendance/me?from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}`)
             .then(setAttendance)
-            .catch((err) => setError(err.message));
+            .catch((err) => setError(err.message))
+            .finally(() => setLoading(false));
     }, [year, month]);
 
     // Month Navigation Handlers
@@ -184,6 +187,7 @@ export default function MemberAttendance() {
     return (
         <MemberLayout>
             {error && <div className="alert alert-danger">{error}</div>}
+            {loading ? <><SkeletonKpiCards count={2} colClass="col-12 col-md-6" /><SkeletonList rows={5} /></> : <>
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3"
                 data-aos="fade-down"
@@ -415,6 +419,7 @@ export default function MemberAttendance() {
                     </span>
                 </div>
             </div>
+            </>}
         </MemberLayout>
     );
 }

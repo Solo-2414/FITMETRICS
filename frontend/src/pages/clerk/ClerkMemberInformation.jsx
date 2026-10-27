@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
 import { api } from "../../lib/api";
+import { SkeletonTable } from "../../components/ui/Skeleton";
 import styles from "./ClerkMemberInformation.module.css";
 
 export default function ClerkMemberInformation() {
@@ -9,14 +10,26 @@ export default function ClerkMemberInformation() {
     const [search, setSearch] = useState("");
     const [members, setMembers] = useState([]);
     const [error, setError] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     useEffect(() => {
         const timer = setTimeout(() => {
+            setRefreshing(members.length > 0);
             api(`/clerk/members?search=${encodeURIComponent(search)}`)
                 .then(setMembers)
-                .catch((err) => setError(err.message));
+                .catch((err) => setError(err.message))
+                .finally(() => { setLoading(false); setRefreshing(false); });
         }, 250);
         return () => clearTimeout(timer);
     }, [search]);
+
+    if (loading) {
+        return <ClerkLayout>
+            <h1 className={styles.pageTitle}>Member Information</h1>
+            <p className={styles.pageDesc}>Search, view, and manage registered gym members</p>
+            <SkeletonTable rows={7} cols={6} />
+        </ClerkLayout>;
+    }
 
     return (
         <ClerkLayout>
@@ -97,7 +110,7 @@ export default function ClerkMemberInformation() {
                             </span>
                         </div>
 
-                        <div className="table-responsive">
+                        {loading ? <SkeletonTable rows={7} cols={6} /> : <div className={`table-responsive ${refreshing ? "fm-refreshing" : ""}`}>
                             <table className={`table ${styles.customTable}`}>
                                 <thead>
                                     <tr>
@@ -431,7 +444,7 @@ export default function ClerkMemberInformation() {
                                     </tr>
                                 </tbody>
                             </table>
-                        </div>
+                        </div>}
 
                         <div className="d-flex flex-column flex-sm-row justify-content-between align-items-center mt-4 border-top border-secondary pt-4">
                             <span

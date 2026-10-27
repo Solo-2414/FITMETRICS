@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
 import { api } from "../../lib/api";
+import { SkeletonList } from "../../components/ui/Skeleton";
 import styles from "./ClerkNotifications.module.css";
 
 const relativeTime = (value) => {
@@ -15,7 +16,8 @@ export default function ClerkNotifications() {
     const [activeTab, setActiveTab] = useState("all");
     const [notifications, setNotifications] = useState([]);
     const [error, setError] = useState("");
-    const load = () => api("/clerk/notifications").then(setNotifications).catch((err) => setError(err.message));
+    const [loading, setLoading] = useState(true);
+    const load = () => api("/clerk/notifications").then(setNotifications).catch((err) => setError(err.message)).finally(() => setLoading(false));
     useEffect(() => { load(); }, []);
     const filtered = useMemo(() => notifications.filter((item) => activeTab === "all" || (activeTab === "expiring" && item.type === "membership_expiry") || (activeTab === "payments" && item.type === "payment") || (activeTab === "notices" && item.type === "announcement") || (activeTab === "new" && item.title?.toLowerCase().includes("registered"))), [notifications, activeTab]);
     const markRead = async (id) => {
@@ -33,8 +35,9 @@ export default function ClerkNotifications() {
         </div>
         <div className={styles.tabsContainer}><div className={styles.tabsScroll}>{tabs.map(([key, label]) => <button key={key} className={`${styles.tabBtn} ${activeTab === key ? styles.tabBtnActive : ""}`} onClick={() => setActiveTab(key)}>{label} <span className={styles.badgeMuted}>{key === "all" ? notifications.length : notifications.filter((item) => (key === "expiring" && item.type === "membership_expiry") || (key === "payments" && item.type === "payment") || (key === "notices" && item.type === "announcement")).length}</span></button>)}</div></div>
         <div className="d-flex flex-column gap-3">
+            {loading && <SkeletonList rows={6} />}
             {filtered.map((item) => <div className={styles.listCard} key={item.id} style={{ opacity: item.read_at ? 0.7 : 1 }}><div className="d-flex align-items-start gap-3"><div className={styles.iconBoxPrimary}><i className={item.type === "announcement" ? "fa-solid fa-bullhorn" : "fa-regular fa-bell"}></i></div><div className="flex-grow-1"><h4 className={styles.cardTitle}>{item.title}</h4><p className={styles.cardDesc}>{item.message}</p><span className={styles.cardMetaText}>{relativeTime(item.created_at)}</span></div>{!item.read_at && <button className={styles.btnActionOutlineSmall} onClick={() => markRead(item.id)}>Mark read</button>}</div></div>)}
-            {!filtered.length && <div className="text-center text-secondary py-5">No notifications in this category.</div>}
+            {!loading && !filtered.length && <div className="text-center text-secondary py-5">No notifications in this category.</div>}
         </div>
     </ClerkLayout>;
 }

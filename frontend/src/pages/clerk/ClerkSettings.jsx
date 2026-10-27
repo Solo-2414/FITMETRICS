@@ -3,12 +3,14 @@ import ClerkLayout from "../../components/clerk/ClerkLayout";
 import styles from "./ClerkSettings.module.css";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import { SkeletonForm } from "../../components/ui/Skeleton";
 
 export default function ClerkSettings() {
     const { profile, refreshProfile } = useAuth();
     const [settings, setSettings] = useState(null);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const [loading, setLoading] = useState(true);
     const [phone, setPhone] = useState("");
     const [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" });
     const [preferences, setPreferences] = useState(() => ({
@@ -17,7 +19,7 @@ export default function ClerkSettings() {
     }));
     const fileInput = useRef(null);
     useEffect(() => {
-        api("/clerk/settings").then(setSettings).catch((err) => setError(err.message));
+        api("/clerk/settings").then(setSettings).catch((err) => setError(err.message)).finally(() => setLoading(false));
     }, []);
     useEffect(() => { setPhone(profile?.phone || ""); }, [profile?.phone]);
     const names = (profile?.full_name || "").trim().split(/\s+/);
@@ -42,6 +44,13 @@ export default function ClerkSettings() {
         try { await api("/me/avatar", { method: "DELETE" }); await refreshProfile(); setSuccess("Profile photo removed."); setError(""); } catch (err) { setError(err.message); setSuccess(""); }
     };
     const setPreference = (key, value) => { setPreferences((current) => ({ ...current, [key]: value })); localStorage.setItem(`fitmetrics.${key}`, String(value)); };
+    if (loading) {
+        return <ClerkLayout>
+            <h1 className={styles.pageTitle}>Account Settings</h1>
+            <p className={styles.pageDesc}>Manage your staff profile, security credentials, and terminal preferences</p>
+            <SkeletonForm fields={6} />
+        </ClerkLayout>;
+    }
     return (
         <ClerkLayout>
             <div

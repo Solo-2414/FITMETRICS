@@ -1,77 +1,39 @@
-import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend,
-} from "chart.js";
 import { Bar } from "react-chartjs-2";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
-import { api } from "../../lib/api";
+import { useApiData } from "../../hooks/useApiData";
+import { SkeletonChart, SkeletonKpiCards, SkeletonList, SkeletonTable } from "../../components/ui/Skeleton";
+import { buildBarOptions } from "../../lib/chartDefaults";
 import styles from "./AdminDashboard.module.css";
 
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend,
-);
-
 export default function AdminDashboard() {
-    const [dashboard, setDashboard] = useState(null);
-    const [error, setError] = useState("");
-    useEffect(() => {
-        api("/admin/dashboard").then(setDashboard).catch((err) => setError(err.message));
-    }, []);
+    const { data: dashboard, error, showSkeleton, reload } = useApiData("/admin/dashboard");
     const kpis = dashboard?.kpis || {};
-    const peak = dashboard?.today?.hourlyVisits || [];
+    const peak = dashboard?.today?.hourlyVisits;
     const recentCheckIns = dashboard?.recentCheckIns || [];
     const expiringSoon = dashboard?.expiringSoon || [];
     const planDistribution = dashboard?.planDistribution || [];
     const totalPlans = planDistribution.reduce((sum, plan) => sum + Number(plan.count || 0), 0);
-    const chartData = {
-        labels: peak.map((row) => `${row.hour}:00`),
-        datasets: [
-            {
-                label: "Visits",
-                data: peak.map((row) => Number(row.visits)),
-                backgroundColor: (context) => {
-                    const value = context.raw;
-                    return value >= 20 ? "#f59e0b" : "#38bdf8";
-                },
-                borderRadius: 4,
+    const chartData = useMemo(() => ({
+        labels: (peak || []).map((row) => `${row.hour}:00`),
+        datasets: [{
+            label: "Visits",
+            data: (peak || []).map((row) => Number(row.visits)),
+            backgroundColor: (context) => (context.raw >= 20 ? "#f59e0b" : "#38bdf8"),
+            borderRadius: 4,
+        }],
+    }), [peak]);
+    const chartOptions = useMemo(() => {
+        const options = buildBarOptions({ count: 24 });
+        return {
+            ...options,
+            scales: {
+                ...options.scales,
+                x: { ...options.scales.x, ticks: { ...options.scales.x.ticks, font: { size: 10 } } },
+                y: { ...options.scales.y, display: false },
             },
-        ],
-    };
-
-    const chartOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                backgroundColor: "#1e293b",
-                titleColor: "#f8fafc",
-                bodyColor: "#94a3b8",
-                borderColor: "#334155",
-                borderWidth: 1,
-            },
-        },
-        scales: {
-            x: {
-                grid: { display: false, drawBorder: false },
-                ticks: { color: "#94a3b8", font: { size: 10 } },
-            },
-            y: {
-                display: false,
-            },
-        },
-    };
+        };
+    }, []);
 
     return (
         <AdminLayout>
@@ -82,7 +44,7 @@ export default function AdminDashboard() {
                         Daily summary, member attendance, and gym sales overview
                     </p>
                 </div>
-                {error && <div className="alert alert-danger">{error}</div>}
+                {error && <div className="alert alert-danger">{error} <button className="btn btn-link p-0" onClick={reload}>Try again</button></div>}
                 <div className={styles.timeBadge}>
                     <i className="fa-regular fa-calendar"></i> Today: Friday,
                     October 24{" "}
@@ -90,7 +52,7 @@ export default function AdminDashboard() {
                 </div>
             </div>
 
-            <div className="row g-3 mb-4">
+            {showSkeleton ? <SkeletonKpiCards /> : <div className="row g-3 mb-4 fm-fade-in">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
                         <div className={styles.kpiHeader}>
@@ -121,11 +83,10 @@ export default function AdminDashboard() {
                         <h3 className={styles.kpiValue}>{kpis.active_members ?? "..."} Members</h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
                             <span className={styles.kpiSub}>
-                                82% on monthly
+                                Membership mix available in plan distribution
                             </span>
                             <span className={styles.kpiPositive}>
-                                <i className="fa-solid fa-plus"></i> 6 new this
-                                week
+                                Current active member total
                             </span>
                         </div>
                     </div>
@@ -142,10 +103,10 @@ export default function AdminDashboard() {
                         <h3 className={styles.kpiValue}>{dashboard ? (dashboard.today?.checkIns ?? 0) : "..."} Visits</h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
                             <span className={styles.kpiSub}>
-                                Est. 80 peak total
+                                Recorded visits for selected day
                             </span>
                             <span className={styles.kpiHighlight}>
-                                Avg 1.2h duration
+                                Duration data available in attendance logs
                             </span>
                         </div>
                     </div>
@@ -170,7 +131,7 @@ export default function AdminDashboard() {
                     </div>
                 </div>
             </div>
-
+            }
             <div className="row g-4 mb-4">
                 <div className="col-12" data-aos="fade-up" data-aos-delay="100">
                     <div className={styles.panelCard}>
@@ -202,7 +163,7 @@ export default function AdminDashboard() {
                         </div>
 
                         <div className={styles.chartWrapper}>
-                            <Bar data={chartData} options={chartOptions} />
+                            {showSkeleton ? <SkeletonChart height={250} /> : <Bar data={chartData} options={chartOptions} />}
                         </div>
 
                         <div
@@ -247,7 +208,7 @@ export default function AdminDashboard() {
                             </button>
                         </div>
 
-                        <div className="table-responsive">
+                        {showSkeleton ? <SkeletonTable rows={5} cols={4} /> : <div className="table-responsive fm-fade-in">
                             <table className={`table ${styles.customTable}`}>
                                 <thead>
                                     <tr>
@@ -259,7 +220,7 @@ export default function AdminDashboard() {
                                 </thead>
                                 <tbody>{recentCheckIns.map((row) => <tr key={row.id}><td><strong className="d-block text-white mb-1">{row.member?.full_name || "Walk-in"}</strong><span className={styles.memberId}>{row.member?.member_details?.member_code || row.member_id}</span></td><td><span className={styles.planBadgeOutline}>{row.member?.membership_plan || "Active membership"}</span></td><td className="text-white">{new Date(row.check_in_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</td><td>{row.recordedByName}</td></tr>)}{dashboard && !recentCheckIns.length && <tr><td colSpan="4" className="text-center text-secondary py-4">No check-ins recorded today.</td></tr>}</tbody>
                             </table>
-                        </div>
+                        </div>}
                     </div>
                 </div>
 
@@ -283,11 +244,11 @@ export default function AdminDashboard() {
                             Polite email notifications ready to send to members
                         </p>
 
-                        <div className="d-flex flex-column gap-3 mb-4">{expiringSoon.slice(0, 3).map((membership) => { const days = Math.max(0, Math.ceil((new Date(membership.end_date) - new Date()) / 86400000)); return <div className={styles.expiringCard} key={membership.id}><div><h6 className="text-white mb-1">{membership.member?.full_name || "Member"}</h6><div className={days <= 1 ? "text-danger" : "text-warning"} style={{ fontSize: "0.75rem", fontWeight: "600", marginBottom: "4px" }}><i className="fa-regular fa-clock"></i>{" "}Expires {days === 0 ? "today" : `in ${days} day${days === 1 ? "" : "s"}`}</div><span className="text-secondary" style={{ fontSize: "0.75rem" }}>{membership.membership_plans?.name || "Membership"}</span></div><button className={styles.btnActionOutline}><i className="fa-regular fa-envelope"></i>{" "}Send Email</button></div>; })}{dashboard && !expiringSoon.length && <div className="text-secondary py-3">No memberships expire within the next 3 days.</div>}</div>
+                        {showSkeleton ? <SkeletonList rows={3} /> : <div className="d-flex flex-column gap-3 mb-4 fm-fade-in">{expiringSoon.slice(0, 3).map((membership) => { const days = Math.max(0, Math.ceil((new Date(membership.end_date) - new Date()) / 86400000)); return <div className={styles.expiringCard} key={membership.id}><div><h6 className="text-white mb-1">{membership.member?.full_name || "Member"}</h6><div className={days <= 1 ? "text-danger" : "text-warning"} style={{ fontSize: "0.75rem", fontWeight: "600", marginBottom: "4px" }}><i className="fa-regular fa-clock"></i>{" "}Expires {days === 0 ? "today" : `in ${days} day${days === 1 ? "" : "s"}`}</div><span className="text-secondary" style={{ fontSize: "0.75rem" }}>{membership.membership_plans?.name || "Membership"}</span></div><button className={styles.btnActionOutline}><i className="fa-regular fa-envelope"></i>{" "}Send Email</button></div>; })}{dashboard && !expiringSoon.length && <div className="text-secondary py-3">No memberships expire within the next 3 days.</div>}</div>}
 
                         <button className={styles.btnPrimaryFull}>
                             <i className="fa-solid fa-paper-plane"></i> Send
-                            Email Reminder to All 8 Members
+                            Email Reminder to All {expiringSoon.length} Members
                         </button>
                     </div>
                 </div>
@@ -317,7 +278,7 @@ export default function AdminDashboard() {
                 </div>
 
                                 <div className={styles.distributionBar}>
-                    {planDistribution.map((plan, index) => <div key={plan.id} style={{ width: `${totalPlans ? (plan.count / totalPlans) * 100 : 0}%`, backgroundColor: ["var(--primary-color)", "var(--header-text-color)", "var(--green-color)", "#f59e0b"][index % 4] }}></div>)}
+                    {planDistribution.map((plan, index) => <div key={plan.id} className="fm-grow-x" style={{ width: `${totalPlans ? (plan.count / totalPlans) * 100 : 0}%`, "--i": index, backgroundColor: ["var(--primary-color)", "var(--header-text-color)", "var(--green-color)", "#f59e0b"][index % 4] }}></div>)}
                 </div>
 
                 <div className="row g-3 mt-3">

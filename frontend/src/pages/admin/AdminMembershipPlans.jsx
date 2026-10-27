@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import { api } from "../../lib/api";
+import { SkeletonCards, SkeletonKpiCards } from "../../components/ui/Skeleton";
 import styles from "./AdminMembershipPlans.module.css";
 
 const emptyPlan = {
@@ -39,7 +40,7 @@ export default function AdminMembershipPlans() {
     };
 
     useEffect(() => {
-        loadPlans();
+        Promise.resolve().then(loadPlans);
     }, []);
 
     const updateDraft = (event) => {
@@ -99,7 +100,7 @@ export default function AdminMembershipPlans() {
 
             {error && <div className="alert alert-danger mb-4" role="alert">{error}</div>}
 
-            <div className="row g-3 mb-5" data-aos="fade-up" data-aos-delay="100">
+            {loading ? <SkeletonKpiCards count={3} colClass="col-12 col-md-4" /> : <div className="row g-3 mb-5 fm-fade-in" data-aos="fade-up" data-aos-delay="100">
                 {[
                     ["Total Active Passes", activePlans.length, "fa-id-card-clip", styles.iconBoxPrimary],
                     ["Session Walk-Ins", walkInPlan ? "Configured" : 0, "fa-person-walking", styles.iconBoxSecondary],
@@ -113,14 +114,13 @@ export default function AdminMembershipPlans() {
                         </div>
                     </div>
                 ))}
-            </div>
-
+            </div>}
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4" data-aos="fade-up" data-aos-delay="200">
                 <h3 className={styles.sectionTitle}>Standard Access Tiers</h3>
                 <span className={styles.sectionSubtitle}>Strict pure admission rates · Direct entry</span>
             </div>
 
-            <div className="row g-4 mb-5" data-aos="fade-up" data-aos-delay="300">
+            {loading ? <SkeletonCards count={4} colClass="col-12 col-md-6 col-xl-3" /> : <div className="row g-4 mb-5 fm-fade-in" data-aos="fade-up" data-aos-delay="300">
                 {plans.map((plan) => (
                     <div className="col-12 col-md-6 col-xl-3" key={plan.id}>
                         <div className={styles.planCard}>
@@ -140,8 +140,7 @@ export default function AdminMembershipPlans() {
                     </div>
                 ))}
                 {!loading && plans.length === 0 && <div className="col-12 text-secondary">No membership plans configured.</div>}
-            </div>
-
+            </div>}
             <div className={styles.policyBanner}><i className="fa-solid fa-shield-halved"></i><div><h5 className="text-white m-0 mb-1" style={{ fontSize: "0.95rem" }}>Direct Gym Access Policy</h5><p className="text-secondary m-0" style={{ fontSize: "0.85rem", lineHeight: "1.5" }}>All rates cover standard admission to gym equipment and the workout area for the designated validity window. Coach services are optional add-ons.</p></div></div>
 
             {(showEditModal || showAddModal) && (

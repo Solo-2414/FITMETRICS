@@ -1,0 +1,79 @@
+/* Shared motion helpers. Imported by lib/motion.js */
+
+/* Real content replacing a skeleton: a short, soft fade */
+.fm-fade-in {
+    animation: fm-fade-in 240ms ease-out both;
+}
+
+@keyframes fm-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* Hand-made bars (style={{ width: "62%", "--i": index }}) grow from the left, one after another */
+.fm-grow-x {
+    animation: fm-grow-x 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+@keyframes fm-grow-x {
+    from {
+        clip-path: inset(0 100% 0 0);
+    }
+    to {
+        clip-path: inset(0 0 0 0);
+    }
+}
+
+/* Vertical hand-made bars grow up from the baseline */
+.fm-grow-y {
+    animation: fm-grow-y 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--i, 0) * 50ms);
+}
+
+@keyframes fm-grow-y {
+    from {
+        clip-path: inset(100% 0 0 0);
+    }
+    to {
+        clip-path: inset(0 0 0 0);
+    }
+}
+
+/* Old data stays visible (dimmed) while a filter or range change refetches */
+.fm-refreshing {
+    opacity: 0.55;
+    pointer-events: none;
+    transition: opacity 150ms ease;
+}
+
+/* Dedicated Chart.js container: relative + fixed height prevents resize jitter */
+.fm-chart-box {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+}
+
+/* Respect "reduce motion" system setting */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        animation-delay: 0ms !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    [data-aos] {
+        opacity: 1 !important;
+        transform: none !important;
+    }
+}

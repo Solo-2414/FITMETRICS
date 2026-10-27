@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth, homePathForRole } from "../context/AuthContext";
 import { api } from "../lib/api";
 import MaintenanceScreen from "./MaintenanceScreen";
+import { SkeletonPage } from "./ui/Skeleton";
 
 /**
  * <Route element={<ProtectedRoute roles={["admin"]} />}> ...child routes... </Route>
@@ -30,14 +31,7 @@ export default function ProtectedRoute({ roles }) {
     }, [memberRoute]);
 
     if (loading) {
-        return (
-            <div
-                className="d-flex align-items-center justify-content-center text-secondary"
-                style={{ minHeight: "100vh" }}
-            >
-                Loading...
-            </div>
-        );
+        return <SkeletonPage />;
     }
 
     if (!session) {

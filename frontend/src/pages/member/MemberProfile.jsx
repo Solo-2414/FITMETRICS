@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberProfile.module.css";
 import { api } from "../../lib/api";
+import { SkeletonForm } from "../../components/ui/Skeleton";
 
 export default function MemberProfile() {
     const [data, setData] = useState(null);
@@ -13,7 +14,6 @@ export default function MemberProfile() {
     const membership = dashboard?.membership;
     const current = data?.current;
     const currentPlan = current?.membership_plans;
-    const plan = membership?.membership_plans;
     const expiration = membership?.end_date ? new Date(membership.end_date).toLocaleDateString() : "...";
     useEffect(() => { api("/member/membership").then(setData).catch((err) => setError(err.message)); }, []);
     useEffect(() => { api("/member/dashboard").then(setDashboard).catch((err) => setError(err.message)); }, []);
@@ -35,6 +35,7 @@ export default function MemberProfile() {
     return (
         <MemberLayout>
             {error && <div className="alert alert-danger">{error}</div>}
+            {!profile || !data || !dashboard ? <SkeletonForm fields={8} cols={2} /> : <>
             {saved && <div className="alert alert-success">Profile saved.</div>}
             <div className="mb-4" data-aos="fade-down" data-aos-delay="100">
                 <h1 className={styles.pageTitle}>My Profile</h1>
@@ -425,6 +426,7 @@ export default function MemberProfile() {
                     </button>
                 </div>
             </form>
+            </>}
         </MemberLayout>
     );
 }

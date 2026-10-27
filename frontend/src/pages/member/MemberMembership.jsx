@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberMembership.module.css";
 import { api } from "../../lib/api";
+import { SkeletonCards } from "../../components/ui/Skeleton";
 
 export default function MemberMembership() {
     const [data, setData] = useState(null);
@@ -12,6 +13,7 @@ export default function MemberMembership() {
     return (
         <MemberLayout>
             {error && <div className="alert alert-danger">{error}</div>}
+            {!data ? <SkeletonCards count={4} /> : <>
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <div>
                     <h1 className={styles.pageTitle}>Membership & Passes</h1>
@@ -599,6 +601,7 @@ export default function MemberMembership() {
                     </div>
                 </div>
             </div>
+            </>}
         </MemberLayout>
     );
 }

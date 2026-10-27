@@ -1,32 +1,17 @@
-import { useEffect, useState } from "react";
-import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend,
-} from "chart.js";
 import { Bar } from "react-chartjs-2";
+import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminPredictiveAnalytics.module.css";
 import { api } from "../../lib/api";
-
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend,
-);
+import { buildBarOptions } from "../../lib/chartDefaults";
+import { SkeletonChart, SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
 
 export default function AdminPredictiveAnalytics() {
     const [prediction, setPrediction] = useState(null);
     const [error, setError] = useState("");
     const [sending, setSending] = useState("");
-    useEffect(() => { api("/admin/predictive").then(setPrediction).catch((err) => setError(err.message)); }, []);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => { api("/admin/predictive").then(setPrediction).catch((err) => setError(err.message)).finally(() => setLoading(false)); }, []);
     const sendReminder = async (memberId) => {
         setSending(memberId);
         try {
@@ -37,49 +22,32 @@ export default function AdminPredictiveAnalytics() {
             setSending("");
         }
     };
-    const forecast = prediction?.forecast || [];
+    const forecast = prediction?.forecast;
     const stats = prediction?.stats || {};
-    const chartData = {
-        labels: forecast.map((item) => new Date(`${item.date}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short" })),
+    const chartData = useMemo(() => ({
+        labels: (forecast || []).map((item) => new Date(`${item.date}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short" })),
         datasets: [
             {
                 label: "Forecasted Members",
-                data: forecast.map((item) => item.visits),
+                data: (forecast || []).map((item) => item.visits),
                 backgroundColor: "#38bdf8",
                 borderRadius: 6,
                 barPercentage: 0.7,
                 categoryPercentage: 0.6,
             },
         ],
-    };
-
-    const chartOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                backgroundColor: "#1e293b",
-                titleColor: "#f8fafc",
-                bodyColor: "#94a3b8",
-                borderColor: "#334155",
-                borderWidth: 1,
+    }), [forecast]);
+    const chartOptions = useMemo(() => {
+        const options = buildBarOptions({ count: 7 });
+        return {
+            ...options,
+            scales: {
+                ...options.scales,
+                x: { ...options.scales.x, ticks: { ...options.scales.x.ticks, font: { size: 12, family: "Inter, sans-serif" } } },
+                y: { ...options.scales.y, display: false },
             },
-        },
-        scales: {
-            x: {
-                grid: { display: false, drawBorder: false },
-                ticks: {
-                    color: "#94a3b8",
-                    font: { size: 12, family: "Inter, sans-serif" },
-                },
-            },
-            y: {
-                display: false,
-                beginAtZero: true,
-            },
-        },
-    };
+        };
+    }, []);
 
     return (
         <AdminLayout>
@@ -91,7 +59,7 @@ export default function AdminPredictiveAnalytics() {
                 </p>
             </div>
 
-            <div className="row g-4 mb-4">
+            {loading ? <SkeletonKpiCards count={3} colClass="col-12 col-md-4" /> : <div className="row g-4 mb-4 fm-fade-in">
                 <div className="col-12 col-md-4">
                     <div
                         className={styles.kpiCard}
@@ -158,7 +126,7 @@ export default function AdminPredictiveAnalytics() {
                     </div>
                 </div>
             </div>
-
+            }
             <div className="row mb-4">
                 <div className="col-12" data-aos="fade-up" data-aos-delay="100">
                     <div className={styles.chartCard}>
@@ -173,13 +141,12 @@ export default function AdminPredictiveAnalytics() {
                                 </p>
                             </div>
                             <div className={styles.chartLegend}>
-                                <span className={styles.dotPrimary}></span> Peak
-                                Rush: 5:30 PM - 7:30 PM
+                                <span className={styles.dotPrimary}></span> Recorded peak window
                             </div>
                         </div>
 
                         <div className={styles.chartWrapper}>
-                            <Bar data={chartData} options={chartOptions} />
+                            {loading ? <SkeletonChart height={320} /> : <Bar data={chartData} options={chartOptions} />}
                         </div>
 
                         <div
@@ -201,7 +168,7 @@ export default function AdminPredictiveAnalytics() {
                         >
                             <span className="d-flex align-items-center gap-2">
                                 <i className="fa-solid fa-chart-line text-primary"></i>{" "}
-                                Estimated average attendance: {forecast.length ? Math.round(forecast.reduce((sum, item) => sum + item.visits, 0) / forecast.length) : "..."} members/day
+                                Estimated average attendance: {forecast?.length ? Math.round(forecast.reduce((sum, item) => sum + item.visits, 0) / forecast.length) : "..."} members/day
                             </span>
                             <span className="mt-2 mt-md-0">
                                 Typical evening rush window: {prediction?.peak?.hour ?? "..."}:00 - {(Number(prediction?.peak?.hour) || 0) + 2}:00
@@ -329,7 +296,7 @@ export default function AdminPredictiveAnalytics() {
                             </span>
                         </div>
 
-                        <div className="table-responsive">
+                        {loading ? <SkeletonTable rows={5} cols={5} /> : <div className="table-responsive fm-fade-in">
                             <table className={`table ${styles.customTable}`}>
                                 <thead>
                                     <tr>
@@ -348,7 +315,7 @@ export default function AdminPredictiveAnalytics() {
                                     {prediction && !prediction.renewals?.length && <tr><td colSpan="5" className="text-center text-secondary py-4">No memberships are expiring in the next 14 days.</td></tr>}
                                 </tbody>
                             </table>
-                        </div>
+                        </div>}
                     </div>
                 </div>
             </div>

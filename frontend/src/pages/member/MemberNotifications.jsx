@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberNotifications.module.css";
 import { api } from "../../lib/api";
+import { SkeletonList } from "../../components/ui/Skeleton";
 
 export default function MemberNotifications() {
     const [activeTab, setActiveTab] = useState("All");
@@ -122,7 +123,7 @@ export default function MemberNotifications() {
                 </div>
 
                 <div className={styles.notificationList}>
-                    {loading ? <div className={styles.emptyState}><p>Loading notifications...</p></div> : filteredNotifications.length > 0 ? (
+                    {loading ? <SkeletonList rows={5} /> : filteredNotifications.length > 0 ? (
                         filteredNotifications.map((note) => (
                             <div
                                 key={note.id}

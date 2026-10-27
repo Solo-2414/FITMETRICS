@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminAnnouncements.module.css";
 import { api } from "../../lib/api";
+import { SkeletonKpiCards, SkeletonList } from "../../components/ui/Skeleton";
 
 const formatDate = (value) => value ? new Date(value).toLocaleString() : "No date";
 const audienceLabel = (value) => ({ all: "Everyone", member: "Members", clerk: "Clerks", admin: "Admins" }[value] || value);
@@ -90,18 +91,18 @@ export default function AdminAnnouncements() {
                 <button className={styles.btnPrimary} onClick={() => document.getElementById("create-announcement")?.scrollIntoView({ behavior: "smooth" })}><i className="fa-solid fa-plus"></i> Create Announcement</button>
             </div>
 
-            <div className="row g-3 mb-5" data-aos="fade-up">
+            {loading ? <SkeletonKpiCards count={3} colClass="col-12 col-md-4" /> : <div className="row g-3 mb-5 fm-fade-in" data-aos="fade-up">
                 {[
                     ["Published announcements", summary.active ?? announcements.filter((item) => item.status === "published").length, "fa-bullhorn", styles.iconBoxPrimary],
                     ["In-app deliveries", summary.delivered ?? 0, "fa-users", styles.iconBoxSecondary],
                     ["Read rate", `${summary.readRate ?? 0}%`, "fa-chart-line", styles.iconBoxSuccess],
                 ].map(([label, value, icon, iconStyle]) => <div className="col-12 col-md-4" key={label}><div className={styles.kpiCard}><div className={styles.kpiHeader}><span>{label}</span><div className={iconStyle}><i className={`fa-solid ${icon}`}></i></div></div><h3 className={styles.kpiValue}>{value}</h3><span className={styles.kpiSub}>Based on current announcement delivery data</span></div></div>)}
-            </div>
+            </div>}
 
             <div className="row g-4">
                 <div className="col-12 col-xl-8" data-aos="fade-right">
                     <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mb-4 gap-3"><div className="d-flex align-items-center gap-3"><h4 className={styles.sectionTitle}>Announcements</h4><span className={styles.countBadge}>{announcements.length} Total</span></div></div>
-                    {loading ? <div className="text-secondary py-5">Loading announcements...</div> : announcements.length === 0 ? <div className="text-secondary py-5">No announcements yet.</div> : <div className="d-flex flex-column gap-3">
+                    {loading ? <SkeletonList rows={4} avatar={false} /> : announcements.length === 0 ? <div className="text-secondary py-5">No announcements yet.</div> : <div className="d-flex flex-column gap-3 fm-fade-in">
                         {announcements.map((item) => <div className={item.status === "expired" || item.status === "archived" ? styles.announcementCardInactive : styles.announcementCard} key={item.id}>
                             <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2"><span className={item.status === "published" ? styles.statusPublished : styles.statusCompleted}><span className={item.status === "published" ? styles.dotGreen : styles.dotGray}></span> {item.status}</span>{item.pinned && <span className={styles.statusPinned}><i className="fa-solid fa-thumbtack"></i> Pinned</span>}</div>
                             <div className={styles.metaText}><i className="fa-regular fa-clock"></i> {audienceLabel(item.audience)} · Published {formatDate(item.publish_at)} · Expires {formatDate(item.expires_at)}</div>

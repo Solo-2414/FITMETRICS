@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout.jsx";
+import { SkeletonKpiCards, SkeletonList } from "../../components/ui/Skeleton";
 import styles from "./MemberDashboard.module.css";
 import { api } from "../../lib/api";
 
@@ -12,22 +13,8 @@ export default function MemberDashboard() {
     const attendance = dashboard?.attendance;
     const expiration = membership?.end_date ? new Date(membership.end_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "...";
     const [profile, setProfile] = useState(null);
-    const [saved, setSaved] = useState(false);
     useEffect(() => { api("/me").then(setProfile).catch((err) => setError(err.message)); }, []);
-    const save = async (event) => {
-        event.preventDefault();
-        const data = Object.fromEntries(new FormData(event.currentTarget).entries());
-        try {
-            const result = await api("/me", { method: "PATCH", body: {
-                full_name: `${data.first_name || ""} ${data.last_name || ""}`.trim(),
-                phone: data.phone,
-                gender: data.gender,
-                emergency_contact_name: data.emergency_contact_name,
-                emergency_contact_phone: data.emergency_contact_phone,
-            }});
-            setProfile(result); setSaved(true);
-        } catch (err) { setError(err.message); }
-    };
+    const loading = !dashboard || !profile;
     const getDaysRemainingText = (expiration) => {
     if (!expiration) return "";
 
@@ -49,6 +36,7 @@ export default function MemberDashboard() {
     return (
         <MemberLayout>
             {error && <div className="alert alert-danger">{error}</div>}
+            {loading ? <><SkeletonKpiCards count={3} colClass="col-12 col-md-4" /><SkeletonList rows={4} /></> : <>
             <div
                 className={`${styles.welcomeBanner} p-4 mb-4`}
                 data-aos="fade-down"
@@ -348,6 +336,7 @@ export default function MemberDashboard() {
                     </div>
                 </div>
             </div>
+            </>}
         </MemberLayout>
     );
 }

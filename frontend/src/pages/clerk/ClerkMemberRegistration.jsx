@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
 import { api } from "../../lib/api";
+import { SkeletonCards } from "../../components/ui/Skeleton";
 import styles from "./ClerkMemberRegistration.module.css";
 
 export default function ClerkMemberRegistration() {
@@ -14,26 +15,8 @@ export default function ClerkMemberRegistration() {
     const [saving, setSaving] = useState(false);
     const draftKey = "fitmetrics.clerk.member-registration.draft";
 
-    const defaultPlans = {
-        session: {
-            name: "Session / Walk-In",
-            duration: "Single Day Pass",
-            price: 90,
-        },
-        weekly: { name: "Weekly Pass", duration: "7 Days Valid", price: 270 },
-        biweekly: {
-            name: "Two Weeks Pass",
-            duration: "14 Days Valid",
-            price: 540,
-        },
-        monthly: {
-            name: "Monthly Regular",
-            duration: "30 Days Valid",
-            price: 990,
-        },
-    };
-
-    const [plans, setPlans] = useState(defaultPlans);
+    const [plans, setPlans] = useState({});
+    const [loading, setLoading] = useState(true);
     useEffect(() => {
         api("/clerk/plans").then((rows) => {
             const livePlans = Object.fromEntries(rows.map((plan) => [plan.code, {
@@ -44,7 +27,7 @@ export default function ClerkMemberRegistration() {
             }]));
             setPlans(livePlans);
             if (!livePlans[selectedPlan]) setSelectedPlan(Object.keys(livePlans)[0] || "monthly");
-        }).catch((err) => setError(err.message));
+        }).catch((err) => setError(err.message)).finally(() => setLoading(false));
     }, []);
 
     useEffect(() => {
@@ -93,7 +76,7 @@ export default function ClerkMemberRegistration() {
     const clearDraft = ({ clearMessages = true } = {}) => {
         formRef.current?.reset();
         sessionStorage.removeItem(draftKey);
-        setSelectedPlan(Object.keys(plans)[0] || "monthly");
+        setSelectedPlan(Object.keys(plans)[0] || "");
         setPaymentMethod("cash");
         setAddCoach(false);
         setIsStudent(false);
@@ -102,11 +85,19 @@ export default function ClerkMemberRegistration() {
             setSuccess("");
         }
     };
-    const currentPlan = plans[selectedPlan] || Object.values(plans)[0] || defaultPlans.monthly;
-    const currentPrice = isStudent && currentPlan.studentPrice != null
+    const currentPlan = plans[selectedPlan] || Object.values(plans)[0];
+    const currentPrice = currentPlan && isStudent && currentPlan.studentPrice != null
         ? currentPlan.studentPrice
-        : currentPlan.price || 0;
+        : currentPlan?.price || 0;
     const totalDue = currentPrice + (addCoach ? 500 : 0);
+
+    if (loading) {
+        return <ClerkLayout>
+            <h1 className={styles.pageTitle}>Member Registration</h1>
+            <p className={styles.pageDesc}>Register a new gym member and set up their member account</p>
+            <SkeletonCards count={4} colClass="col-12 col-sm-6" height={120} />
+        </ClerkLayout>;
+    }
 
     return (
         <ClerkLayout>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminReports.module.css";
 import { api, downloadApi } from "../../lib/api";
+import { SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
 
 export default function AdminReports() {
     const [downloads, setDownloads] = useState([]);
@@ -135,7 +136,7 @@ export default function AdminReports() {
                 </div>
             </div>
 
-            <div
+            {summary ? <div
                 className="row g-3 mb-5"
                 data-aos="fade-up"
                 data-aos-delay="200"
@@ -247,7 +248,7 @@ export default function AdminReports() {
                         </div>
                     </div>
                 </div>
-            </div>
+            </div> : <SkeletonKpiCards />}
 
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4"
@@ -444,7 +445,7 @@ export default function AdminReports() {
                     </span>
                 </div>
 
-                <div className="table-responsive">
+                {!summary ? <SkeletonTable rows={5} cols={6} /> : <div className="table-responsive fm-fade-in">
                     <table className={`table ${styles.customTable}`}>
                         <thead>
                             <tr>
@@ -470,7 +471,7 @@ export default function AdminReports() {
                             ))}
                         </tbody>
                     </table>
-                </div>
+                </div>}
             </div>
         </AdminLayout>
     );

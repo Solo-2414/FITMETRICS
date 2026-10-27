@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminSettings.module.css";
 import { api, downloadApi } from "../../lib/api";
+import { SkeletonForm } from "../../components/ui/Skeleton";
 
 export default function AdminSettings() {
     const formRef = useRef(null);
@@ -91,7 +92,7 @@ export default function AdminSettings() {
                 </div>
             </div>
 
-            <form id="settings-form" ref={formRef} onSubmit={save} key={settings?.updated_at || "settings-loading"}>
+            {!settings ? <SkeletonForm fields={10} cols={1} /> : <form id="settings-form" ref={formRef} onSubmit={save} key={settings.updated_at || "settings-loaded"}>
                 <div
                     className="row g-4 mb-5"
                     data-aos="fade-up"
@@ -587,7 +588,7 @@ export default function AdminSettings() {
                         </div>
                     </div>
                 </div>
-            </form>
+            </form>}
 
             <div
                 className={styles.systemFooterBanner}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
 import { api } from "../../lib/api";
 import QRCode from "qrcode";
+import { SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
 import styles from "./ClerkAttendance.module.css";
 
 export default function ClerkAttendance() {
@@ -10,6 +11,8 @@ export default function ClerkAttendance() {
     const [success, setSuccess] = useState("");
     const [saving, setSaving] = useState(false);
     const [analysis, setAnalysis] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [recordSearch, setRecordSearch] = useState("");
     const [checkInSearch, setCheckInSearch] = useState("");
     const [checkInMemberId, setCheckInMemberId] = useState("");
@@ -28,9 +31,16 @@ export default function ClerkAttendance() {
         Promise.all([api("/clerk/members"), api(`/attendance/analysis?date=${date}`)]).then(([memberRows, attendance]) => {
             setMembers(memberRows);
             setAnalysis(attendance);
-        }).catch((err) => setError(err.message));
+        }).catch((err) => setError(err.message)).finally(() => setLoading(false));
     }, [date]);
-    const refresh = async () => setAnalysis(await api(`/attendance/analysis?date=${date}`));
+    const refresh = async () => {
+        setRefreshing(true);
+        try {
+            setAnalysis(await api(`/attendance/analysis?date=${date}`));
+        } finally {
+            setRefreshing(false);
+        }
+    };
     const createMemberQr = async (member) => {
         const code = member?.member_details?.member_code;
         if (!code) return setError("This member has no member code for QR generation.");
@@ -52,6 +62,14 @@ export default function ClerkAttendance() {
             setSaving(false);
         }
     };
+    if (loading) {
+        return <ClerkLayout>
+            <h1 className={styles.pageTitle}>Attendance</h1>
+            <p className={styles.pageDesc}>Record member check-ins, scans, and monitor active gym members</p>
+            <SkeletonKpiCards count={4} />
+            <SkeletonTable rows={8} cols={5} />
+        </ClerkLayout>;
+    }
     return (
         <ClerkLayout>
             {error && <div className="alert alert-danger">{error}</div>}
@@ -228,8 +246,8 @@ export default function ClerkAttendance() {
                         <div className={styles.progressContainer}>
                             <div className={styles.progressBarBg}>
                                 <div
-                                    className={styles.progressBarFillPrimary}
-                                    style={{ width: `${Math.min(100, ((analysis?.activeInGym || 0) / 50) * 100)}%` }}
+                                    className={`${styles.progressBarFillPrimary} fm-grow-x`}
+                                    style={{ width: `${Math.min(100, ((analysis?.activeInGym || 0) / 50) * 100)}%`, "--i": 0 }}
                                 ></div>
                             </div>
                             <div className="d-flex justify-content-between align-items-center mt-2">
@@ -351,7 +369,7 @@ export default function ClerkAttendance() {
                     </div>
                 </div>
 
-                <div className="table-responsive">
+                <div className={`table-responsive ${refreshing ? "fm-refreshing" : ""}`}>
                     <table className={`table ${styles.customTable}`}>
                         <thead>
                             <tr>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import { Skeleton } from "../ui/Skeleton";
 import styles from "./MemberLayout.module.css";
 
 export default function MemberLayout({ children }) {
@@ -141,8 +142,8 @@ export default function MemberLayout({ children }) {
                     </div>
                     <div className={styles.topbarRight}>
                         <div className={styles.userInfo}>
-                            <h4>{profile?.full_name || "Member"}</h4>
-                            <p>Regular Member</p>
+                            {profile ? <h4>{profile.full_name}</h4> : <Skeleton w={120} h={14} />}
+                            {profile ? <p>Regular Member</p> : <Skeleton w={90} h={10} />}
                         </div>
                         <div className={styles.avatarCircle}>{profile?.full_name ? profile?.full_name.trim().split(" ").map((n) => n[0]).join("").toUpperCase() : "M"}</div>
                     </div>

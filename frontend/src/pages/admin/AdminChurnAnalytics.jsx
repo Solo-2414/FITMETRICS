@@ -1,26 +1,10 @@
-import { useEffect, useState } from "react";
-import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend,
-} from "chart.js";
 import { Bar } from "react-chartjs-2";
+import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminChurnAnalytics.module.css";
 import { api } from "../../lib/api";
-
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend,
-);
+import { buildBarOptions } from "../../lib/chartDefaults";
+import { SkeletonChart, SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
 
 export default function AdminChurnAnalytics() {
     const [promptText, setPromptText] = useState(
@@ -30,20 +14,18 @@ export default function AdminChurnAnalytics() {
     const [members, setMembers] = useState([]);
     const [stats, setStats] = useState(null);
     const [trend, setTrend] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState("");
     const [error, setError] = useState("");
     useEffect(() => {
-        api("/admin/churn").then((result) => { setMembers(result.members || []); setStats(result.stats); setTrend(result.trend || []); }).catch((err) => setError(err.message));
+        api("/admin/churn").then((result) => { setMembers(result.members || []); setStats(result.stats); setTrend(result.trend || []); }).catch((err) => setError(err.message)).finally(() => setLoading(false));
     }, []);
-    const inactive = members.filter((member) => member.days_inactive >= 14).length;
-    const expiring = members.filter((member) => member.expiry_date && Math.ceil((new Date(member.expiry_date) - new Date()) / 86400000) <= 7).length;
-
-    const chartData = {
-        labels: trend.map((item) => item.label),
+    const chartData = useMemo(() => ({
+        labels: (trend || []).map((item) => item.label),
         datasets: [
             {
                 label: "Returning Members",
-                data: trend.map((item) => item.visits),
+                data: (trend || []).map((item) => item.visits),
                 backgroundColor: "#10b981",
                 borderRadius: 4,
                 barPercentage: 0.6,
@@ -51,42 +33,25 @@ export default function AdminChurnAnalytics() {
             },
             {
                 label: "Total Visits",
-                data: trend.map((item) => item.visits),
+                data: (trend || []).map((item) => item.visits),
                 backgroundColor: "#38bdf8",
                 borderRadius: 4,
                 barPercentage: 0.6,
                 categoryPercentage: 0.4,
             },
         ],
-    };
-
-    const chartOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                backgroundColor: "#1e293b",
-                titleColor: "#f8fafc",
-                bodyColor: "#94a3b8",
-                borderColor: "#334155",
-                borderWidth: 1,
+    }), [trend]);
+    const chartOptions = useMemo(() => {
+        const options = buildBarOptions({ count: 12 });
+        return {
+            ...options,
+            scales: {
+                ...options.scales,
+                x: { ...options.scales.x, ticks: { ...options.scales.x.ticks, font: { size: 11, family: "Inter, sans-serif" } } },
+                y: { ...options.scales.y, display: false },
             },
-        },
-        scales: {
-            x: {
-                grid: { display: false, drawBorder: false },
-                ticks: {
-                    color: "#94a3b8",
-                    font: { size: 11, family: "Inter, sans-serif" },
-                },
-            },
-            y: {
-                display: false,
-                beginAtZero: true,
-            },
-        },
-    };
+        };
+    }, []);
 
     return (
         <AdminLayout>
@@ -99,7 +64,7 @@ export default function AdminChurnAnalytics() {
                 </p>
             </div>
 
-            <div className="row g-3 mb-4">
+            {loading ? <SkeletonKpiCards /> : <div className="row g-3 mb-4 fm-fade-in">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
                         <div className={styles.kpiHeader}>
@@ -138,7 +103,7 @@ export default function AdminChurnAnalytics() {
                                 Needs re-engagement
                             </span>
                             <span className={styles.kpiSub}>
-                                · 3 sent this week
+                                Current re-engagement list
                             </span>
                         </div>
                     </div>
@@ -182,13 +147,13 @@ export default function AdminChurnAnalytics() {
                                 renewal rate
                             </span>
                             <span className={styles.kpiSub}>
-                                (+3% from last month)
+                                Recorded renewal rate
                             </span>
                         </div>
                     </div>
                 </div>
             </div>
-
+            }
             <div className="row mb-4">
                 <div className="col-12" data-aos="fade-up" data-aos-delay="100">
                     <div className={styles.chartCard}>
@@ -218,7 +183,7 @@ export default function AdminChurnAnalytics() {
                         </div>
 
                         <div className={styles.chartWrapper}>
-                            <Bar data={chartData} options={chartOptions} />
+                            {loading ? <SkeletonChart height={300} /> : <Bar data={chartData} options={chartOptions} />}
                         </div>
 
                         <div
@@ -226,8 +191,7 @@ export default function AdminChurnAnalytics() {
                             style={{ fontSize: "0.8rem" }}
                         >
                             <span>
-                                Steady attendance pattern: Peak morning sessions
-                                6:00 AM - 9:00 AM & Evening 5:30 PM - 8:30 PM
+                                Attendance trend from recorded check-ins
                             </span>
                             <span>Last synced: Today, 3:15 PM</span>
                         </div>
@@ -296,7 +260,7 @@ export default function AdminChurnAnalytics() {
                             </div>
                         </div>
 
-                        <div className="table-responsive">
+                        {loading ? <SkeletonTable rows={5} cols={6} /> : <div className="table-responsive fm-fade-in">
                             <table className={`table ${styles.customTable}`}>
                                 <thead>
                                     <tr>
@@ -321,21 +285,21 @@ export default function AdminChurnAnalytics() {
                                     ))}
                                 </tbody>
                             </table>
-                        </div>
+                        </div>}
 
                         <div className="d-flex flex-column flex-sm-row justify-content-between align-items-center mt-4">
                             <span
                                 className="text-secondary"
                                 style={{ fontSize: "0.85rem" }}
                             >
-                                Showing 5 of 22 inactive members
+                                Showing {Math.min(5, members.filter((member) => member.days_inactive >= 14).length)} of {members.filter((member) => member.days_inactive >= 14).length} inactive members
                             </span>
                             <div className="d-flex gap-2 mt-3 mt-sm-0">
                                 <button className={styles.pageBtnText} disabled>
                                     Previous
                                 </button>
                                 <button className={styles.pageBtnText}>
-                                    Page 1 of 5
+                                    Page 1
                                 </button>
                                 <button className={styles.pageBtnTextActive}>
                                     Next

@@ -189,6 +189,8 @@
 .chartWrapper {
     height: 250px;
     width: 100%;
+    position: relative;
+    min-width: 0;
 }
 
 .liveBadge {

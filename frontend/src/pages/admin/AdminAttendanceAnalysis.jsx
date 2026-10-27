@@ -1,19 +1,10 @@
-import {
-    BarElement,
-    CategoryScale,
-    Chart as ChartJS,
-    Legend,
-    LinearScale,
-    Title,
-    Tooltip,
-} from "chart.js";
 import { Bar } from "react-chartjs-2";
 import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import { api } from "../../lib/api";
+import { buildBarOptions } from "../../lib/chartDefaults";
+import { SkeletonChart, SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
 import styles from "./AdminAttendanceAnalysis.module.css";
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const LIMIT = 10;
 const ranges = [
@@ -59,15 +50,17 @@ export default function AdminAttendanceAnalysis() {
             categoryPercentage: 0.6,
         }],
     }), [hourly, kpis]);
-    const chartOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-            x: { grid: { display: false }, ticks: { color: "#94a3b8", font: { size: 11 } } },
-            y: { display: false, beginAtZero: true },
-        },
-    };
+    const chartOptions = useMemo(() => {
+        const options = buildBarOptions({ count: 12 });
+        return {
+            ...options,
+            scales: {
+                ...options.scales,
+                x: { ...options.scales.x, ticks: { ...options.scales.x.ticks, font: { size: 11 } } },
+                y: { ...options.scales.y, display: false },
+            },
+        };
+    }, []);
     const records = (analysis?.records || []).filter((row) => row.member_name.toLowerCase().includes(search.toLowerCase()));
     const maxWeekday = Math.max(...(analysis?.weekday || []).map((day) => day.visits), 1);
     const changeLabel = kpis?.changePct === null || kpis?.changePct === undefined
@@ -89,8 +82,7 @@ export default function AdminAttendanceAnalysis() {
                 <p className={styles.pageDesc}>Review daily member check-ins, peak visiting hours, and gym foot traffic</p>
             </div>
 
-            {loading && !analysis && <div className="text-secondary mb-4">Loading attendance analysis...</div>}
-            <div className="row g-3 mb-4">
+            {loading && !analysis ? <SkeletonKpiCards /> : <div className="row g-3 mb-4 fm-fade-in">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
                         <div className={styles.kpiHeader}><span>Check-Ins</span><div className={styles.iconBoxPrimary}><i className="fa-solid fa-list-check"></i></div></div>
@@ -120,7 +112,7 @@ export default function AdminAttendanceAnalysis() {
                     </div>
                 </div>
             </div>
-
+            }
             <div className="row g-4 mb-4">
                 <div className="col-12 col-xl-8" data-aos="fade-up" data-aos-delay="100">
                     <div className={styles.chartCard}>
@@ -128,7 +120,7 @@ export default function AdminAttendanceAnalysis() {
                             <div><h4 className={styles.panelTitle}>Check-Ins by Hour</h4><p className={styles.panelDesc}>All times shown in Asia/Manila</p></div>
                             <div className={styles.chartLegendOutline}><span className={styles.dotWarning}></span> Peak: <strong>{kpis?.busiestHourLabel || "No data"}</strong></div>
                         </div>
-                        <div className={styles.chartWrapper}>{hourly.length ? <Bar data={chartData} options={chartOptions} /> : <div className="text-secondary">No attendance data for this range.</div>}</div>
+                        <div className={styles.chartWrapper}>{loading && !analysis ? <SkeletonChart height={320} /> : hourly.length ? <Bar data={chartData} options={chartOptions} /> : <div className="text-secondary">No attendance data for this range.</div>}</div>
                         <div className="d-flex justify-content-between align-items-center mt-4 pt-3 border-top border-secondary text-secondary" style={{ fontSize: "0.8rem" }}><span>Blue: standard hours</span><span>Orange: busiest hour</span></div>
                     </div>
                 </div>
@@ -136,10 +128,10 @@ export default function AdminAttendanceAnalysis() {
                     <div className={styles.panelCard}>
                         <div className="mb-4"><h4 className={styles.panelTitle}>Day of Week Comparison</h4><p className={styles.panelDesc}>Visits in the selected range</p></div>
                         <div className="d-flex flex-column gap-3 mb-4">
-                            {(analysis?.weekday || []).map((day) => (
+                            {(analysis?.weekday || []).map((day, index) => (
                                 <div className={styles.progressItem} key={day.weekday}>
                                     <div className="d-flex justify-content-between align-items-end mb-1"><span className={day.visits === maxWeekday ? "text-white fw-bold" : "text-secondary"}>{day.weekday}</span><span className="text-secondary" style={{ fontSize: "0.8rem" }}>{day.visits} visits</span></div>
-                                    <div className={styles.progressBarBg}><div className={day.visits === maxWeekday ? styles.progressBarFillPrimary : styles.progressBarFillSecondary} style={{ width: `${Math.round((day.visits / maxWeekday) * 100)}%` }}></div></div>
+                                    <div className={styles.progressBarBg}><div className={`${day.visits === maxWeekday ? styles.progressBarFillPrimary : styles.progressBarFillSecondary} fm-grow-x`} style={{ width: `${Math.round((day.visits / maxWeekday) * 100)}%`, "--i": index }}></div></div>
                                 </div>
                             ))}
                             {!analysis?.weekday?.length && <span className="text-secondary">No attendance data for this range.</span>}
@@ -159,14 +151,14 @@ export default function AdminAttendanceAnalysis() {
                                 <select className={styles.filterSelect} value={plan} onChange={(event) => { setLoading(true); setError(""); setPlan(event.target.value); setPage(1); }}><option value="all">All Plans</option>{(analysis?.byPlan || []).map((item) => <option value={item.planId} key={item.planId}>{item.plan}</option>)}</select>
                             </div>
                         </div>
-                        <div className="table-responsive">
+                        {loading && !analysis ? <SkeletonTable rows={LIMIT} cols={5} /> : <div className={`table-responsive ${loading ? "fm-refreshing" : "fm-fade-in"}`}>
                             <table className={`table ${styles.customTable}`}>
                                 <thead><tr><th>MEMBER NAME</th><th>MEMBERSHIP PLAN</th><th>TIME IN</th><th>RECORDED BY</th><th className="text-end">STATUS</th></tr></thead>
                                 <tbody>
                                     {records.map((row) => <tr key={row.id}><td><div className="d-flex align-items-center gap-3"><div className={styles.avatar}>{initials(row.member_name)}</div><div><strong className="d-block text-white mb-1">{row.member_name}</strong><span className={styles.memberId}>{row.member_id ? `Member ${row.member_id.slice(0, 8)}` : "Walk-in guest"}</span></div></div></td><td><span className={styles.planBadgeOutline}>{row.plan_name}</span></td><td className="text-white fw-bold">{formatTime(row.check_in_at)}</td><td><span className="d-flex align-items-center gap-2"><span className={styles.dotGreen}></span>{row.recorded_by_name}</span></td><td className="text-end text-secondary">{row.status}</td></tr>)}
                                 </tbody>
                             </table>
-                        </div>
+                        </div>}
                         {!loading && !records.length && <div className="text-secondary py-3">No check-ins match the selected filters.</div>}
                         <div className="d-flex flex-column flex-sm-row justify-content-between align-items-center mt-4"><span className="text-secondary" style={{ fontSize: "0.85rem" }}>Page {analysis?.page || page} of {Math.max(1, Math.ceil((analysis?.total || 0) / LIMIT))}</span><div className="d-flex gap-2 mt-3 mt-sm-0"><button className={styles.pageBtnText} disabled={page <= 1 || loading} onClick={() => { setLoading(true); setPage((value) => value - 1); }}>Previous</button><button className={styles.pageBtnTextActive} disabled={page * LIMIT >= (analysis?.total || 0) || loading} onClick={() => { setLoading(true); setPage((value) => value + 1); }}>Next</button></div></div>
                     </div>
