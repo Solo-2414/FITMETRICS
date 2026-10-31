@@ -19,6 +19,11 @@ export async function api(path, { method = "GET", body } = {}) {
             window.dispatchEvent(new CustomEvent("fitmetrics:maintenance", { detail: json }));
         }
         const error = new Error(json.error || json.message || `Request failed (${res.status})`);
+        error.code = json.code;
+        error.field = json.field;
+        error.errors = json.errors;
+        error.member = json.member;
+        error.expires_at = json.expires_at;
         error.maintenance = json.maintenance === true;
         throw error;
     }

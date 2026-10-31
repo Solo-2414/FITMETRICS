@@ -4,7 +4,7 @@ import { dayStart, nextDayStart } from '../utils/time.js';
 
 const MAX_ATTEMPTS = Number(process.env.EMAIL_MAX_ATTEMPTS || 5);
 const RETRY_BASE_MINUTES = Number(process.env.EMAIL_RETRY_BASE_MINUTES || 5);
-const TRANSACTIONAL_TYPES = new Set(['password_otp', 'receipt', 'expiry_reminder', 'expiry_notice', 'information_overview']);
+const TRANSACTIONAL_TYPES = new Set(['password_otp', 'receipt', 'welcome', 'expiry_reminder', 'expiry_notice', 'information_overview']);
 const isTransactional = (emailType) => TRANSACTIONAL_TYPES.has(emailType);
 const tomorrow = () => nextDayStart();
 const limits = () => ({

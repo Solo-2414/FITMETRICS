@@ -358,3 +358,31 @@
     border-color: var(--header-text-color);
     color: var(--header-text-color);
 }
+
+/* added for 8f logic */
+.qrImage {
+    display: block;
+    max-width: 280px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 12px;
+    background: var(--header-text-color);
+    border-radius: 8px;
+}
+
+/* added for registration-rebuild */
+.inputError {
+    border-color: #ef4444 !important;
+}
+
+.fieldError {
+    display: block;
+    color: #f87171;
+    font-size: 0.75rem;
+    margin-top: 6px;
+}
+
+.btnSubmitGated {
+    background: #64748b !important;
+    border-color: #64748b !important;
+}
