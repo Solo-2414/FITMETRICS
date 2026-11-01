@@ -117,6 +117,43 @@
     border-color: var(--primary-color);
 }
 
+.memberSearchResults {
+    background: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    z-index: 2;
+}
+
+.memberSearchResult {
+    display: block;
+    width: 100%;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--card-stroke-color);
+    color: var(--header-text-color);
+    padding: 10px 14px;
+    text-align: left;
+}
+
+.memberSearchResult:hover,
+.memberSearchResult:focus {
+    background: rgba(56, 189, 248, 0.12);
+    color: var(--header-text-color);
+}
+
+.memberSearchResult small {
+    color: var(--text-color);
+    margin-left: 8px;
+}
+
+.memberSearchEmpty {
+    color: var(--text-color);
+    display: block;
+    padding: 10px 14px;
+}
+
 .queueLabel {
     display: block;
     color: var(--text-color);

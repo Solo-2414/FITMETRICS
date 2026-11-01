@@ -3,6 +3,7 @@ import MemberLayout from "../../components/member/MemberLayout";
 import { api } from "../../lib/api";
 import { VIDEO_CATEGORIES } from "../../lib/videoCategories";
 import styles from "./MemberVideoTutorials.module.css";
+import InlineError from "../../components/ui/InlineError";
 import { SkeletonCards } from "../../components/ui/Skeleton";
 
 const formatDuration = (seconds) => seconds == null ? "No duration" : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -31,7 +32,7 @@ export default function MemberVideoTutorials() {
     }, [activeFilter, search]);
 
     return <MemberLayout>
-        {error && <div className="alert alert-danger">{error}</div>}
+        {error && <InlineError error={error} />}
         <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"><div><h1 className={styles.pageTitle}>Workout Video Tutorials & Exercise Library</h1><p className={styles.pageDesc}>Curated exercise tutorials to help you master form and train safely.</p></div><div className={styles.totalBadge}>{videos.length} Guides</div></div>
         <div className="mb-4"><div className={styles.searchBoxWrapper}><i className="fa-solid fa-magnifying-glass"></i><input className={styles.searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by exercise name..." /></div></div>
         <div className="d-flex gap-2 overflow-auto mb-4 pb-2" style={{ scrollbarWidth: "none" }}><button className={`${styles.filterPill} ${!activeFilter ? styles.filterActive : ""}`} onClick={() => setActiveFilter("")}>All workouts</button>{VIDEO_CATEGORIES.map((category) => <button key={category} className={`${styles.filterPill} ${activeFilter === category ? styles.filterActive : ""}`} onClick={() => setActiveFilter(category)}>{category}</button>)}</div>

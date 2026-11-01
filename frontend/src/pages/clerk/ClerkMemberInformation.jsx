@@ -1,717 +1,122 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
-import { api } from "../../lib/api";
+import ClerkModal from "../../components/clerk/ClerkModal";
+import { api, getFriendlyError } from "../../lib/api";
+import { useToast } from "../../components/ui/toast/useToast";
 import { SkeletonTable } from "../../components/ui/Skeleton";
 import styles from "./ClerkMemberInformation.module.css";
 
-export default function ClerkMemberInformation() {
-    const navigate = useNavigate();
-    const [search, setSearch] = useState("");
-    const [members, setMembers] = useState([]);
-    const [error, setError] = useState("");
+const initialFilters = { search: "", status: "", plan: "", coach: "", student: "", joined_from: "", joined_to: "", sort: "name", order: "asc", page: 1, limit: 10 };
+const statusNames = ["", "active", "expiring", "expired", "upcoming", "no-membership", "suspended"];
+const statusLabels = { "": "All", active: "Active", expiring: "Expiring", expired: "Expired", upcoming: "Upcoming", "no-membership": "No plan", suspended: "Suspended" };
+const dateFormatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "Asia/Manila" });
+const getInitials = (name = "") => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "?";
+const formatDate = (value) => value ? dateFormatter.format(new Date(`${value}T00:00:00+08:00`)) : "—";
+const formatPhone = (value = "") => { const text = String(value || ""); const digits = text.replace(/\D/g, ""); return digits.length === 11 ? `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}` : text || "—"; };
+const dateValue = (offset = 0) => {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    const current = new Date(Date.UTC(Number(parts.find((part) => part.type === "year").value), Number(parts.find((part) => part.type === "month").value) - 1, Number(parts.find((part) => part.type === "day").value) + offset));
+    return current.toISOString().slice(0, 10);
+};
+const queryFrom = (filters) => Object.entries(filters).filter(([, value]) => value !== "" && value !== null).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join("&");
+const filtersFrom = (params) => ({ ...initialFilters, ...Object.fromEntries(params.entries()), page: Number(params.get("page") || 1), limit: Number(params.get("limit") || 10) });
+
+function useMemberList(filters, setFilters, params, setParams) {
+    const [result, setResult] = useState({ rows: [], total: 0, page: 1, limit: 10, counts: {} });
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [error, setError] = useState("");
+    const requestRef = useRef(0);
+    const hasRowsRef = useRef(false);
+    const syncedQueryRef = useRef(params.toString());
     useEffect(() => {
         const timer = setTimeout(() => {
-            setRefreshing(members.length > 0);
-            api(`/clerk/members?search=${encodeURIComponent(search)}`)
-                .then(setMembers)
-                .catch((err) => setError(err.message))
-                .finally(() => { setLoading(false); setRefreshing(false); });
-        }, 250);
+            const requestId = ++requestRef.current;
+            const queryString = queryFrom(filters);
+            syncedQueryRef.current = queryString;
+            setParams(new URLSearchParams(queryString), { replace: true });
+            setRefreshing(hasRowsRef.current);
+            api(`/clerk/members?${queryString}`).then((nextResult) => {
+                if (requestId === requestRef.current) { setResult(nextResult); hasRowsRef.current = nextResult.rows.length > 0; setError(""); }
+            }).catch((err) => { if (requestId === requestRef.current) setError(err.message); })
+                .finally(() => { if (requestId === requestRef.current) { setLoading(false); setRefreshing(false); } });
+        }, filters.search ? 300 : 0);
         return () => clearTimeout(timer);
-    }, [search]);
+    }, [filters, setParams]);
+    useEffect(() => {
+        const next = filtersFrom(params);
+        if (params.toString() !== syncedQueryRef.current) {
+            syncedQueryRef.current = params.toString();
+            setFilters(next);
+        }
+    }, [params, setFilters]);
+    return { result, loading, refreshing, error, retry: () => setFilters((current) => ({ ...current })) };
+}
 
-    if (loading) {
-        return <ClerkLayout>
-            <h1 className={styles.pageTitle}>Member Information</h1>
-            <p className={styles.pageDesc}>Search, view, and manage registered gym members</p>
-            <SkeletonTable rows={7} cols={6} />
-        </ClerkLayout>;
-    }
+function FiltersPanel({ open, plans, coaches, filters, onChange, onReset, onClose }) {
+    const panelRef = useRef(null);
+    useEffect(() => {
+        if (!open) return undefined;
+        const closeOnKey = (event) => { if (event.key === "Escape") onClose(); };
+        const closeOutside = (event) => { if (!panelRef.current?.contains(event.target)) onClose(); };
+        document.addEventListener("keydown", closeOnKey);
+        document.addEventListener("mousedown", closeOutside);
+        return () => { document.removeEventListener("keydown", closeOnKey); document.removeEventListener("mousedown", closeOutside); };
+    }, [open, onClose]);
+    if (!open) return null;
+    const dateError = filters.joined_from && filters.joined_to && filters.joined_to < filters.joined_from;
+    return <div className={styles.filterPanel} ref={panelRef} role="dialog" aria-label="Member filters">
+        <div className={styles.filterPanelHeader}><strong>Filters</strong><button type="button" onClick={onClose} aria-label="Close filters">×</button></div>
+        <label>Plan<select value={filters.plan} onChange={(event) => onChange("plan", event.target.value)}><option value="">All plans</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label>
+        <label>Coach<select value={filters.coach} onChange={(event) => onChange("coach", event.target.value)}><option value="">All coaches</option>{coaches.map((coach) => <option key={coach.id} value={coach.id}>{coach.display_name}</option>)}</select></label>
+        <label>Member type<select value={filters.student} onChange={(event) => onChange("student", event.target.value)}><option value="">All members</option><option value="true">Students</option><option value="false">Non-students</option></select></label>
+        <fieldset><legend>Joined</legend><div className={styles.dateChips}>{[["", "Any time"], [dateValue(), "Today"], [dateValue(-6), "Last 7 days"], [dateValue(-29), "Last 30 days"], [dateValue(new Date().getDate() * -1 + 1), "This month"]].map(([value, label]) => <button type="button" key={label} className={filters.joined_from === value && !filters.joined_to ? styles.chipActive : ""} onClick={() => { onChange("joined_from", value); onChange("joined_to", value ? (label === "Today" ? value : dateValue()) : ""); }}>{label}</button>)}<button type="button" className={filters.joined_from && filters.joined_to ? styles.chipActive : ""} onClick={() => onChange("joined_from", filters.joined_from || dateValue(-29))}>Custom</button></div>
+            {(filters.joined_from || filters.joined_to) && <div className={styles.dateFields}><label>From<input type="date" value={filters.joined_from} onChange={(event) => onChange("joined_from", event.target.value)} /></label><label>To<input type="date" min={filters.joined_from || undefined} value={filters.joined_to} onChange={(event) => onChange("joined_to", event.target.value)} /></label></div>}
+            {dateError && <small className={styles.fieldError}>To cannot be earlier than From.</small>}
+        </fieldset>
+        <div className={styles.filterPanelActions}><button type="button" className={styles.secondaryButton} onClick={onReset}>Reset</button><button type="button" className={styles.primaryButton} onClick={onClose} disabled={Boolean(dateError)}>Apply</button></div>
+    </div>;
+}
 
-    return (
-        <ClerkLayout>
-            {error && <div className="alert alert-danger">{error}</div>}
-            <div
-                className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
-                data-aos="fade-down"
-            >
-                <div>
-                    <h1 className={styles.pageTitle}>Member Information</h1>
-                    <p className={styles.pageDesc}>
-                        Search, view, and manage registered gym members
-                    </p>
-                </div>
-                <button
-                    className={styles.btnPrimaryOutline}
-                    onClick={() => navigate("/clerk/member-registration")}
-                >
-                    <i className="fa-solid fa-user-plus"></i> Register New
-                    Member
-                </button>
-            </div>
+function StatusTabs({ counts, active, onChange }) {
+    return <div className={styles.statusTabs} role="tablist">{statusNames.filter((status) => !status || ["active", "expiring", "expired"].includes(status) || counts[status] > 0).map((status) => <button type="button" role="tab" aria-selected={active === status} className={active === status ? styles.statusTabActive : ""} key={status || "all"} onClick={() => onChange("status", status)}><span className={`${styles.statusDot} ${styles[`dot${status || "all"}`]}`}></span>{statusLabels[status]} <b>{counts[status || "all"] || 0}</b></button>)}</div>;
+}
 
-            <div
-                className={styles.toolbar}
-                data-aos="fade-up"
-                data-aos-delay="100"
-            >
-                <div className={styles.searchBox}>
-                    <i className="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Kenneth Bautista" />
-                </div>
-                <div className="d-flex flex-wrap gap-3">
-                    <div className={styles.filterGroup}>
-                        <button className={styles.filterBtnActive}>
-                            All (184)
-                        </button>
-                        <button className={styles.filterBtn}>
-                            Active (148)
-                        </button>
-                        <button className={styles.filterBtnWarning}>
-                            Expiring Soon (8)
-                        </button>
-                        <button className={styles.filterBtnDanger}>
-                            Expired (28)
-                        </button>
-                    </div>
-                    <select className={styles.filterSelect}>
-                        <option>All Plans</option>
-                        <option>Monthly Regular</option>
-                        <option>Student Pass</option>
-                        <option>Two Weeks Pass</option>
-                        <option>Weekly Pass</option>
-                        <option>Walk-In</option>
-                    </select>
-                </div>
-            </div>
+function ActiveChips({ filters, plans, coaches, onChange, onClear }) {
+    const chips = [];
+    if (filters.search) chips.push(["Search", filters.search, "search"]);
+    if (filters.plan) chips.push(["Plan", plans.find((plan) => plan.id === filters.plan)?.name || filters.plan, "plan"]);
+    if (filters.coach) chips.push(["Coach", coaches.find((coach) => coach.id === filters.coach)?.display_name || filters.coach, "coach"]);
+    if (filters.student) chips.push(["", filters.student === "true" ? "Students" : "Non-students", "student"]);
+    if (filters.joined_from || filters.joined_to) chips.push(["Joined", `${formatDate(filters.joined_from)} - ${formatDate(filters.joined_to)}`, "joined"]);
+    return chips.length ? <div className={styles.activeChips}>{chips.map(([label, value, key]) => <button type="button" key={key} onClick={() => { if (key === "joined") { onChange("joined_from", ""); onChange("joined_to", ""); } else onChange(key, ""); }}>{label && `${label}: `}{value} ×</button>)}<button type="button" className={styles.clearLink} onClick={onClear}>Clear all</button></div> : null;
+}
 
-            <div className="row g-4 mt-2">
-                <div
-                    className="col-12 col-xl-8"
-                    data-aos="fade-right"
-                    data-aos-delay="200"
-                >
-                    <div className={styles.panelCard}>
-                        <div className="d-flex justify-content-between align-items-center mb-4">
-                            <div className="d-flex align-items-center gap-2">
-                                <i className="fa-solid fa-user-group text-primary fs-5"></i>
-                                <h4 className={styles.panelTitle}>
-                                    Member Roster
-                                </h4>
-                            </div>
-                            <span
-                                className="text-secondary"
-                                style={{ fontSize: "0.85rem" }}
-                            >
-                                Filtered: {members.length} displayed
-                            </span>
-                        </div>
+function StatusBadge({ status }) { return <span className={`${styles.statusBadge} ${styles[`badge${status.replace(/\s/g, "")}`] || ""}`}><span className={styles.statusDot}></span>{status}</span>; }
+function Expiry({ value, status }) { if (!value) return <span className={styles.muted}>—</span>; const days = Math.round((new Date(`${value}T00:00:00+08:00`) - new Date(`${dateValue()}T00:00:00+08:00`)) / 86400000); const relative = days < 0 ? `expired ${Math.abs(days)} days ago` : days === 0 ? "today" : `in ${days} days`; return <span className={status === "Expired" ? styles.expiryExpired : status === "Expiring" ? styles.expirySoon : ""} title={value}>{formatDate(value)}<small>{relative}</small></span>; }
+function MemberContent({ member, onSend, sending, onRenew }) {
+    const name = member.full_name || "Unnamed member"; const plan = member.membership?.membership_plans?.name; const coach = member.membership?.coaches?.display_name;
+    return <><div className={styles.memberCell}><span className={`${styles.avatar} ${styles[`avatar${name.charCodeAt(0) % 4}`]}`}>{getInitials(name)}</span><span><strong>{name}</strong><small className={!member.email ? styles.warningText : ""}>{member.email || "No email"}</small></span></div><div className={styles.contactCell}><span>{formatPhone(member.phone)}</span>{member.member_details?.member_code && <small>{member.member_details.member_code}</small>}</div><div><strong>{plan || <span className={styles.mutedPill}>No plan</span>}</strong>{coach ? <small className={styles.coach}><i className="fa-solid fa-user"></i>{coach}</small> : <small className={styles.muted}>No coach</small>}</div><div title={member.joined_date || ""}>{formatDate(member.joined_date)}</div><div><Expiry value={member.membership?.end_date} status={member.status_label} /></div><div><StatusBadge status={member.status_label} /></div><div className={styles.actions}><button type="button" title={member.email ? "Send info email" : "No email on file"} aria-label={member.email ? "Send info email" : "No email on file"} disabled={!member.email || sending === member.id} onClick={() => onSend(member)}><i className={`fa-solid ${sending === member.id ? "fa-spinner fa-spin" : "fa-envelope"}`}></i></button><button type="button" title="Renew membership" aria-label="Renew membership" onClick={() => onRenew(member)}><i className="fa-solid fa-arrows-rotate"></i></button></div></>;
+}
+function MembersTable({ rows, onSend, sending, onRenew }) { return <><div className={styles.desktopTable}><div className={styles.tableHeader}>{["Member", "Contact", "Plan & coach", "Joined", "Expiration", "Status", "Actions"].map((heading) => <span key={heading}>{heading}</span>)}</div>{rows.map((member) => <div className={styles.tableRow} key={member.id}><MemberContent member={member} onSend={onSend} sending={sending} onRenew={onRenew} /></div>)}</div><div className={styles.mobileCards}>{rows.map((member) => <article key={member.id}><div className={styles.cardTop}><MemberContent member={member} onSend={onSend} sending={sending} onRenew={onRenew} /></div></article>)}</div></>; }
+function Pagination({ result, filters, update }) { const pages = Math.ceil(result.total / result.limit); const visible = Array.from({ length: pages }, (_, index) => index + 1).filter((page) => page === 1 || page === pages || Math.abs(page - result.page) <= 1); let previous = 0; const items = visible.flatMap((page) => { const output = previous && page - previous > 1 ? ["…", page] : [page]; previous = page; return output; }); return <footer className={styles.footer}><span aria-live="polite">Showing {result.total ? (result.page - 1) * result.limit + 1 : 0}-{Math.min(result.page * result.limit, result.total)} of {result.total} members</span><div className={styles.footerControls}><label>Rows<select value={filters.limit} onChange={(event) => update("limit", Number(event.target.value))}><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></label><button type="button" disabled={result.page <= 1} onClick={() => update("page", result.page - 1)}>Previous</button>{items.map((item, index) => item === "…" ? <span key={`${item}-${index}`}>…</span> : <button type="button" className={item === result.page ? styles.currentPage : ""} key={item} onClick={() => update("page", item)}>{item}</button>)}<button type="button" disabled={result.page >= pages} onClick={() => update("page", result.page + 1)}>Next</button></div></footer>; }
 
-                        {loading ? <SkeletonTable rows={7} cols={6} /> : <div className={`table-responsive ${refreshing ? "fm-refreshing" : ""}`}>
-                            <table className={`table ${styles.customTable}`}>
-                                <thead>
-                                    <tr>
-                                        <th style={{ paddingLeft: "24px" }}>
-                                            MEMBER NAME & EMAIL
-                                        </th>
-                                        <th>CONTACT</th>
-                                        <th>CURRENT PLAN & COACH</th>
-                                        <th>START DATE</th>
-                                        <th>EXPIRATION</th>
-                                        <th>STATUS</th>
-                                    </tr>
-                                </thead>
-                                {members.length > 0 && (
-                                    <tbody>
-                                        {members.map((member) => (
-                                            <tr key={member.id}>
-                                                <td style={{ paddingLeft: "24px" }}>
-                                                    <strong className="text-white">{member.full_name || "Unnamed member"}</strong>
-                                                    <span className={styles.subText}>{member.email}</span>
-                                                </td>
-                                                <td><span className={styles.subText}>{member.phone || "—"}</span></td>
-                                                <td>
-                                                    <strong className="d-block text-white">{member.membership?.membership_plans?.name || "No active plan"}</strong>
-                                                    <span className="text-primary" style={{ fontSize: "0.75rem" }}>{member.membership?.coaches?.display_name ? `+ ${member.membership.coaches.display_name}` : ""}</span>
-                                                </td>
-                                                <td><span className={styles.subText}>{member.membership?.start_date || "—"}</span></td>
-                                                <td><strong className="d-block text-white">{member.membership?.end_date || "—"}</strong></td>
-                                                <td><span className={member.membership?.status === "active" ? styles.statusActive : styles.textWarning}>{member.membership?.status || "inactive"}</span><button className="btn btn-sm btn-outline-primary ms-2" onClick={async () => { try { await api(`/clerk/members/${member.id}/information-email`, { method: "POST" }); setError(""); } catch (err) { setError(err.message); } }}>Send info email</button></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                )}
-                                <tbody style={{ display: "none" }}>
-                                    <tr className={styles.activeRow}>
-                                        <td style={{ paddingLeft: "24px" }}>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarPrimary
-                                                    }
-                                                >
-                                                    KB
-                                                </div>
-                                                <div>
-                                                    <div className="d-flex align-items-center gap-2">
-                                                        <strong className="d-block text-white mb-1">
-                                                            Kenneth Bautista
-                                                        </strong>
-                                                        <span
-                                                            className={
-                                                                styles.activeIndicator
-                                                            }
-                                                        ></span>
-                                                    </div>
-                                                    <span
-                                                        className={
-                                                            styles.subText
-                                                        }
-                                                    >
-                                                        kenneth.b@gmail.com
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                0917-882-1094
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                Monthly Regular
-                                            </strong>
-                                            <span
-                                                className="text-primary"
-                                                style={{ fontSize: "0.75rem" }}
-                                            >
-                                                + Coach Mark
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                Oct 28, 2025
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white">
-                                                Nov 28, 2025
-                                            </strong>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={styles.statusActive}
-                                            >
-                                                <span
-                                                    className={styles.dotGreen}
-                                                ></span>{" "}
-                                                Active
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style={{ paddingLeft: "24px" }}>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarWarning
-                                                    }
-                                                >
-                                                    MS
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Maricel Santos
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.subText
-                                                        }
-                                                    >
-                                                        maricels@yahoo.com
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                0920-445-7812
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                Weekly Pass
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                No Coach Assigned
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                Nov 09, 2025
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-warning">
-                                                Nov 16, 2025
-                                            </strong>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={styles.statusWarning}
-                                            >
-                                                Expiring Soon (Tomorrow)
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style={{ paddingLeft: "24px" }}>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSecondary
-                                                    }
-                                                >
-                                                    DV
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Dominic Valderama
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.subText
-                                                        }
-                                                    >
-                                                        domval@gmail.com
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                0945-221-0038
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                Two Weeks Pass
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                Self Guided
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                Nov 10, 2025
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white">
-                                                Nov 24, 2025
-                                            </strong>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={styles.statusActive}
-                                            >
-                                                <span
-                                                    className={styles.dotGreen}
-                                                ></span>{" "}
-                                                Active
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style={{ paddingLeft: "24px" }}>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarDanger
-                                                    }
-                                                >
-                                                    JC
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Joshua Cordero
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.subText
-                                                        }
-                                                    >
-                                                        josh.cordero@gmail.com
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                0939-123-4567
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                Monthly Regular
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                No Coach Assigned
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                Oct 12, 2025
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-danger">
-                                                Nov 12, 2025
-                                            </strong>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={styles.statusDanger}
-                                            >
-                                                <span
-                                                    className={styles.dotRed}
-                                                ></span>{" "}
-                                                Expired 2 days ago
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style={{ paddingLeft: "24px" }}>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSuccess
-                                                    }
-                                                >
-                                                    AL
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Andrea Lim
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.subText
-                                                        }
-                                                    >
-                                                        andrealim@gmail.com
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                0916-554-9901
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                Student Monthly
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                Valid ID Verified
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                Nov 05, 2025
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white">
-                                                Dec 05, 2025
-                                            </strong>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={styles.statusActive}
-                                            >
-                                                <span
-                                                    className={styles.dotGreen}
-                                                ></span>{" "}
-                                                Active
-                                            </span>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>}
-
-                        <div className="d-flex flex-column flex-sm-row justify-content-between align-items-center mt-4 border-top border-secondary pt-4">
-                            <span
-                                className="text-secondary"
-                                style={{ fontSize: "0.85rem" }}
-                            >
-                                Showing 1-5 of 184 members
-                            </span>
-                            <div className="d-flex gap-2 mt-3 mt-sm-0">
-                                <button className={styles.pageBtnText} disabled>
-                                    Previous
-                                </button>
-                                <button className={styles.pageBtnTextActive}>
-                                    Next
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div
-                    className="col-12 col-xl-4"
-                    style={{ display: "none" }}
-                    data-aos="fade-left"
-                    data-aos-delay="300"
-                >
-                    <div className="d-flex flex-column gap-3">
-                        <div className={styles.detailsCard}>
-                            <div className="d-flex justify-content-between align-items-start mb-4 pb-4 border-bottom border-secondary">
-                                <div className="d-flex gap-3">
-                                    <div className={styles.avatarLarge}>KB</div>
-                                    <div>
-                                        <h3
-                                            className="text-white mb-1"
-                                            style={{
-                                                fontFamily:
-                                                    "var(--heading-font)",
-                                                fontSize: "1.3rem",
-                                                fontWeight: "700",
-                                            }}
-                                        >
-                                            Kenneth Bautista
-                                        </h3>
-                                        <span className={styles.subText}>
-                                            Member Since Oct 2025
-                                        </span>
-                                    </div>
-                                </div>
-                                <span className={styles.badgeActive}>
-                                    Active Member
-                                </span>
-                            </div>
-
-                            <div className="row g-3 mb-4">
-                                <div className="col-6">
-                                    <div className={styles.infoBox}>
-                                        <span className={styles.infoLabel}>
-                                            Phone Number
-                                        </span>
-                                        <span className={styles.infoValue}>
-                                            0917-882-1094
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="col-6">
-                                    <div className={styles.infoBox}>
-                                        <span className={styles.infoLabel}>
-                                            Email Address
-                                        </span>
-                                        <span
-                                            className={styles.infoValue}
-                                            style={{ wordBreak: "break-all" }}
-                                        >
-                                            kenneth.b@gmail.com
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className={styles.subscriptionBox}>
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <span className={styles.subLabel}>
-                                        Current Subscription
-                                    </span>
-                                    <span className={styles.subPrice}>
-                                        ₱1,490.00 / mo
-                                    </span>
-                                </div>
-                                <h4
-                                    className="text-white mb-3"
-                                    style={{
-                                        fontSize: "1.1rem",
-                                        fontWeight: "600",
-                                        lineHeight: "1.5",
-                                    }}
-                                >
-                                    Monthly Regular (₱990) + Coach Mark (₱500)
-                                </h4>
-                                <div className="d-flex justify-content-between align-items-center border-top border-secondary pt-3">
-                                    <span
-                                        className="text-secondary"
-                                        style={{ fontSize: "0.8rem" }}
-                                    >
-                                        Registered: Oct 28, 2025
-                                    </span>
-                                    <span
-                                        className="text-primary"
-                                        style={{
-                                            fontSize: "0.8rem",
-                                            fontWeight: "600",
-                                        }}
-                                    >
-                                        Expires: Nov 28, 2025
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="mt-4 mb-4">
-                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                    <div className="d-flex align-items-center gap-2">
-                                        <i className="fa-regular fa-clock text-secondary"></i>
-                                        <span
-                                            className="text-secondary fw-bold"
-                                            style={{
-                                                fontSize: "0.8rem",
-                                                letterSpacing: "1px",
-                                            }}
-                                        >
-                                            RECENT ATTENDANCE HISTORY
-                                        </span>
-                                    </div>
-                                    <button className={styles.btnLink}>
-                                        View All
-                                    </button>
-                                </div>
-                                <div className="d-flex flex-column gap-2">
-                                    <div className={styles.historyRow}>
-                                        <div className="d-flex justify-content-between align-items-center mb-1">
-                                            <span
-                                                className="text-success"
-                                                style={{
-                                                    fontSize: "0.75rem",
-                                                    fontWeight: "600",
-                                                }}
-                                            >
-                                                Today
-                                            </span>
-                                            <span
-                                                className="text-secondary"
-                                                style={{ fontSize: "0.75rem" }}
-                                            >
-                                                Clerk Check-in
-                                            </span>
-                                        </div>
-                                        <span
-                                            className="text-white"
-                                            style={{ fontSize: "0.85rem" }}
-                                        >
-                                            Time In: 10:15 AM{" "}
-                                            <i className="fa-solid fa-arrow-right-long text-secondary mx-1"></i>{" "}
-                                            Time Out: 11:45 AM
-                                        </span>
-                                    </div>
-                                    <div className={styles.historyRow}>
-                                        <div className="d-flex justify-content-between align-items-center mb-1">
-                                            <span
-                                                className="text-secondary"
-                                                style={{
-                                                    fontSize: "0.75rem",
-                                                    fontWeight: "600",
-                                                }}
-                                            >
-                                                Yesterday
-                                            </span>
-                                            <span
-                                                className="text-secondary"
-                                                style={{ fontSize: "0.75rem" }}
-                                            >
-                                                Member QR Code
-                                            </span>
-                                        </div>
-                                        <span
-                                            className="text-white"
-                                            style={{ fontSize: "0.85rem" }}
-                                        >
-                                            Time In: 05:30 PM{" "}
-                                            <i className="fa-solid fa-arrow-right-long text-secondary mx-1"></i>{" "}
-                                            Time Out: 07:00 PM
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="mt-4 mb-4">
-                                <div className="d-flex align-items-center gap-2 mb-3">
-                                    <i className="fa-solid fa-file-invoice text-secondary"></i>
-                                    <span
-                                        className="text-secondary fw-bold"
-                                        style={{
-                                            fontSize: "0.8rem",
-                                            letterSpacing: "1px",
-                                        }}
-                                    >
-                                        RECENT PAYMENT HISTORY
-                                    </span>
-                                </div>
-                                <div className={styles.historyRow}>
-                                    <div className="d-flex justify-content-between align-items-start">
-                                        <div>
-                                            <span
-                                                className="text-secondary d-block mb-1"
-                                                style={{ fontSize: "0.8rem" }}
-                                            >
-                                                Oct 28, 2025
-                                            </span>
-                                            <span
-                                                className="text-secondary d-block"
-                                                style={{ fontSize: "0.75rem" }}
-                                            >
-                                                Monthly Plan + Coach
-                                            </span>
-                                        </div>
-                                        <div className="text-end">
-                                            <span
-                                                className="text-white fw-bold d-block mb-1"
-                                                style={{ fontSize: "0.85rem" }}
-                                            >
-                                                ₱1,490.00 via GCash
-                                            </span>
-                                            <span
-                                                className="text-success d-flex align-items-center justify-content-end gap-1"
-                                                style={{ fontSize: "0.75rem" }}
-                                            >
-                                                <i className="fa-regular fa-circle-check"></i>{" "}
-                                                Digital Receipt Sent
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="d-flex flex-column gap-2 mt-4">
-                                <button className={styles.btnActionPrimary}>
-                                    <i className="fa-solid fa-person-walking-arrow-right"></i>{" "}
-                                    Record Attendance (Check-in)
-                                </button>
-                                <button className={styles.btnActionOutline}>
-                                    <i className="fa-solid fa-rotate"></i> Renew
-                                    Membership
-                                </button>
-                                <button className={styles.btnActionOutlineDark}>
-                                    <i className="fa-regular fa-paper-plane"></i>{" "}
-                                    Send Email Receipt
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className={styles.infoAlert}>
-                            <i className="fa-solid fa-circle-info"></i>
-                            <span>
-                                Expiring member accounts automatically notify
-                                members via email 24 hours prior to expiration.
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </ClerkLayout>
-    );
+export default function ClerkMemberInformation() {
+    const navigate = useNavigate(); const [params, setParams] = useSearchParams(); const [filters, setFilters] = useState(() => filtersFrom(params)); const [plans, setPlans] = useState([]); const [coaches, setCoaches] = useState([]); const [showFilters, setShowFilters] = useState(false); const [modalMember, setModalMember] = useState(null); const [sending, setSending] = useState("");     const toast = useToast();
+    const { result, loading, refreshing, error, retry } = useMemberList(filters, setFilters, params, setParams);
+    useEffect(() => { Promise.all([api("/clerk/plans"), api("/clerk/coaches")]).then(([loadedPlans, loadedCoaches]) => { setPlans(loadedPlans); setCoaches(loadedCoaches); }).catch((err) => toast.error(getFriendlyError(err))); }, [toast]);
+    useEffect(() => { const onKey = (event) => { if (event.key === "/" && document.activeElement?.tagName !== "INPUT") { event.preventDefault(); document.querySelector("#member-search")?.focus(); } }; document.addEventListener("keydown", onKey); return () => document.removeEventListener("keydown", onKey); }, []);
+    const update = (key, value) => setFilters((current) => ({ ...current, [key]: value, page: key === "page" ? value : 1 }));
+    const clear = () => setFilters(initialFilters);
+    const activeFilterCount = ["plan", "coach", "student", "joined_from", "joined_to"].filter((key) => filters[key]).length;
+    const sendInfo = async () => { const member = modalMember; setModalMember(null); setSending(member.id); try { const delivery = await api(`/clerk/members/${member.id}/information-email`, { method: "POST" }); toast.success(delivery.sent ? `Information email sent to ${member.full_name}.` : `Information email queued for ${member.full_name}.`); } catch (err) { toast.error(getFriendlyError(err)); } finally { setSending(""); } };
+    return <ClerkLayout showSystemErrorToast={false}><header className={styles.pageHeader}><div><h1 className={styles.pageTitle}>Member Information</h1><p className={styles.pageDesc}>Search, view, and manage registered gym members</p><p className={styles.summary}>{result.counts.all || 0} members · {result.counts.active || 0} active · {result.counts.expiring || 0} expiring · {result.counts.expired || 0} expired</p></div><button className={styles.btnPrimaryOutline} onClick={() => navigate("/clerk/member-registration")}><i className="fa-solid fa-user-plus"></i> Register New Member</button></header>
+        <section className={styles.toolbar}><div className={styles.toolbarRow}><div className={styles.searchBox}><i className={`fa-solid ${loading && filters.search ? "fa-spinner fa-spin" : "fa-magnifying-glass"}`}></i><input id="member-search" value={filters.search} onChange={(event) => update("search", event.target.value)} onKeyDown={(event) => event.key === "Escape" && update("search", "")} placeholder="Search by name, email, phone or member code" aria-label="Search members" />{filters.search && <button type="button" onClick={() => update("search", "")} aria-label="Clear search">×</button>}</div><label className={styles.sortControl}>Sort by<select value={`${filters.sort}:${filters.order}`} onChange={(event) => { const [sort, order] = event.target.value.split(":"); setFilters((current) => ({ ...current, sort, order, page: 1 })); }}><option value="name:asc">Name A-Z</option><option value="joined:desc">Newest joined</option><option value="expiry:asc">Soonest expiry</option><option value="status:asc">Status</option></select></label><button type="button" className={styles.filterButton} onClick={() => setShowFilters((value) => !value)}><i className="fa-solid fa-sliders"></i> Filters {activeFilterCount > 0 && <b>{activeFilterCount}</b>}</button><FiltersPanel open={showFilters} plans={plans} coaches={coaches} filters={filters} onChange={update} onReset={clear} onClose={() => setShowFilters(false)} /></div><StatusTabs counts={result.counts} active={filters.status} onChange={update} /></section>
+        <ActiveChips filters={filters} plans={plans} coaches={coaches} onChange={update} onClear={clear} />
+        {error && <div className={styles.errorState}><i className="fa-solid fa-circle-exclamation"></i><span>{error}</span><button type="button" onClick={retry}>Try again</button></div>}
+        <div className={`${styles.tableCard} ${refreshing ? "fm-refreshing" : ""}`}>{loading ? <SkeletonTable rows={7} cols={7} /> : result.rows.length ? <MembersTable rows={result.rows} onSend={setModalMember} sending={sending} onRenew={(member) => navigate(`/clerk/membership?member=${member.id}`)} /> : <div className={styles.emptyState}><i className="fa-solid fa-users-slash"></i><strong>No members match these filters</strong><span>Try adjusting your search or filters.</span><button type="button" onClick={clear}>Clear filters</button></div>}</div>
+        <Pagination result={result} filters={filters} update={update} />
+        {modalMember && <ClerkModal title="Send member information?" icon="fa-envelope" labelledBy="member-email-title" onClose={() => setModalMember(null)} footer={<><button type="button" className={styles.secondaryButton} onClick={() => setModalMember(null)}>Cancel</button><button type="button" className={styles.primaryButton} onClick={sendInfo}>Send email</button></>}><p>Send the latest information to <strong>{modalMember.full_name}</strong>?</p><p className={styles.muted}>{modalMember.email}</p></ClerkModal>}
+    </ClerkLayout>;
 }

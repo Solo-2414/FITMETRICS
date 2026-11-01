@@ -64,7 +64,7 @@ export const renderEmail = (emailType, payload = {}) => {
   if (emailType === 'receipt') {
     const gymName = escapeHtml(payload.gymName || 'FITMETRICS');
     const official = payload.businessLegalName && payload.businessTin;
-    const title = official ? 'OFFICIAL PAYMENT RECEIPT' : 'PAYMENT RECEIPT - ACKNOWLEDGMENT OF PAYMENT';
+    const title = payload.isWalkIn ? 'Day Pass Receipt' : official ? 'OFFICIAL PAYMENT RECEIPT' : 'PAYMENT RECEIPT - ACKNOWLEDGMENT OF PAYMENT';
     const money = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
     const rows = [
       ['Receipt number', payload.receiptNumber],
@@ -75,7 +75,7 @@ export const renderEmail = (emailType, payload = {}) => {
       ['VAT status', payload.vatRegistered ? 'VAT-registered' : null],
       ['Received from', `${payload.memberName || ''} (${payload.memberCode || 'No member code'})`],
       ['Email', payload.memberEmail],
-      ['Plan and period', `${payload.planName || ''}${payload.periodStart ? ` (${payload.periodStart} - ${payload.periodEnd})` : ''}`],
+      ['Plan and period', `${payload.planName || ''}${payload.isWalkIn ? ' (Valid today until 11:59 PM)' : payload.periodStart ? ` (${payload.periodStart} - ${payload.periodEnd})` : ''}`],
       ['Coach add-on', payload.coachAddon ? money(payload.coachAddon) : null],
       ['Subtotal', money(payload.subtotal)],
       ['Student/promo discount', payload.discount ? `-${money(payload.discount)}` : null],
@@ -92,7 +92,7 @@ export const renderEmail = (emailType, payload = {}) => {
     const footer = [payload.receiptFooterNote, support].filter(Boolean).join(' | ') || 'This is a system-generated receipt.';
     return {
       subject: `${payload.businessLegalName || 'FITMETRICS'} payment receipt ${payload.receiptNumber || ''}`.trim(),
-      text: `${title}\n\nHello ${payload.memberName || 'Member'}\nReceipt number: ${payload.receiptNumber || ''}\nDate and time paid: ${payload.dateTimePaid || payload.date || ''}\nReceived from: ${payload.memberName || ''} (${payload.memberCode || ''})\nPlan and period: ${payload.planName || ''} ${payload.periodStart || ''} - ${payload.periodEnd || ''}\nSubtotal: ${money(payload.subtotal)}\nDiscount: ${money(payload.discount)}\nTotal: ${money(payload.amount)}\nPayment method: ${payload.method || ''}\nReference: ${payload.reference || ''}\nReceived by: ${payload.receivedBy || ''}\nStatus: PAID\n\n${footer}`,
+      text: `${title}\n\nHello ${payload.memberName || 'Member'}\nReceipt number: ${payload.receiptNumber || ''}\nDate and time paid: ${payload.dateTimePaid || payload.date || ''}\nReceived from: ${payload.memberName || ''} (${payload.memberCode || 'Walk-in'})\nPlan and period: ${payload.planName || ''} ${payload.isWalkIn ? 'Valid today until 11:59 PM' : `${payload.periodStart || ''} - ${payload.periodEnd || ''}`}\nSubtotal: ${money(payload.subtotal)}\nDiscount: ${money(payload.discount)}\nTotal: ${money(payload.amount)}\nPayment method: ${payload.method || ''}\nReference: ${payload.reference || ''}\nCash tendered: ${payload.method === 'Cash' ? money(payload.cashTendered) : ''}\nChange: ${payload.method === 'Cash' ? money(payload.changeGiven) : ''}\nReceived by: ${payload.receivedBy || ''}\nStatus: PAID\n\n${footer}`,
       html: brandedShell({ gymName, logoUrl: payload.logoUrl || process.env.EMAIL_LOGO_URL, label: 'Payment receipt', heading: title, content: `<p>Hello ${name},</p><table role="presentation" width="100%" style="border-collapse:collapse;">${rows}</table>`, footer: escapeHtml(footer) }),
     };
   }

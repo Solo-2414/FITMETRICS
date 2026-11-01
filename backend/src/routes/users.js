@@ -4,6 +4,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { supabaseAuth } from '../config/supabase.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { getGymSettings } from '../services/maintenance.js';
+import { getMembershipState } from '../services/membershipState.js';
 
 const router = Router();
 const ROLES = ['admin', 'clerk', 'member'];
@@ -114,15 +115,16 @@ router.get('/users', requireAuth, requireAdmin, async (req, res) => {
 
 router.get('/users/:id/details', requireAuth, requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const [profileResult, detailsResult, membershipsResult] = await Promise.all([
+  const [profileResult, detailsResult, membershipsResult, membershipState] = await Promise.all([
     supabaseAdmin.from('profiles').select('*').eq('id', id).single(),
     supabaseAdmin.from('member_details').select('*').eq('member_id', id).maybeSingle(),
     supabaseAdmin.from('memberships').select('id, plan_id, start_date, end_date, status, coach_addon_amount, membership_plans(id, name, price, student_price, duration_days)').eq('member_id', id).order('created_at', { ascending: false }),
+    getMembershipState(id),
   ]);
   const failure = [profileResult, detailsResult, membershipsResult].find((result) => result.error);
   if (failure) return res.status(500).json({ error: failure.error.message });
   if (!profileResult.data) return res.status(404).json({ error: 'User not found.' });
-  res.json({ profile: profileResult.data, memberDetails: detailsResult.data, memberships: membershipsResult.data || [] });
+  res.json({ profile: profileResult.data, memberDetails: detailsResult.data, memberships: membershipsResult.data || [], membership: membershipState.current, next_membership: membershipState.queued[0] || null });
 });
 
 // POST /api/users   (clerk: Member Registration / admin: add staff)

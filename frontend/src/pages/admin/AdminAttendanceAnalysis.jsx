@@ -5,6 +5,7 @@ import { api } from "../../lib/api";
 import { buildBarOptions } from "../../lib/chartDefaults";
 import { SkeletonChart, SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
 import styles from "./AdminAttendanceAnalysis.module.css";
+import InlineError from "../../components/ui/InlineError";
 
 const LIMIT = 10;
 const ranges = [
@@ -76,7 +77,7 @@ export default function AdminAttendanceAnalysis() {
 
     return (
         <AdminLayout>
-            {error && <div className="alert alert-danger">{error}</div>}
+            {error && <InlineError error={error} />}
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <h1 className={styles.pageTitle}>Attendance Analysis</h1>
                 <p className={styles.pageDesc}>Review daily member check-ins, peak visiting hours, and gym foot traffic</p>

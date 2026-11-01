@@ -1,6 +1,8 @@
 import { Router } from 'express';
+import { verifyCheckinToken } from '../lib/checkinQr.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { checkInMember } from '../services/attendance.js';
 import { monthStart } from '../utils/time.js';
 import {
   addDays,
@@ -13,6 +15,7 @@ const router = Router();
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const UUID_PATTERN = /^[0-9a-f-]{36}$/i;
 const RANGE_VALUES = new Set(['today', '7d', '30d', 'custom']);
+const qrAttempts = new Map();
 
 const validDate = (value) => DATE_PATTERN.test(value) && !Number.isNaN(new Date(`${value}T00:00:00+08:00`).getTime());
 
@@ -53,6 +56,23 @@ router.get('/attendance/me', requireAuth, requireRole('member'), async (req, res
       .order('check_in_at', { ascending: false });
     if (error) return next(error);
     res.json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/attendance/qr-checkin', requireAuth, requireRole('member'), async (req, res, next) => {
+  try {
+    if (!verifyCheckinToken(req.body?.token)) return res.status(400).json({ error: 'This gym QR code is invalid or expired.' });
+    const lastAttempt = qrAttempts.get(req.user.id) || 0;
+    if (Date.now() - lastAttempt < 10_000) return res.status(429).json({ error: 'Please wait a few seconds before trying again.' });
+    qrAttempts.set(req.user.id, Date.now());
+    const result = await checkInMember({ memberId: req.user.id, method: 'qr' });
+    const { error: auditError } = await supabaseAdmin.from('audit_log').insert({
+      actor_id: req.user.id, action: 'attendance_qr_checkin', entity_type: 'attendance', entity_id: result.id, details: { method: 'qr' },
+    });
+    if (auditError) return next(auditError);
+    res.status(201).json(result);
   } catch (error) {
     next(error);
   }

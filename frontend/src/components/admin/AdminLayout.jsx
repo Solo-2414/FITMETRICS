@@ -110,6 +110,14 @@ export default function AdminLayout({ children }) {
                         Reports
                     </Link>
                     <Link
+                        to="/admin/walk-in-customers"
+                        onClick={closeSidebar}
+                        className={`${styles.navItem} ${location.pathname === "/admin/walk-in-customers" ? styles.active : ""}`}
+                    >
+                        <i className="fa-solid fa-person-walking"></i>
+                        Walk-in Customers
+                    </Link>
+                    <Link
                         to="/admin/announcements"
                         onClick={closeSidebar}
                         className={`${styles.navItem} ${location.pathname === "/admin/announcements" ? styles.active : ""}`}

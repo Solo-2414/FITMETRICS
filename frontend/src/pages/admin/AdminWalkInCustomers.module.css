@@ -1,0 +1,19 @@
+.pageTitle { font-family: var(--heading-font); color: var(--header-text-color); font-size: 1.8rem; font-weight: 700; margin-bottom: 4px; }
+.pageDesc { color: var(--text-color); font-size: .9rem; margin: 0; }
+.kpiCard,.panel { background: var(--secondary-background-color); border: 1px solid var(--card-stroke-color); border-radius: 12px; padding: 22px; }
+.kpiCard { display:flex; flex-direction:column; gap:8px; color:var(--text-color); }
+.kpiCard strong { color:var(--header-text-color); font:700 1.8rem var(--heading-font); }
+.kpiCard small,.table small { color:#94a3b8; display:block; }
+.toolbar { display:flex; gap:12px; margin-bottom:18px; }
+.toolbar input { flex:1; background:var(--card-bg-dark); border:1px solid var(--card-stroke-color); color:var(--header-text-color); border-radius:8px; padding:10px 14px; }
+.button,.toolbar button { background:var(--primary-color); color:#06111f; border:0; border-radius:8px; padding:10px 16px; text-decoration:none; font-weight:700; }
+.table { color:var(--text-color); margin:0; }
+.table th { color:#94a3b8; font-size:.75rem; text-transform:uppercase; }
+.link { background:none; border:0; color:var(--primary-color); }
+.pagination { display:flex; justify-content:center; gap:16px; align-items:center; padding:18px; color:var(--text-color); }
+.pagination button { background:transparent; color:var(--text-color); border:1px solid var(--card-stroke-color); border-radius:6px; padding:6px 12px; }
+.drawer { position:fixed; right:0; top:0; bottom:0; width:min(440px,100%); background:var(--secondary-background-color); border-left:1px solid var(--card-stroke-color); padding:28px; z-index:20; overflow:auto; box-shadow:-8px 0 30px #0006; color:var(--text-color); }
+.drawer h2 { color:var(--header-text-color); }
+.close { float:right; background:none; border:0; color:var(--text-color); font-size:1.6rem; }
+.visit { border-top:1px solid var(--card-stroke-color); padding:12px 0; display:flex; flex-direction:column; gap:4px; }
+@media (max-width: 576px) { .toolbar { flex-direction:column; } .panel { padding:12px; } }

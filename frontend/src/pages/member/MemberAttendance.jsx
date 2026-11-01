@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
-import { api } from "../../lib/api";
+import { api, getFriendlyError } from "../../lib/api";
+import { attendanceMethodLabel } from "../../lib/attendanceMethod";
+import { useToast } from "../../components/ui/toast/useToast";
 import styles from "./MemberAttendance.module.css";
 import { SkeletonKpiCards, SkeletonList } from "../../components/ui/Skeleton";
+import InlineError from "../../components/ui/InlineError";
 
 export default function MemberAttendance() {
+    const toast = useToast();
     const [attendance, setAttendance] = useState([]);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
@@ -28,7 +32,7 @@ export default function MemberAttendance() {
 
         api(`/attendance/me?from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}`)
             .then(setAttendance)
-            .catch((err) => setError(err.message))
+            .catch((err) => setError(getFriendlyError(err)))
             .finally(() => setLoading(false));
     }, [year, month]);
 
@@ -120,7 +124,10 @@ export default function MemberAttendance() {
     // Export Log PDF Handler
     const exportPdfLog = () => {
         const printWindow = window.open("", "_blank");
-        if (!printWindow) return alert("Please allow popups to export the PDF log.");
+        if (!printWindow) {
+            toast.warning("Please allow popups to export the PDF log.");
+            return;
+        }
 
         const rowsHtml = attendance.map((row) => `
             <tr>
@@ -128,7 +135,7 @@ export default function MemberAttendance() {
                 <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">${formatTime(row.check_in_at)}</td>
                 <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">${formatTime(row.check_out_at)}</td>
                 <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">${duration(row)}</td>
-                <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">${row.method === "manual" ? "Counter Check-in" : row.method}</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">${attendanceMethodLabel(row.method).label}</td>
                 <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">Gym Staff</td>
                 <td style="padding:8px 12px; border-bottom:1px solid #e2e8f0;">${row.check_out_at ? "Completed" : "Active"}</td>
             </tr>
@@ -186,7 +193,7 @@ export default function MemberAttendance() {
 
     return (
         <MemberLayout>
-            {error && <div className="alert alert-danger">{error}</div>}
+            {error && <InlineError error={error} />}
             {loading ? <><SkeletonKpiCards count={2} colClass="col-12 col-md-6" /><SkeletonList rows={5} /></> : <>
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3"
@@ -390,7 +397,7 @@ export default function MemberAttendance() {
                                     <td>
                                         <div className="d-flex align-items-center gap-2">
                                             <i className="fa-solid fa-desktop text-primary"></i>
-                                            {row.method === "manual" ? "Counter Check-in" : row.method}
+                                            {attendanceMethodLabel(row.method).label}
                                         </div>
                                     </td>
                                     <td>Gym Staff</td>

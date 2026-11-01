@@ -38,6 +38,30 @@ export const validateRegistration = (form) => Object.fromEntries(
         .filter(([, message]) => message),
 );
 
+export const registrationIssueList = (form, { paymentMethod = "cash", cashTendered = "", totalDue = 0, addCoach = false, coachId = "" } = {}) => {
+    const errors = validateRegistration(form);
+    if (addCoach && !coachId) errors.coach_id = "Choose a coach or remove coach assistance.";
+    if (paymentMethod === "cash" && (cashTendered === "" || Number(cashTendered) < Number(totalDue))) {
+        errors.cash_tendered = cashTendered === "" ? "Enter the cash tendered." : "Cash tendered must cover the total amount due.";
+    }
+    const labels = {
+        full_name: "Full name",
+        email: "Email address",
+        phone: "Mobile contact number",
+        password: "Password",
+        gender: "Gender",
+        emergency_contact_name: "Emergency contact name",
+        emergency_contact_phone: "Emergency phone number",
+        plan_code: "Membership plan",
+        coach_id: "Coach assistance",
+        cash_tendered: "Cash tendered",
+    };
+
+    return Object.entries(errors).map(([field, message]) => ({ field, label: labels[field] || field, message }));
+};
+
+export const isCurrentDuplicateValue = (currentValue, requestedValue) => currentValue === requestedValue;
+
 export const normalizePhone = (value) => {
     const compact = String(value || "").replace(/[\s-]/g, "");
     return compact.startsWith("+63") ? `0${compact.slice(3)}` : compact;

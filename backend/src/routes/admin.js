@@ -11,11 +11,12 @@ import { clearSettingsCache, getGymSettings } from '../services/maintenance.js';
 import { fanoutAnnouncement } from '../services/announcements.js';
 import { sendEmail } from '../services/mailer.js';
 import { buildReportCsv, buildReportPdf, buildReportXlsx, formatPeriod, reportFileName } from '../lib/reports/index.js';
+import { getMembershipState } from '../services/membershipState.js';
 
 const router = Router();
 router.use('/admin', requireAuth, requireRole('admin'));
 const backupLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 3, message: { error: 'Export limit reached. Try again later.' } });
-const PAYMENT_MODES = ['cash', 'gcash', 'maya'];
+const PAYMENT_MODES = ['cash', 'gcash', 'maya', 'qrph'];
 const UUID_PATTERN = /^[0-9a-f-]{36}$/i;
 const TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/;
 const timeValue = (value) => {
@@ -23,8 +24,46 @@ const timeValue = (value) => {
   const [hours, minutes, seconds = 0] = String(value).split(':').map(Number);
   return hours < 24 && minutes < 60 && seconds < 60 ? hours * 60 + minutes : null;
 };
+
+router.get('/admin/walk-ins', async (req, res, next) => {
+  try {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 25)));
+    let query = supabaseAdmin.from('walk_in_customers').select('*', { count: 'exact' }).order('last_visit_at', { ascending: false });
+    if (req.query.search) {
+      const search = String(req.query.search).replace(/[%,()]/g, '');
+      query = query.or(`full_name.ilike.%${search}%,phone_normalized.ilike.%${search}%,email_normalized.ilike.%${search}%,customer_code.ilike.%${search}%`);
+    }
+    const { data, count, error } = await query.range((page - 1) * limit, page * limit - 1);
+    if (error) return next(error);
+    const revenue = await supabaseAdmin.from('payments').select('amount, walk_in_visit_id').eq('status', 'paid').not('walk_in_visit_id', 'is', null);
+    if (revenue.error) return next(revenue.error);
+    res.json({ rows: data || [], total: count || 0, page, limit, revenue: (revenue.data || []).reduce((sum, row) => sum + Number(row.amount || 0), 0) });
+  } catch (error) { next(error); }
+});
+
+router.get('/admin/walk-ins/:id', async (req, res, next) => {
+  try {
+    const customer = await supabaseAdmin.from('walk_in_customers').select('*').eq('id', req.params.id).single();
+    if (customer.error) return next(customer.error);
+    const visits = await supabaseAdmin.from('walk_in_visits').select('*, membership_plans(name), payments!payments_walk_in_visit_id_fkey(amount, method, receipt_number, received_by, paid_at)').eq('customer_id', req.params.id).order('created_at', { ascending: false });
+    if (visits.error) return next(visits.error);
+    res.json({ customer: customer.data, visits: visits.data || [] });
+  } catch (error) { next(error); }
+});
+
+router.get('/admin/walk-ins/export.csv', async (req, res, next) => {
+  try {
+    const { data, error } = await supabaseAdmin.from('walk_in_customers').select('customer_code, full_name, phone_normalized, email_normalized, visit_count, last_visit_at').order('last_visit_at', { ascending: false });
+    if (error) return next(error);
+    const escape = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const csv = ['customer_code,full_name,phone,email,visits,last_visit_at', ...(data || []).map((row) => [row.customer_code, row.full_name, row.phone_normalized, row.email_normalized, row.visit_count, row.last_visit_at].map(escape).join(','))].join('\r\n');
+    await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'walkin_customers_exported', entity_type: 'walk_in_customer', details: { format: 'csv' } });
+    res.type('text/csv').set('Content-Disposition', 'attachment; filename="walk-in-customers.csv"').send(csv);
+  } catch (error) { next(error); }
+});
 const validateSettings = (body, current = {}) => {
-  const allowed = ['gym_name', 'address', 'phone', 'email', 'monday_saturday_open', 'monday_saturday_close', 'sunday_open', 'sunday_close', 'expiry_reminder_days', 'notifications', 'maintenance_enabled', 'maintenance_message', 'payment_modes', 'allow_member_registrations', 'show_live_capacity', 'maintenance_starts_at'];
+  const allowed = ['gym_name', 'address', 'phone', 'email', 'monday_saturday_open', 'monday_saturday_close', 'sunday_open', 'sunday_close', 'expiry_reminder_days', 'notifications', 'maintenance_enabled', 'maintenance_message', 'payment_modes', 'allow_member_registrations', 'show_live_capacity', 'maintenance_starts_at', 'business_legal_name', 'business_address', 'business_tin', 'vat_status', 'receipt_series_prefix', 'bir_permit_note', 'receipt_footer_note', 'support_email', 'support_phone'];
   const updates = Object.fromEntries(allowed.filter((key) => Object.hasOwn(body || {}, key)).map((key) => [key, body[key]]));
   if (Object.hasOwn(updates, 'gym_name') && (typeof updates.gym_name !== 'string' || updates.gym_name.trim().length < 1 || updates.gym_name.length > 100)) throw new Error('Gym name must be 1-100 characters.');
   if (Object.hasOwn(updates, 'email') && updates.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) throw new Error('Contact email must be valid or empty.');
@@ -41,6 +80,10 @@ const validateSettings = (body, current = {}) => {
   }
   if (Object.hasOwn(updates, 'expiry_reminder_days') && (!Number.isInteger(updates.expiry_reminder_days) || updates.expiry_reminder_days < 1 || updates.expiry_reminder_days > 30)) throw new Error('Expiration reminder days must be an integer from 1 to 30.');
   if (Object.hasOwn(updates, 'payment_modes') && (!Array.isArray(updates.payment_modes) || !updates.payment_modes.every((mode) => PAYMENT_MODES.includes(mode)) || updates.payment_modes.length === 0)) throw new Error('Select at least one valid payment mode.');
+  if (Object.hasOwn(updates, 'vat_status') && !['vat', 'non_vat', 'unregistered'].includes(updates.vat_status)) throw new Error('VAT status is invalid.');
+  for (const key of ['business_legal_name', 'business_address', 'business_tin', 'receipt_series_prefix', 'bir_permit_note', 'receipt_footer_note', 'support_email', 'support_phone']) {
+    if (Object.hasOwn(updates, key) && typeof updates[key] !== 'string') throw new Error(`${key} must be text.`);
+  }
   for (const key of ['maintenance_enabled', 'allow_member_registrations', 'show_live_capacity']) if (Object.hasOwn(updates, key) && typeof updates[key] !== 'boolean') throw new Error(`${key} must be a boolean.`);
   if (Object.hasOwn(updates, 'maintenance_message') && (typeof updates.maintenance_message !== 'string' || updates.maintenance_message.length > 300)) throw new Error('Maintenance message must be at most 300 characters.');
   if (Object.hasOwn(updates, 'maintenance_starts_at') && updates.maintenance_starts_at !== null && Number.isNaN(Date.parse(updates.maintenance_starts_at))) throw new Error('Maintenance start time must be a valid date.');
@@ -120,7 +163,7 @@ const reportRows = async ({ type, start, end, plan, shift }) => {
   if (type === 'sales' || type === 'collections') {
     const { data, error } = await supabaseAdmin
       .from('payments')
-      .select('id, amount, gross_amount, discount, method, status, reference_number, receipt_number, provider, provider_payment_id, paid_at, created_at, plan_id, membership_id, walk_in_visit_id, memberships(plan_id, membership_plans(name)), walk_in_visits(plan_id, membership_plans(name))')
+      .select('id, amount, gross_amount, discount, method, status, reference_number, receipt_number, provider, provider_payment_id, paid_at, created_at, plan_id, membership_id, walk_in_visit_id, memberships(plan_id, membership_plans(name)), walk_in_visits!payments_walk_in_visit_id_fkey(plan_id, membership_plans(name))')
       .gte('created_at', from)
       .lt('created_at', to)
       .order('created_at', { ascending: true });
@@ -183,17 +226,14 @@ const reportRows = async ({ type, start, end, plan, shift }) => {
   const { data: profiles, error: profileError } = await supabaseAdmin.from('profiles').select('id, full_name, phone, email').eq('role', 'member').order('full_name');
   if (profileError) throw profileError;
   const ids = (profiles || []).map((profile) => profile.id);
-  const memberships = ids.length ? await supabaseAdmin.from('memberships').select('member_id, plan_id, end_date, status, membership_plans(name)').in('member_id', ids).order('end_date', { ascending: false }) : { data: [], error: null };
-  if (memberships.error) throw memberships.error;
+  const membershipStates = await getMembershipState(ids);
   const visits = ids.length ? await supabaseAdmin.from('attendance').select('member_id, check_in_at').in('member_id', ids).neq('status', 'cancelled').order('check_in_at', { ascending: false }) : { data: [], error: null };
   if (visits.error) throw visits.error;
-  const latestMembership = new Map();
-  for (const membership of memberships.data || []) if (!latestMembership.has(membership.member_id)) latestMembership.set(membership.member_id, membership);
   const latestVisit = new Map();
   for (const visit of visits.data || []) if (!latestVisit.has(visit.member_id)) latestVisit.set(visit.member_id, visit.check_in_at);
   const todayDate = new Date(`${today()}T00:00:00+08:00`);
   return (profiles || []).map((profile) => {
-    const membership = latestMembership.get(profile.id);
+    const membership = membershipStates.get(profile.id)?.current || null;
     const lastVisit = latestVisit.get(profile.id) || null;
     const expiry = membership?.end_date || null;
     const expiryDate = expiry ? new Date(`${expiry}T00:00:00+08:00`) : null;

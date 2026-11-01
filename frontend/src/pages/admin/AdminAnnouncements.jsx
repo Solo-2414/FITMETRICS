@@ -3,11 +3,16 @@ import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminAnnouncements.module.css";
 import { api } from "../../lib/api";
 import { SkeletonKpiCards, SkeletonList } from "../../components/ui/Skeleton";
+import InlineError from "../../components/ui/InlineError";
+import { useToast } from "../../components/ui/toast/useToast";
+import { useConfirm } from "../../components/ui/toast/useConfirm";
 
 const formatDate = (value) => value ? new Date(value).toLocaleString() : "No date";
 const audienceLabel = (value) => ({ all: "Everyone", member: "Members", clerk: "Clerks", admin: "Admins" }[value] || value);
 
 export default function AdminAnnouncements() {
+    const toast = useToast();
+    const confirm = useConfirm();
     const [announcements, setAnnouncements] = useState([]);
     const [summary, setSummary] = useState({});
     const [error, setError] = useState("");
@@ -51,7 +56,7 @@ export default function AdminAnnouncements() {
         const sendEmail = form.get("send_email") === "on";
         if (sendEmail) {
             const count = Number(summary.active_recipients?.[form.get("audience")] ?? summary.active_recipients?.all ?? 0);
-            if (!window.confirm(`This will send an email to exactly ${count} active recipient${count === 1 ? "" : "s"}. Continue?`)) return;
+            if (!await confirm({ title: "Send announcement?", message: `This will send an email to exactly ${count} active recipient${count === 1 ? "" : "s"}. Continue?` })) return;
         }
         setSaving(true);
         try {
@@ -64,15 +69,17 @@ export default function AdminAnnouncements() {
             formRef.current?.reset();
             setBodyLength(0);
             await load();
-        } catch (err) { setError(err.message); } finally { setSaving(false); }
+            toast.success("Announcement created.");
+        } catch (err) { toast.error(err.message); } finally { setSaving(false); }
     };
 
     const removeAnnouncement = async (item) => {
-        if (!window.confirm(item.status === "draft" ? "Delete this draft?" : "Archive this announcement?")) return;
+        if (!await confirm({ title: item.status === "draft" ? "Delete draft?" : "Archive announcement?", message: item.status === "draft" ? "Delete this draft?" : "Archive this announcement?", danger: true })) return;
         try {
             await api(`/admin/announcements/${item.id}`, { method: "DELETE" });
             await load();
-        } catch (err) { setError(err.message); }
+            toast.success(item.status === "draft" ? "Draft deleted." : "Announcement archived.");
+        } catch (err) { toast.error(err.message); }
     };
 
     const editText = async (item) => {
@@ -85,7 +92,7 @@ export default function AdminAnnouncements() {
 
     return (
         <AdminLayout>
-            {error && <div className="alert alert-danger">{error}</div>}
+            {error && <InlineError error={error} onRetry={load} />}
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3" data-aos="fade-down">
                 <div><h1 className={styles.pageTitle}>Announcements</h1><p className={styles.pageDesc}>Post updates, holiday schedules, and gym notices for members and staff</p></div>
                 <button className={styles.btnPrimary} onClick={() => document.getElementById("create-announcement")?.scrollIntoView({ behavior: "smooth" })}><i className="fa-solid fa-plus"></i> Create Announcement</button>

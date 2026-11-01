@@ -1,6 +1,7 @@
 import { Bar } from "react-chartjs-2";
 import { useMemo } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
+import InlineError from "../../components/ui/InlineError";
 import { useApiData } from "../../hooks/useApiData";
 import { SkeletonChart, SkeletonKpiCards, SkeletonList, SkeletonTable } from "../../components/ui/Skeleton";
 import { buildBarOptions } from "../../lib/chartDefaults";
@@ -44,7 +45,7 @@ export default function AdminDashboard() {
                         Daily summary, member attendance, and gym sales overview
                     </p>
                 </div>
-                {error && <div className="alert alert-danger">{error} <button className="btn btn-link p-0" onClick={reload}>Try again</button></div>}
+                {error && <InlineError error={error} onRetry={reload} />}
                 <div className={styles.timeBadge}>
                     <i className="fa-regular fa-calendar"></i> Today: Friday,
                     October 24{" "}

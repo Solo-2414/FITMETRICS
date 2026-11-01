@@ -9,6 +9,8 @@ import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ToastProvider from "./components/ui/toast/ToastProvider";
+import ConfirmProvider from "./components/ui/toast/ConfirmProvider";
 
 import MemberDashboard from "./pages/member/MemberDashboard";
 import MemberProfile from "./pages/member/MemberProfile";
@@ -18,6 +20,7 @@ import MemberAttendance from "./pages/member/MemberAttendance";
 import MemberBilling from "./pages/member/MemberBilling";
 import MemberVideoTutorials from "./pages/member/MemberVideoTutorials";
 import MemberNotifications from "./pages/member/MemberNotifications";
+import MemberCheckIn from "./pages/member/MemberCheckIn";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminChurnAnalytics from "./pages/admin/AdminChurnAnalytics";
@@ -29,6 +32,7 @@ import AdminReports from "./pages/admin/AdminReports";
 import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
 import AdminVideoTutorials from "./pages/admin/AdminVideoTutorials";
 import AdminSettings from "./pages/admin/AdminSettings";
+import AdminWalkInCustomers from "./pages/admin/AdminWalkInCustomers";
 
 import ClerkDashboard from "./pages/clerk/ClerkDashboard";
 import ClerkMemberRegistration from "./pages/clerk/ClerkMemberRegistration";
@@ -55,6 +59,8 @@ export default function App() {
     return (
         <AuthProvider>
         <BrowserRouter>
+            <ToastProvider>
+            <ConfirmProvider>
             <AOSRefresh />
             <Routes>
                 <Route path="/" element={<LandingPage />} />
@@ -85,6 +91,7 @@ export default function App() {
                     path="/member/notifications"
                     element={<MemberNotifications />}
                 />
+                <Route path="/member/check-in" element={<MemberCheckIn />} />
 
                 </Route>
 
@@ -110,6 +117,7 @@ export default function App() {
                     path="/admin/manage-users"
                     element={<AdminManageUsers />}
                 />
+                <Route path="/admin/walk-in-customers" element={<AdminWalkInCustomers />} />
                 <Route path="/admin/reports" element={<AdminReports />} />
                 <Route
                     path="/admin/announcements"
@@ -145,6 +153,8 @@ export default function App() {
 
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            </ConfirmProvider>
+            </ToastProvider>
         </BrowserRouter>
         </AuthProvider>
     );

@@ -1,0 +1,21 @@
+.error {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--card-stroke-color, #334155);
+    border-radius: 10px;
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+.error i { color: #f87171; }
+.error span { flex: 1; overflow-wrap: anywhere; }
+.error button {
+    border: 1px solid var(--card-stroke-color, #475569);
+    border-radius: 6px;
+    padding: 5px 9px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}

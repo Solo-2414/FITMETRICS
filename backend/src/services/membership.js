@@ -67,7 +67,7 @@ export const queueReceiptEmail = async ({ memberId, plan, payment }) => {
   });
 };
 
-const nextReceiptNumber = async () => {
+export const nextReceiptNumber = async () => {
   const { data, error } = await supabaseAdmin.rpc('next_fitmetrics_receipt_number');
   if (error) throw error;
   return data;
@@ -94,7 +94,7 @@ export const createMembershipAndPayment = async ({
   const dates = await nextMembershipDates(memberId, plan.duration_days);
   const { data: membership, error: membershipError } = await supabaseAdmin.from('memberships').insert({
     member_id: memberId, plan_id: plan.id, coach_id: coachId, coach_addon_amount: coachAddonAmount,
-    ...dates, status: 'active', created_by: actorId || null,
+    start_date: dates.startDate, end_date: dates.endDate, status: 'active', created_by: actorId || null,
   }).select().single();
   if (membershipError) throw membershipError;
   const { data: payment, error: paymentError } = await supabaseAdmin.from('payments').insert({
@@ -130,6 +130,7 @@ export const startClerkPayment = async ({
   const coachAddonAmount = Number(coach?.addon_amount || coach?.monthly_price || 0);
   const total = pricing.amount + coachAddonAmount;
   if (total <= 0) throw new Error('The payment amount must be greater than zero.');
+  if (method === 'qrph') throw new Error('QR Ph payments must use the dedicated QR flow.');
   if (method === 'cash' && kind === 'session') {
     const { data: visit, error: visitError } = await supabaseAdmin.from('walk_in_visits').insert({
       plan_id: plan.id, guest_name: guest?.name || null, guest_phone: guest?.phone || null,
@@ -194,7 +195,8 @@ export const activatePaymentMembership = async (payment) => {
   const dates = await nextMembershipDates(payment.member_id, plan.duration_days);
   const { data: membership, error: membershipError } = await supabaseAdmin.from('memberships').insert({
     member_id: payment.member_id, plan_id: plan.id, coach_id: payment.coach_id || null,
-    coach_addon_amount: Number(payment.coach_addon_amount || 0), ...dates, status: 'active', created_by: payment.received_by,
+    coach_addon_amount: Number(payment.coach_addon_amount || 0),
+    start_date: dates.startDate, end_date: dates.endDate, status: 'active', created_by: payment.received_by,
   }).select().single();
   if (membershipError) throw membershipError;
   const { data: updatedPayment, error: paymentError } = await supabaseAdmin.from('payments').update({
@@ -212,6 +214,29 @@ export const activatePaymentMembership = async (payment) => {
     console.error(`Receipt email could not be queued for payment ${payment.id}: ${error.message}`);
   }
   return { data: membership, payment: updatedPayment, plan };
+};
+
+export const expirePendingQrPayments = async () => {
+  const { data, error } = await supabaseAdmin.from('payments')
+    .update({ status: 'expired', failure_reason: 'QR Ph payment expired.' })
+    .eq('method', 'qrph')
+    .eq('status', 'pending')
+    .lt('qr_expires_at', new Date().toISOString())
+    .select('id');
+  if (error) throw error;
+  return data || [];
+};
+
+export const markPaymentNeedsReview = async (payment, error) => {
+  const reason = error?.message || 'Payment activation failed.';
+  const { data, error: updateError } = await supabaseAdmin.from('payments')
+    .update({ status: 'needs_review', failure_reason: reason })
+    .eq('id', payment.id)
+    .eq('status', 'pending')
+    .select()
+    .maybeSingle();
+  if (updateError) throw updateError;
+  return data || { ...payment, status: 'needs_review', failure_reason: reason };
 };
 
 export { addDays };

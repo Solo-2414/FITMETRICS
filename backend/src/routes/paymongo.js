@@ -2,10 +2,10 @@ import crypto from 'node:crypto';
 import { Router } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { activatePaymentMembership } from '../services/membership.js';
+import { activatePaymentMembership, markPaymentNeedsReview } from '../services/membership.js';
 import { enqueueEmail } from '../services/emailQueue.js';
 import { notifyStaff } from '../services/notify.js';
-import { finalizeRegistrationIntent } from '../services/registration.js';
+import { finalizeIntent } from '../services/registration.js';
 
 const router = Router();
 const paymongoUrl = 'https://api.paymongo.com/v1';
@@ -177,10 +177,20 @@ router.get('/clerk/payments/:id/status', requireAuth, requireRole('admin', 'cler
     const attributes = intent?.data?.attributes || {};
     const status = attributes.status;
     if (['succeeded', 'paid'].includes(status)) {
-      return res.json((await activatePaymentMembership({
-        ...payment,
-        provider_payment_id: attributes.latest_payment_id || attributes.payment_id || null,
-      })).payment);
+      if (attributes.amount != null && Number(attributes.amount) / 100 !== Number(payment.amount)) {
+        await supabaseAdmin.from('payments').update({ status: 'needs_review', failure_reason: 'PayMongo amount did not match the renewal total.' }).eq('id', payment.id).eq('status', 'pending');
+        await notifyStaff({ type: 'payment', title: 'Payment needs review', message: `QR Ph payment ${payment.id} has an amount mismatch.`, meta: { payment_id: payment.id } });
+        return res.json({ ...payment, status: 'needs_review' });
+      }
+      try {
+        return res.json((await activatePaymentMembership({
+          ...payment,
+          provider_payment_id: attributes.latest_payment_id || attributes.payment_id || null,
+        })).payment);
+      } catch (activationError) {
+        const reviewed = await markPaymentNeedsReview(payment, activationError);
+        return res.json({ ...reviewed, error_message: 'Payment received, but membership confirmation needs staff review.' });
+      }
     }
     if (['failed', 'cancelled', 'expired'].includes(status)) {
       await supabaseAdmin.from('payments').update({ status, failure_reason: `PayMongo status: ${status}` }).eq('id', payment.id).eq('status', 'pending');
@@ -196,16 +206,27 @@ router.get('/clerk/payments/:id/qr', requireAuth, requireRole('admin', 'clerk'),
     const intent = await paymongoRequest(`/payment_intents/${payment.provider_intent_id}`);
     const imageUrl = intent?.data?.attributes?.next_action?.code?.image_url;
     if (!imageUrl) return res.status(410).json({ error: 'The QR Ph code is no longer available.' });
-    res.json({ payment_id: payment.id, image_url: imageUrl, expires_at: payment.qr_expires_at });
+    res.json({
+      payment_id: payment.id,
+      qr_image_url: imageUrl,
+      expires_at: payment.qr_expires_at,
+      amount_total: Number(payment.amount),
+      simulation_enabled: process.env.NODE_ENV !== 'production' && process.env.ALLOW_PAYMENT_SIMULATION === 'true',
+    });
   } catch (error) { next(error); }
 });
 
-router.post('/clerk/payments/:id/simulate-paid', requireAuth, requireRole('admin'), async (req, res, next) => {
-  if (process.env.NODE_ENV === 'production') return res.status(404).json({ error: 'Not found.' });
+router.post('/clerk/payments/:id/simulate-paid', requireAuth, requireRole('admin', 'clerk'), async (req, res, next) => {
+  if (process.env.NODE_ENV === 'production' || process.env.ALLOW_PAYMENT_SIMULATION !== 'true') return res.status(404).json({ error: 'Not found.' });
   try {
     const { data: payment, error } = await supabaseAdmin.from('payments').select('*, membership_plans(*)').eq('id', req.params.id).single();
     if (error || !payment) return res.status(404).json({ error: 'Payment not found.' });
-    res.json((await activatePaymentMembership({ ...payment, provider_payment_id: `dev-${payment.id}` })).payment);
+    try {
+      res.json((await activatePaymentMembership({ ...payment, provider_payment_id: `dev-${payment.id}` })).payment);
+    } catch (activationError) {
+      const reviewed = await markPaymentNeedsReview(payment, activationError);
+      res.json({ ...reviewed, error_message: 'Payment received, but membership confirmation needs staff review.' });
+    }
   } catch (error) { next(error); }
 });
 
@@ -302,10 +323,12 @@ export const handlePaymongoEvent = async (event) => {
   const failed = /payment\.failed/.test(eventType);
   const expired = /qrph\.expired|payment\.expired/.test(eventType);
   const status = paid ? 'succeeded' : failed ? 'failed' : expired ? 'expired' : attributes.status;
-  const result = await finalizeRegistrationIntent({
-    intent, providerStatus: status, providerIntentId, providerAmount: attributes.amount,
+  const result = await finalizeIntent(intent, {
+    providerStatus: status, providerIntentId,
     actorId: null, getPlan: getRegistrationPlan, getCoach: getRegistrationCoach,
     providerPaymentId: attributes.latest_payment_id || attributes.payment_id || null,
+    paidAmount: attributes.amount == null ? null : Number(attributes.amount) / 100,
+    source: 'webhook',
   });
   return { matched: true, result };
 };
@@ -356,9 +379,16 @@ router.post('/paymongo/webhook', async (req, res) => {
     const paid = /payment\.paid|checkout_session\.payment\.paid|qrph\.paid/.test(eventType)
     const failed = /payment\.failed|checkout_session\.payment\.failed/.test(eventType);
     const expired = /checkout_session\.expired|payment\.expired|qrph\.expired/.test(eventType);
-    if (paid && payment.status === 'pending') {
+    if (paid && attributes.amount != null && Number(attributes.amount) / 100 !== Number(payment.amount)) {
+      await supabaseAdmin.from('payments').update({ status: 'needs_review', failure_reason: 'PayMongo amount did not match the renewal total.' }).eq('id', payment.id).eq('status', 'pending');
+      await notifyStaff({ type: 'payment', title: 'Payment needs review', message: `QR Ph payment ${payment.id} has an amount mismatch.`, meta: { payment_id: payment.id } });
+    } else if (paid && payment.status === 'pending') {
       const providerPaymentId = attributes.payment_intent_id || attributes.payment_id || attributes.id || null;
-      await activatePaymentMembership({ ...payment, provider_payment_id: providerPaymentId });
+      try {
+        await activatePaymentMembership({ ...payment, provider_payment_id: providerPaymentId });
+      } catch (activationError) {
+        await markPaymentNeedsReview(payment, activationError);
+      }
     } else if (paid && ['cancelled', 'expired', 'failed'].includes(payment.status)) {
       // Money arrived for a payment we already closed (e.g. QR scanned after the clerk pressed Cancel).
       await notifyStaff({ type: 'payment', title: 'Payment received after cancellation', message: `PayMongo reported a paid QR Ph payment (${payment.id}) that was already ${payment.status}. Refund it in PayMongo or register the member again.`, meta: { payment_id: payment.id } });

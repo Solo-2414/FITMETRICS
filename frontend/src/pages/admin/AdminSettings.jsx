@@ -3,12 +3,14 @@ import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminSettings.module.css";
 import { api, downloadApi } from "../../lib/api";
 import { SkeletonForm } from "../../components/ui/Skeleton";
+import InlineError from "../../components/ui/InlineError";
+import { useToast } from "../../components/ui/toast/useToast";
 
 export default function AdminSettings() {
+    const toast = useToast();
     const formRef = useRef(null);
     const [settings, setSettings] = useState(null);
     const [error, setError] = useState("");
-    const [saved, setSaved] = useState(false);
     const [saving, setSaving] = useState(false);
     const [systemInfo, setSystemInfo] = useState(null);
     const [backups, setBackups] = useState([]);
@@ -32,7 +34,7 @@ export default function AdminSettings() {
     }, []);
     const save = async (event) => {
         event.preventDefault();
-        setSaving(true); setError(""); setSaved(false);
+        setSaving(true); setError("");
         const form = new FormData(formRef.current);
         const data = Object.fromEntries(form.entries());
         try {
@@ -45,7 +47,7 @@ export default function AdminSettings() {
                 show_live_capacity: form.has("show_live_capacity"),
                 maintenance_starts_at: data.maintenance_starts_at || null,
             }});
-            setSettings(result); setSaved(true);
+            setSettings(result); toast.success("Settings saved.");
         } catch (err) {
             setError(err.message);
             focusTimeField(err.message);
@@ -67,8 +69,7 @@ export default function AdminSettings() {
     };
     return (
         <AdminLayout>
-            {error && <div className="alert alert-danger">{error}</div>}
-            {saved && <div className="alert alert-success">Settings saved.</div>}
+            {error && <InlineError error={error} />}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                 data-aos="fade-down"
@@ -341,6 +342,19 @@ export default function AdminSettings() {
                                                 }
                                             />
                                         </label>
+                                        <label className={styles.checkboxLabel}>
+                                            <div className="d-flex align-items-center gap-2">
+                                                <i className="fa-solid fa-qrcode text-info"></i>{" "}
+                                                QR Ph (GCash, Maya, bank apps)
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                name="payment_modes"
+                                                value="qrph"
+                                                defaultChecked={settings?.payment_modes?.includes("qrph") ?? false}
+                                                className={styles.customCheckbox}
+                                            />
+                                        </label>
                                     </div>
                                 </div>
 
@@ -588,6 +602,18 @@ export default function AdminSettings() {
                         </div>
                     </div>
                 </div>
+                <section className={`${styles.settingsCard} mt-4`}>
+                    <div className={styles.cardHeader}><h3 className={styles.cardTitle}>Business & receipts</h3><p className={styles.cardDesc}>Optional details used on payment receipts</p></div>
+                    <div className="row g-3 p-4">
+                        {[
+                            ["business_legal_name", "Legal business name"], ["business_address", "Business address"],
+                            ["business_tin", "TIN"], ["receipt_series_prefix", "Receipt series prefix"],
+                            ["support_email", "Support email"], ["support_phone", "Support phone"],
+                            ["bir_permit_note", "BIR permit note"], ["receipt_footer_note", "Receipt footer note"],
+                        ].map(([name, label]) => <div className="col-12 col-md-6" key={name}><label className={styles.formLabel}>{label}</label><input className={styles.formInput} name={name} defaultValue={settings?.[name] || ""} /></div>)}
+                        <div className="col-12 col-md-6"><label className={styles.formLabel}>VAT status</label><select className={styles.formSelect} name="vat_status" defaultValue={settings?.vat_status || "unregistered"}><option value="unregistered">Unregistered</option><option value="non_vat">Non-VAT</option><option value="vat">VAT</option></select></div>
+                    </div>
+                </section>
             </form>}
 
             <div

@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth, homePathForRole } from "../context/AuthContext";
 import "../App.css";
 import { api } from "../lib/api";
+import { useToast } from "../components/ui/toast/useToast";
 
 export default function Login() {
     const [showPassword, setShowPassword] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
     const { signIn, session, profile, loading } = useAuth();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [error, setError] = useState("");
+    const toast = useToast();
     const [submitting, setSubmitting] = useState(false);
     const [maintenance, setMaintenance] = useState(null);
     useEffect(() => { api("/public/status").then((status) => setMaintenance(status.maintenance ? status : null)).catch(() => {}); }, []);
@@ -22,12 +24,18 @@ export default function Login() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError("");
         setSubmitting(true);
         const { error: signInError, profile: prof } = await signIn(email, password);
         setSubmitting(false);
-        if (signInError) return setError(signInError);
-        navigate(homePathForRole(prof.role), { replace: true });
+        if (signInError) {
+            toast.error(signInError);
+            return;
+        }
+        const preferredLanding = prof.role === "clerk" && !location.state?.from
+            ? (await api("/clerk/settings/preferences").catch(() => ({}))).defaultLandingPage === "attendance"
+                ? "/clerk/attendance" : "/clerk/dashboard"
+            : null;
+        navigate(location.state?.from?.pathname ? `${location.state.from.pathname}${location.state.from.search || ""}` : preferredLanding || homePathForRole(prof.role), { replace: true });
     };
 
     return (
@@ -88,6 +96,7 @@ export default function Login() {
                     <p className="card-subtitle mb-4">
                         Log in to your account to continue.
                     </p>
+                    {/* toast-allow: persistent maintenance notice */}
                     {maintenance && <div className="alert alert-warning">{maintenance.message} Staff access remains available.</div>}
 
                     <form onSubmit={handleSubmit}>
@@ -142,20 +151,6 @@ export default function Login() {
                                 Forgot Password?
                             </Link>
                         </div>
-
-                        {error && (
-                            <div
-                                role="alert"
-                                className="mb-3"
-                                style={{
-                                    color: "#f87171",
-                                    fontSize: "0.85rem",
-                                    textAlign: "center",
-                                }}
-                            >
-                                {error}
-                            </div>
-                        )}
 
                         <button
                             type="submit"

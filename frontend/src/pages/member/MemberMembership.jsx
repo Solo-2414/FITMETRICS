@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberMembership.module.css";
+import InlineError from "../../components/ui/InlineError";
 import { api } from "../../lib/api";
 import { SkeletonCards } from "../../components/ui/Skeleton";
 
@@ -12,7 +13,7 @@ export default function MemberMembership() {
     const currentPlan = current?.membership_plans;
     return (
         <MemberLayout>
-            {error && <div className="alert alert-danger">{error}</div>}
+            {error && <InlineError error={error} />}
             {!data ? <SkeletonCards count={4} /> : <>
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <div>

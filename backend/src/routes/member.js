@@ -1,34 +1,35 @@
 import { Router } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { getMembershipState } from '../services/membershipState.js';
 
 const router = Router();
 router.use('/member', requireAuth, requireRole('member'));
 
 router.get('/member/dashboard', async (req, res, next) => {
   try {
-    const [membership, attendance, notifications, settings] = await Promise.all([
-      supabaseAdmin.from('memberships').select('*, membership_plans(*), coaches(*)').eq('member_id', req.user.id).order('end_date', { ascending: false }).limit(1).maybeSingle(),
+    const [membershipState, attendance, notifications, settings] = await Promise.all([
+      getMembershipState(req.user.id),
       supabaseAdmin.from('member_attendance_summary').select('*').eq('member_id', req.user.id).maybeSingle(),
       supabaseAdmin.from('notifications').select('id, title, message, type, announcement_id, read_at, created_at').eq('user_id', req.user.id).order('created_at', { ascending: false }).limit(5),
       supabaseAdmin.from('gym_settings').select('show_live_capacity').eq('id', true).maybeSingle(),
     ]);
-    const failure = [membership, attendance, notifications, settings].find((item) => item.error);
+    const failure = [attendance, notifications, settings].find((item) => item.error);
     if (failure) return next(failure.error);
-    res.json({ membership: membership.data, attendance: attendance.data, notifications: notifications.data || [], showLiveCapacity: settings.data?.show_live_capacity ?? true });
+    res.json({ membership: membershipState.current, next_membership: membershipState.queued[0] || null, attendance: attendance.data, notifications: notifications.data || [], showLiveCapacity: settings.data?.show_live_capacity ?? true });
   } catch (error) { next(error); }
 });
 
 router.get('/member/membership', async (req, res, next) => {
   try {
-    const [current, plans, coaches] = await Promise.all([
-      supabaseAdmin.from('memberships').select('*, membership_plans(*), coaches(*)').eq('member_id', req.user.id).order('end_date', { ascending: false }).limit(1).maybeSingle(),
+    const [membershipState, plans, coaches] = await Promise.all([
+      getMembershipState(req.user.id),
       supabaseAdmin.from('membership_plans').select('*').eq('active', true).order('duration_days'),
       supabaseAdmin.from('coaches').select('*').eq('active', true).order('display_name'),
     ]);
-    const failure = [current, plans, coaches].find((item) => item.error);
+    const failure = [plans, coaches].find((item) => item.error);
     if (failure) return next(failure.error);
-    res.json({ current: current.data, plans: plans.data || [], coaches: coaches.data || [] });
+    res.json({ current: membershipState.current, next_membership: membershipState.queued[0] || null, plans: plans.data || [], coaches: coaches.data || [] });
   } catch (error) { next(error); }
 });
 

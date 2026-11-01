@@ -4,11 +4,16 @@ import { api } from "../../lib/api";
 import { VIDEO_CATEGORIES } from "../../lib/videoCategories";
 import styles from "./AdminVideoTutorials.module.css";
 import { SkeletonCards } from "../../components/ui/Skeleton";
+import InlineError from "../../components/ui/InlineError";
+import { useToast } from "../../components/ui/toast/useToast";
+import { useConfirm } from "../../components/ui/toast/useConfirm";
 
 const emptyForm = { title: "", category: "", difficulty: "", duration: "", video_url: "", visibility: "public" };
 const formatDuration = (seconds) => seconds == null ? "No duration" : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
 export default function AdminVideoTutorials() {
+    const toast = useToast();
+    const confirm = useConfirm();
     const [videos, setVideos] = useState([]);
     const [form, setForm] = useState(emptyForm);
     const [editing, setEditing] = useState(null);
@@ -63,15 +68,16 @@ export default function AdminVideoTutorials() {
         } catch (err) { setError(err.message); }
     };
     const remove = async (video) => {
-        if (!window.confirm(`Delete “${video.title}”? This cannot be undone.`)) return;
+        if (!await confirm({ title: "Delete video?", message: `Delete “${video.title}”? This cannot be undone.`, danger: true })) return;
         try {
             await api(`/admin/videos/${video.id}`, { method: "DELETE" });
             setVideos((items) => items.filter((item) => item.id !== video.id));
-        } catch (err) { setError(err.message); }
+            toast.success("Video tutorial deleted.");
+        } catch (err) { toast.error(err.message); }
     };
 
     return <AdminLayout>
-        {error && <div className="alert alert-danger">{error}</div>}
+        {error && <InlineError error={error} />}
         <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3">
             <div><h1 className={styles.pageTitle}>Workout Video Tutorials</h1><p className={styles.pageDesc}>Manage YouTube and Vimeo exercise guides for gym members.</p></div>
             <button className={styles.btnPrimary} onClick={openAdd}><i className="fa-solid fa-plus"></i> Add New Video Tutorial</button>

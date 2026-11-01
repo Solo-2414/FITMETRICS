@@ -2,6 +2,7 @@ import { Bar } from "react-chartjs-2";
 import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminPredictiveAnalytics.module.css";
+import InlineError from "../../components/ui/InlineError";
 import { api } from "../../lib/api";
 import { buildBarOptions } from "../../lib/chartDefaults";
 import { SkeletonChart, SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
@@ -51,7 +52,7 @@ export default function AdminPredictiveAnalytics() {
 
     return (
         <AdminLayout>
-            {error && <div className="alert alert-danger">{error}</div>}
+            {error && <InlineError error={error} />}
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <h1 className={styles.pageTitle}>Predictive Analytics</h1>
                 <p className={styles.pageDesc}>

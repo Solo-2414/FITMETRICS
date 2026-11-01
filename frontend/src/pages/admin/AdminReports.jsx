@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminReports.module.css";
+import InlineError from "../../components/ui/InlineError";
 import { api, downloadApi } from "../../lib/api";
 import { SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
 
@@ -74,7 +75,7 @@ export default function AdminReports() {
     const money = (value) => Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return (
         <AdminLayout>
-            {error && <div className="alert alert-danger">{error}</div>}
+            {error && <InlineError error={error} />}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                 data-aos="fade-down"

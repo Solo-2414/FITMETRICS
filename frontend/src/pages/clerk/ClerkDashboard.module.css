@@ -414,6 +414,70 @@
     background-color: rgba(56, 189, 248, 0.1);
 }
 
+.modalBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(2, 8, 23, 0.72);
+}
+
+.drawerModal {
+    width: min(100%, 30rem);
+    max-width: 32rem;
+    background: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.modalClose,
+.modalCancel {
+    border: 1px solid var(--card-stroke-color);
+    background: transparent;
+    color: var(--text-color);
+    border-radius: 6px;
+    padding: 0.45rem 0.75rem;
+}
+
+.modalSubmit {
+    border: 0;
+    background: var(--primary-color);
+    color: #051424;
+    border-radius: 6px;
+    padding: 0.45rem 1rem;
+    font-weight: 700;
+}
+
+.drawerField {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    margin-bottom: 0.9rem;
+}
+
+.drawerField input,
+.drawerField select,
+.drawerField textarea {
+    width: 100%;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 6px;
+    background: var(--card-bg-dark);
+    color: var(--header-text-color);
+    padding: 0.6rem 0.7rem;
+}
+
+.drawerField textarea {
+    min-height: 5rem;
+    resize: vertical;
+}
+
 .warningBadge {
     background-color: rgba(245, 158, 11, 0.1);
     color: #f59e0b;

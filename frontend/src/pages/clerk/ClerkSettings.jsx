@@ -4,22 +4,19 @@ import styles from "./ClerkSettings.module.css";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { SkeletonForm } from "../../components/ui/Skeleton";
+import { useTerminalPreferences } from "../../hooks/useTerminalPreferences";
+import { useToast } from "../../components/ui/toast/useToast";
 
 export default function ClerkSettings() {
+    const toast = useToast();
     const { profile, refreshProfile } = useAuth();
-    const [settings, setSettings] = useState(null);
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState("");
     const [loading, setLoading] = useState(true);
     const [phone, setPhone] = useState("");
     const [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" });
-    const [preferences, setPreferences] = useState(() => ({
-        audioAlerts: localStorage.getItem("fitmetrics.audioAlerts") !== "false",
-        paymentPrompt: localStorage.getItem("fitmetrics.paymentPrompt") !== "false",
-    }));
+    const { preferences, updatePreference, resetPreferences } = useTerminalPreferences();
     const fileInput = useRef(null);
     useEffect(() => {
-        api("/clerk/settings").then(setSettings).catch((err) => setError(err.message)).finally(() => setLoading(false));
+        api("/clerk/settings").catch((err) => toast.error(err.message)).finally(() => setLoading(false));
     }, []);
     useEffect(() => { setPhone(profile?.phone || ""); }, [profile?.phone]);
     const names = (profile?.full_name || "").trim().split(/\s+/);
@@ -27,23 +24,22 @@ export default function ClerkSettings() {
     const lastName = names.join(" ");
     const initials = (profile?.full_name || "Clerk").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
     const savePhone = async () => {
-        try { await api("/me", { method: "PATCH", body: { phone } }); await refreshProfile(); setSuccess("Profile updated."); setError(""); } catch (err) { setError(err.message); setSuccess(""); }
+        try { await api("/me", { method: "PATCH", body: { phone } }); await refreshProfile(); toast.success("Profile updated."); } catch (err) { toast.error(err.message); }
     };
     const updatePassword = async () => {
-        if (passwords.next !== passwords.confirm) { setError("New passwords do not match."); return; }
-        try { await api("/me/password", { method: "POST", body: { current_password: passwords.current, new_password: passwords.next } }); setPasswords({ current: "", next: "", confirm: "" }); setSuccess("Password updated."); setError(""); } catch (err) { setError(err.message); setSuccess(""); }
+        if (passwords.next !== passwords.confirm) { toast.error("New passwords do not match."); return; }
+        try { await api("/me/password", { method: "POST", body: { current_password: passwords.current, new_password: passwords.next } }); setPasswords({ current: "", next: "", confirm: "" }); toast.success("Password updated."); } catch (err) { toast.error(err.message); }
     };
     const uploadAvatar = async (event) => {
         const file = event.target.files?.[0];
         if (!file) return;
-        if (!["image/jpeg", "image/png"].includes(file.type) || file.size > 5 * 1024 * 1024) { setError("Choose a JPG or PNG image under 5MB."); return; }
+        if (!["image/jpeg", "image/png"].includes(file.type) || file.size > 5 * 1024 * 1024) { toast.error("Choose a JPG or PNG image under 5MB."); return; }
         const body = new FormData(); body.append("avatar", file);
-        try { await api("/me/avatar", { method: "POST", body }); await refreshProfile(); setSuccess("Profile photo updated."); setError(""); } catch (err) { setError(err.message); setSuccess(""); }
+        try { await api("/me/avatar", { method: "POST", body }); await refreshProfile(); toast.success("Profile photo updated."); } catch (err) { toast.error(err.message); }
     };
     const removeAvatar = async () => {
-        try { await api("/me/avatar", { method: "DELETE" }); await refreshProfile(); setSuccess("Profile photo removed."); setError(""); } catch (err) { setError(err.message); setSuccess(""); }
+        try { await api("/me/avatar", { method: "DELETE" }); await refreshProfile(); toast.success("Profile photo removed."); } catch (err) { toast.error(err.message); }
     };
-    const setPreference = (key, value) => { setPreferences((current) => ({ ...current, [key]: value })); localStorage.setItem(`fitmetrics.${key}`, String(value)); };
     if (loading) {
         return <ClerkLayout>
             <h1 className={styles.pageTitle}>Account Settings</h1>
@@ -64,8 +60,6 @@ export default function ClerkSettings() {
                         terminal preferences
                     </p>
                 </div>
-                {error && <div className="alert alert-danger">{error}</div>}
-                {success && <div className="alert alert-success">{success}</div>}
             </div>
 
             <form onSubmit={(e) => e.preventDefault()}>
@@ -317,7 +311,7 @@ export default function ClerkSettings() {
                                         </span>
                                     </div>
                                     <label className={styles.toggleSwitch}>
-                                        <input type="checkbox" checked={preferences.audioAlerts} onChange={(event) => setPreference("audioAlerts", event.target.checked)} />
+                                        <input type="checkbox" checked={preferences.audioAlerts} onChange={(event) => updatePreference("audioAlerts", event.target.checked)} />
                                         <span
                                             className={styles.toggleSlider}
                                         ></span>
@@ -346,20 +340,27 @@ export default function ClerkSettings() {
                                         </span>
                                     </div>
                                     <label className={styles.toggleSwitch}>
-                                        <input type="checkbox" checked={preferences.paymentPrompt} onChange={(event) => setPreference("paymentPrompt", event.target.checked)} />
+                                        <input type="checkbox" checked={preferences.paymentPrompt} onChange={(event) => updatePreference("paymentPrompt", event.target.checked)} />
                                         <span
                                             className={styles.toggleSlider}
                                         ></span>
                                     </label>
                                 </div>
 
-                                <div className="d-flex justify-content-between align-items-center">
+                                <div className="mb-4">
+                                    <label className={styles.formLabel}>Default payment method</label>
+                                    <select className={styles.formInput} value={preferences.defaultPaymentMethod} onChange={(event) => updatePreference("defaultPaymentMethod", event.target.value)}>
+                                        <option value="cash">Cash</option><option value="gcash">GCash</option><option value="maya">Maya</option>
+                                    </select>
+                                    <span className={styles.helperText}>Preselect this method at the payment terminal.</span>
+                                </div>
+                                <div className="d-flex justify-content-between align-items-center mb-4">
                                     <div>
                                         <span
                                             className="d-block text-white fw-bold mb-1"
                                             style={{ fontSize: "0.85rem" }}
                                         >
-                                            Shift Summary Emails
+                                            Fast Check-in auto-focus
                                         </span>
                                         <span
                                             className="text-secondary"
@@ -370,16 +371,26 @@ export default function ClerkSettings() {
                                                 maxWidth: "200px",
                                             }}
                                         >
-                                            Coming soon
+                                            Focus the member search when Attendance opens
                                         </span>
                                     </div>
                                     <label className={styles.toggleSwitch}>
-                                        <input type="checkbox" disabled />
+                                        <input type="checkbox" checked={preferences.fastCheckinAutoFocus} onChange={(event) => updatePreference("fastCheckinAutoFocus", event.target.checked)} />
                                         <span
                                             className={styles.toggleSlider}
                                         ></span>
                                     </label>
                                 </div>
+                                <div className="d-flex justify-content-between align-items-center mb-4">
+                                    <div><span className="d-block text-white fw-bold mb-1" style={{ fontSize: "0.85rem" }}>Auto-clear after check-in</span><span className="text-secondary" style={{ fontSize: "0.75rem" }}>Clear the search field after a successful check-in</span></div>
+                                    <label className={styles.toggleSwitch}><input type="checkbox" checked={preferences.autoClearCheckinSearch} onChange={(event) => updatePreference("autoClearCheckinSearch", event.target.checked)} /><span className={styles.toggleSlider}></span></label>
+                                </div>
+                                <div className="mb-3">
+                                    <label className={styles.formLabel}>Opening cash float (₱)</label>
+                                    <input type="number" min="0" className={styles.formInput} value={preferences.openingFloat} onChange={(event) => updatePreference("openingFloat", Number(event.target.value))} />
+                                    <span className={styles.helperText}>Suggested default when opening a drawer; each drawer has its own float.</span>
+                                </div>
+                                <button type="button" className={styles.btnCancel} onClick={() => resetPreferences()}>Reset to defaults</button>
                             </div>
                         </div>
                     </div>

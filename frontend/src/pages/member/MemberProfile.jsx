@@ -3,14 +3,16 @@ import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberProfile.module.css";
 import { api } from "../../lib/api";
 import { SkeletonForm } from "../../components/ui/Skeleton";
+import InlineError from "../../components/ui/InlineError";
+import { useToast } from "../../components/ui/toast/useToast";
 
 export default function MemberProfile() {
+    const toast = useToast();
     const [data, setData] = useState(null);
     const [dashboard, setDashboard] = useState(null);
     const [profile, setProfile] = useState(null);
     const attendance = dashboard?.attendance;
     const [error, setError] = useState("");
-    const [saved, setSaved] = useState(false);
     const membership = dashboard?.membership;
     const current = data?.current;
     const currentPlan = current?.membership_plans;
@@ -29,14 +31,13 @@ export default function MemberProfile() {
                 emergency_contact_name: data.emergency_contact_name,
                 emergency_contact_phone: data.emergency_contact_phone,
             }});
-            setProfile(result); setSaved(true);
-        } catch (err) { setError(err.message); }
+            setProfile(result); toast.success("Profile saved.");
+        } catch (err) { toast.error(err.message); }
     };
     return (
         <MemberLayout>
-            {error && <div className="alert alert-danger">{error}</div>}
+            {error && <InlineError error={error} />}
             {!profile || !data || !dashboard ? <SkeletonForm fields={8} cols={2} /> : <>
-            {saved && <div className="alert alert-success">Profile saved.</div>}
             <div className="mb-4" data-aos="fade-down" data-aos-delay="100">
                 <h1 className={styles.pageTitle}>My Profile</h1>
                 <p className={styles.pageDesc}>

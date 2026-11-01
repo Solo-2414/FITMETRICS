@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useEffect } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberNotifications.module.css";
+import InlineError from "../../components/ui/InlineError";
 import { api } from "../../lib/api";
 import { SkeletonList } from "../../components/ui/Skeleton";
 
@@ -96,7 +97,7 @@ export default function MemberNotifications() {
                         announcements, and messages from your coach.
                     </p>
                 </div>
-                {error && <div className="alert alert-danger">{error}</div>}
+                {error && <InlineError error={error} />}
                 <button className={styles.btnOutline} onClick={() => api("/member/notifications", { method: "PATCH" }).then(() => setNotifications((rows) => rows.map((row) => ({ ...row, isRead: true })))).catch((err) => setError(err.message))}>
                     <i className="fa-solid fa-check-double"></i> Mark all as
                     read

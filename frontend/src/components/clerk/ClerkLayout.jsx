@@ -1,19 +1,49 @@
-import { useEffect, useState } from "react";
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
 import { Skeleton } from "../ui/Skeleton";
+import { playTerminalAlert, useTerminalPreferences } from "../../hooks/useTerminalPreferences";
+import { useToast } from "../ui/toast/useToast";
 import styles from "./ClerkLayout.module.css";
 
 export default function ClerkLayout({ children }) {
     const location = useLocation();
     const navigate = useNavigate();
     const { signOut, profile } = useAuth();
+    const toast = useToast();
     const [unreadCount, setUnreadCount] = useState(0);
+    const [notificationSummary, setNotificationSummary] = useState(null);
+    const [notificationOpen, setNotificationOpen] = useState(false);
+    const notificationRef = useRef(null);
+    const previousUnread = useRef(0);
+    const { preferences } = useTerminalPreferences();
     const [avatarFailed, setAvatarFailed] = useState(false);
+    const loadNotificationSummary = useCallback(() => api("/clerk/notifications/summary?limit=5").then((summary) => {
+        if (summary.unread > previousUnread.current) playTerminalAlert(preferences.audioAlerts);
+        previousUnread.current = summary.unread;
+        setUnreadCount(summary.unread);
+        setNotificationSummary(summary);
+    }).catch(() => {}), [preferences.audioAlerts]);
     useEffect(() => {
-        api("/clerk/notifications").then((items) => setUnreadCount(items.filter((item) => !item.read_at).length)).catch(() => setUnreadCount(0));
-    }, [location.pathname]);
+        loadNotificationSummary();
+        const interval = window.setInterval(() => {
+            if (document.visibilityState === "visible") loadNotificationSummary();
+        }, 30000);
+        const onFocus = () => loadNotificationSummary();
+        const onChanged = () => loadNotificationSummary();
+        window.addEventListener("focus", onFocus);
+        window.addEventListener("fitmetrics:notifications-changed", onChanged);
+        return () => { window.clearInterval(interval); window.removeEventListener("focus", onFocus); window.removeEventListener("fitmetrics:notifications-changed", onChanged); };
+    }, [location.pathname, loadNotificationSummary]);
+    useEffect(() => {
+        const close = (event) => { if (!notificationRef.current?.contains(event.target)) setNotificationOpen(false); };
+        const escape = (event) => { if (event.key === "Escape") setNotificationOpen(false); };
+        document.addEventListener("mousedown", close);
+        document.addEventListener("keydown", escape);
+        return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", escape); };
+    }, []);
     const initials = (profile?.full_name || "Clerk").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
     const handleLogout = async (e) => {
@@ -22,20 +52,26 @@ export default function ClerkLayout({ children }) {
         navigate("/login", { replace: true });
     };
     const [activeInGym, setActiveInGym] = useState(null);
+    const [floorCapacity, setFloorCapacity] = useState(50);
+    const [floorLoadError, setFloorLoadError] = useState(false);
     const [date] = useState(() => 
         new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())
     );
 
+    const loadFloorCount = useCallback(() => {
+        setFloorLoadError(false);
+        api("/clerk/dashboard")
+            .then((data) => { setActiveInGym(data?.activeOnFloor ?? 0); setFloorCapacity(data?.capacity || 50); })
+            .catch((err) => { console.error("Error fetching live gym count:", err); setActiveInGym(null); setFloorLoadError(true); });
+    }, []);
+
     useEffect(() => {
-        api(`/attendance/analysis?date=${date}`)
-            .then((data) => setActiveInGym(data?.activeInGym ?? 0))
-            .catch((err) => console.error("Error fetching live gym count:", err));
-    }, [date]);
+        loadFloorCount();
+    }, [date, loadFloorCount]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showFastCheckInModal, setShowFastCheckInModal] = useState(false);
     const [checkInSearch, setCheckInSearch] = useState("");
     const [checkInMember, setCheckInMember] = useState(null);
-    const [checkInMessage, setCheckInMessage] = useState("");
     const [scannerBuffer, setScannerBuffer] = useState("");
 
     const closeSidebar = () => setIsSidebarOpen(false);
@@ -44,8 +80,8 @@ export default function ClerkLayout({ children }) {
         e.preventDefault();
         if (!checkInMember) return;
         api("/clerk/attendance", { method: "POST", body: { member_id: checkInMember.id, method: "member_id" } })
-            .then(() => { setCheckInMessage("Check-in recorded."); setShowFastCheckInModal(false); })
-            .catch((error) => setCheckInMessage(error.message));
+            .then(() => { toast.success("Check-in recorded."); setShowFastCheckInModal(false); })
+            .catch((error) => toast.error(error.message));
     };
     useEffect(() => {
         const onKeyDown = async (event) => {
@@ -58,8 +94,8 @@ export default function ClerkLayout({ children }) {
                     const member = rows.find((row) => row.member_details?.member_code === code || row.id === code);
                     if (!member) throw new Error("No member matches this scan.");
                     await api("/clerk/attendance", { method: "POST", body: { member_id: member.id, method: "qr" } });
-                    setCheckInMessage(`${member.full_name || "Member"} checked in.`);
-                } catch (error) { setCheckInMessage(error.message); }
+                    toast.success(`${member.full_name || "Member"} checked in.`);
+                } catch (error) { toast.error(error.message); }
                 return;
             }
             if (event.key.length === 1) setScannerBuffer((value) => `${value}${event.key}`.slice(-64));
@@ -188,10 +224,11 @@ export default function ClerkLayout({ children }) {
                         <div className="d-none d-md-flex align-items-center gap-3">
                             <div className={styles.gymStatus}>
                                 <span className={styles.statusDot}></span>{" "}
-                                Floor: {activeInGym !== null ? activeInGym : "..."} Active Members
+                                Floor: {activeInGym !== null ? activeInGym : "-"} Active Members
+                                {floorLoadError && <button type="button" className={styles.retryFloor} onClick={loadFloorCount}>Retry</button>}
                             </div>
                             <span className={styles.branchInfo}>
-                                Comfortable floor density (50 cap)
+                                {activeInGym !== null && activeInGym / floorCapacity >= 0.75 ? "Busy" : activeInGym !== null && activeInGym / floorCapacity >= 0.4 ? "Comfortable" : "Quiet"} floor density ({floorCapacity} cap)
                             </span>
                         </div>
                     </div>
@@ -202,10 +239,22 @@ export default function ClerkLayout({ children }) {
                         >
                             <i className="fa-solid fa-plus"></i> Fast Check-in
                         </button>
-                        <button className={styles.btnNotification} onClick={() => navigate("/clerk/notification")}>
+                        <div className={styles.notificationWrapper} ref={notificationRef}>
+                        <button className={styles.btnNotification} aria-label={`${unreadCount} unread notifications`} aria-expanded={notificationOpen} onClick={() => setNotificationOpen((open) => !open)}>
                             <i className="fa-regular fa-bell"></i>
-                            {unreadCount > 0 && <span className={styles.notificationDot}></span>}
+                            {unreadCount > 0 && <span className={styles.notificationBadge}>{unreadCount > 99 ? "99+" : unreadCount}</span>}
                         </button>
+                        {notificationOpen && <div className={styles.notificationPanel} role="dialog" aria-label="Notifications">
+                            <div className={styles.notificationPanelHeader}><strong>Notifications</strong><span>{unreadCount} unread</span></div>
+                            {!notificationSummary && <div className={styles.notificationLoading}>Loading notifications...</div>}
+                            {notificationSummary?.latest?.map((item) => <button className={styles.notificationItem} key={item.id} onClick={async () => { if (!item.read_at) await api(`/clerk/notifications/${item.id}`, { method: "PATCH" }); window.dispatchEvent(new Event("fitmetrics:notifications-changed")); setNotificationOpen(false); navigate(item.link || "/clerk/notification"); }}>
+                                <i className={`fa-solid ${item.type === "payment" ? "fa-money-bill" : item.type === "announcement" ? "fa-bullhorn" : item.type === "registration" ? "fa-user-plus" : "fa-bell"}`}></i><span><strong>{item.title}</strong><small>{item.message}</small></span>{!item.read_at && <b aria-label="Unread"></b>}
+                            </button>)}
+                            {notificationSummary?.latest?.length === 0 && <div className={styles.notificationEmpty}>You're all caught up</div>}
+                            <button className={styles.markAllButton} onClick={async () => { await api("/clerk/notifications", { method: "PATCH" }); window.dispatchEvent(new Event("fitmetrics:notifications-changed")); loadNotificationSummary(); }}>Mark all as read</button>
+                            <Link className={styles.viewAllLink} to="/clerk/notification" onClick={() => setNotificationOpen(false)}>View all notifications</Link>
+                        </div>}
+                        </div>
                         <div className={styles.userInfo}>
                             {avatarFailed ? <div className={styles.avatarImg}>{initials}</div> : <img src={profile?.avatar_url || "/placeholder.png"} alt="Clerk Avatar" className={styles.avatarImg} onError={() => setAvatarFailed(true)} />}
                             <div className="d-none d-sm-block">
@@ -259,7 +308,6 @@ export default function ClerkLayout({ children }) {
                                     <i className="fa-solid fa-magnifying-glass"></i>
                                 </div>
                                 {checkInMember && <p className="text-success">Selected: {checkInMember.full_name || checkInMember.email}</p>}
-                                {checkInMessage && <div className="alert alert-info">{checkInMessage}</div>}
                             </div>
 
                             <div

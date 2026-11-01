@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { api } from "../lib/api";
+import { api, getFriendlyError } from "../lib/api";
 import {setSessionPersistence, isSessionPersisted } from "../lib/supabase";
 
 const AuthContext = createContext(null);
@@ -82,7 +82,7 @@ export function AuthProvider({ children }) {
             return { profile: result.profile };
         } catch (error) {
             if (error.maintenance) await supabase.auth.signOut();
-            return { error: error.message };
+            return { error: getFriendlyError(error) };
         }
     };
 

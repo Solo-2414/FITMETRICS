@@ -1,18 +1,23 @@
 import { Router } from 'express';
 import { checkinQrExpiry, createCheckinToken } from '../lib/checkinQr.js';
+import { qrPaymentResponse } from '../lib/qrPayment.js';
+import { paymentMethodError } from '../lib/paymentModes.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createMembershipAndPayment, queueReceiptEmail, startClerkPayment } from '../services/membership.js';
-import { enqueueEmail } from '../services/emailQueue.js';
+import { createMembershipAndPayment, expirePendingQrPayments, nextReceiptNumber, queueReceiptEmail, startClerkPayment } from '../services/membership.js';
+import { enqueueEmail, processEmailQueue } from '../services/emailQueue.js';
 import { notifyStaff } from '../services/notify.js';
 import { dayStart, nextDayStart, today } from '../utils/time.js';
 import { cancelPaymongoIntent, createPaymongoCheckout, createQrphPayment, getPaymongoIntent, getPromo, priceFor } from './paymongo.js';
 import {
-  clearIntentForm, completeRegistration, findRegistrationConflict, registrationErrors, encryptFormForIntent,
-  finalizeRegistrationIntent,
+  clearIntentForm, completeRegistration, findRegistrationConflict, findRegistrationConflicts, registrationErrors, encryptFormForIntent,
+  finalizeIntent,
 } from '../services/registration.js';
 import { getGymSettings } from '../services/maintenance.js';
 import { checkInMember } from '../services/attendance.js';
+import { getMembershipState } from '../services/membershipState.js';
+import { renderEmail } from '../services/mailer.js';
+import { validateWalkInCustomer, walkInValidationResponse } from '../lib/walkInValidation.js';
 
 const router = Router();
 router.use('/clerk', requireAuth, requireRole('admin', 'clerk'));
@@ -24,11 +29,22 @@ const auditPayment = async (actorId, action, paymentId, details = {}) => {
   if (error) throw error;
 };
 
-const getPlan = async (planIdOrCode) => {
-  let query = supabaseAdmin.from('membership_plans').select('*').eq('active', true).eq('account_eligible', true);
+const getPlan = async (planIdOrCode, { allowSession = false } = {}) => {
+  let query = supabaseAdmin.from('membership_plans').select('*').eq('active', true);
+  if (!allowSession) query = query.eq('account_eligible', true);
   query = planIdOrCode?.length === 36 ? query.eq('id', planIdOrCode) : query.eq('code', planIdOrCode);
   const { data, error } = await query.single();
   if (error || !data) throw new Error('The selected membership plan is unavailable.');
+  return data;
+};
+
+const getWalkInPlan = async () => {
+  const { data, error } = await supabaseAdmin.from('membership_plans')
+    .select('*')
+    .eq('active', true)
+    .eq('code', 'session')
+    .single();
+  if (error || !data) throw new Error('The walk-in plan is unavailable.');
   return data;
 };
 
@@ -71,11 +87,27 @@ const getCoach = async (coachId) => {
   return data;
 };
 
-const createWalkInPayment = async ({ plan, guestName, guestPhone, amount, grossAmount, discount, promoId, method, actorId }) => {
+const createWalkInPayment = async ({ plan, guestName, guestPhone, guestEmail, isStudent, notes, amount, grossAmount, discount, promoId, method, cashTendered, checkInNow, actorId }) => {
+  const phone = normalizePhone(guestPhone);
+  const email = normalizeEmail(guestEmail);
+  const customerQuery = phone
+    ? supabaseAdmin.from('walk_in_customers').select('*').eq('phone_normalized', phone).maybeSingle()
+    : supabaseAdmin.from('walk_in_customers').select('*').eq('email_normalized', email).maybeSingle();
+  const existing = await customerQuery;
+  if (existing.error) throw existing.error;
+  let customer = existing.data;
+  if (!customer) {
+    const result = await supabaseAdmin.from('walk_in_customers').insert({
+      full_name: guestName, phone_normalized: phone || null, email_normalized: email || null,
+      is_student: Boolean(isStudent), notes: notes || null, visit_count: 0,
+    }).select().single();
+    if (result.error) throw result.error;
+    customer = result.data;
+  }
   const { data: visit, error: visitError } = await supabaseAdmin.from('walk_in_visits').insert({
     plan_id: plan.id,
-    guest_name: guestName || null,
-    guest_phone: guestPhone || null,
+    customer_id: customer.id, guest_name: guestName, guest_phone: phone || null, guest_email: email || null,
+    is_student: Boolean(isStudent), notes: notes || null, valid_until: `${today()}T23:59:59+08:00`,
     status: 'active',
     created_by: actorId,
   }).select().single();
@@ -91,19 +123,57 @@ const createWalkInPayment = async ({ plan, guestName, guestPhone, amount, grossA
     method,
     status: 'paid',
     received_by: actorId,
+    receipt_number: await nextReceiptNumber(),
+    cash_tendered: method === 'cash' ? Number(cashTendered) : null,
+    change_given: method === 'cash' ? Math.round((Number(cashTendered) - Number(amount)) * 100) / 100 : null,
     paid_at: new Date().toISOString(),
   }).select().single();
   if (paymentError) {
     await supabaseAdmin.from('walk_in_visits').delete().eq('id', visit.id);
+    if (!existing.data) await supabaseAdmin.from('walk_in_customers').delete().eq('id', customer.id);
     throw new Error(paymentError.message);
   }
+  const updatedVisit = await supabaseAdmin.from('walk_in_visits').update({
+    payment_id: payment.id,
+    checked_in_at: checkInNow ? new Date().toISOString() : null,
+  }).eq('id', visit.id).select().single();
+  if (updatedVisit.error) {
+    await supabaseAdmin.from('payments').delete().eq('id', payment.id);
+    await supabaseAdmin.from('walk_in_visits').delete().eq('id', visit.id);
+    if (!existing.data) await supabaseAdmin.from('walk_in_customers').delete().eq('id', customer.id);
+    throw updatedVisit.error;
+  }
+  const customerUpdate = await supabaseAdmin.from('walk_in_customers').update({
+    last_visit_at: new Date().toISOString(), visit_count: Number(customer.visit_count || 0) + 1,
+  }).eq('id', customer.id);
+  if (customerUpdate.error) throw customerUpdate.error;
+  if (checkInNow) {
+    const attendance = await supabaseAdmin.from('attendance').insert({
+      walk_in_visit_id: visit.id, method: 'manual', recorded_by: actorId,
+    });
+    if (attendance.error) throw attendance.error;
+  }
+  if (email) {
+    const settings = await getGymSettings();
+    await enqueueEmail({ emailType: 'receipt', recipient: email, dedupeKey: `payment:${payment.id}:receipt`, payload: {
+      isWalkIn: true, memberName: guestName, memberEmail: email, receiptNumber: payment.receipt_number,
+      dateTimePaid: new Date(payment.paid_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' }),
+      planName: plan.name, amount, subtotal: grossAmount, discount, method: method === 'qrph' ? 'QR Ph' : 'Cash',
+      reference: payment.provider_payment_id || payment.reference_number, cashTendered, changeGiven: payment.change_given,
+      receivedBy: 'Front desk', gymName: settings.gym_name, businessLegalName: settings.business_legal_name,
+      businessAddress: settings.business_address, businessTin: settings.business_tin, supportEmail: settings.support_email,
+      supportPhone: settings.support_phone, receiptFooterNote: settings.receipt_footer_note,
+    } });
+  }
   await notifyStaff({ type: 'payment', title: 'Payment received', message: `A ${method} walk-in payment was recorded for ${plan.name}.` });
-  return { visit, payment };
+  return { visit: updatedVisit.data, payment, customer };
 };
 
 router.get('/clerk/plans', async (_req, res, next) => {
   try {
-    const { data, error } = await supabaseAdmin.from('membership_plans').select('*').eq('active', true).eq('account_eligible', true).neq('code', 'session').order('duration_days');
+    let query = supabaseAdmin.from('membership_plans').select('*').eq('active', true);
+    if (_req.query.include_session !== 'true') query = query.eq('account_eligible', true).neq('code', 'session');
+    const { data, error } = await query.order('duration_days');
     if (error) return next(error);
     res.json(data);
   } catch (error) { next(error); }
@@ -119,12 +189,59 @@ router.get('/clerk/members/exists', async (req, res, next) => {
 router.post('/clerk/payments/:id/resend-receipt', async (req, res, next) => {
   try {
     const { data: payment, error } = await supabaseAdmin.from('payments')
-      .select('*, memberships(membership_plans(*))').eq('id', req.params.id).single();
-    if (error || !payment?.member_id) return res.status(404).json({ error: 'Member payment not found.' });
-    const plan = payment.memberships?.membership_plans;
+      .select('*, memberships(start_date, end_date, membership_plans(*)), walk_in_visits!payments_walk_in_visit_id_fkey(guest_name, guest_email, membership_plans(*))').eq('id', req.params.id).single();
+    if (error || !payment) return res.status(404).json({ error: 'Payment not found.' });
+    const profile = payment.member_id ? await supabaseAdmin.from('profiles').select('full_name, email, member_details(member_code)').eq('id', payment.member_id).single() : { data: null, error: null };
+    if (profile.error) return next(profile.error);
+    const recipient = profile.data?.email || payment.walk_in_visits?.guest_email;
+    if (!recipient) return res.status(400).json({ error: 'This payment has no receipt email address.' });
+    const plan = payment.memberships?.membership_plans || payment.walk_in_visits?.membership_plans;
     if (!plan) return res.status(400).json({ error: 'Payment plan details are unavailable.' });
-    await queueReceiptEmail({ memberId: payment.member_id, plan, payment });
+    if (payment.member_id) await queueReceiptEmail({ memberId: payment.member_id, plan, payment });
+    else {
+      const settings = await getGymSettings();
+      await enqueueEmail({ emailType: 'receipt', recipient, dedupeKey: `payment:${payment.id}:resend:${Date.now()}`, payload: {
+        isWalkIn: true, memberName: payment.walk_in_visits?.guest_name || 'Walk-in Guest', memberEmail: recipient,
+        receiptNumber: payment.receipt_number, dateTimePaid: new Date(payment.paid_at || payment.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' }),
+        planName: plan.name, amount: payment.amount, subtotal: payment.gross_amount ?? payment.amount, discount: payment.discount,
+        method: payment.method === 'qrph' ? 'QR Ph' : 'Cash', reference: payment.provider_payment_id || payment.reference_number,
+        cashTendered: payment.cash_tendered, changeGiven: payment.change_given, receivedBy: 'Front desk',
+        gymName: settings.gym_name, businessLegalName: settings.business_legal_name, businessAddress: settings.business_address,
+        businessTin: settings.business_tin, supportEmail: settings.support_email, supportPhone: settings.support_phone,
+        receiptFooterNote: settings.receipt_footer_note,
+      } });
+    }
     res.json({ queued: true });
+  } catch (error) { next(error); }
+});
+
+router.get('/clerk/payments/:id/receipt', async (req, res, next) => {
+  try {
+    const { data: payment, error } = await supabaseAdmin.from('payments')
+      .select('*, memberships(start_date, end_date, membership_plans(*)), walk_in_visits!payments_walk_in_visit_id_fkey(guest_name, guest_email, customer_id, valid_until, membership_plans(*))')
+      .eq('id', req.params.id).single();
+    if (error || !payment) return res.status(404).json({ error: 'Payment not found.' });
+    if (payment.status !== 'paid' || !payment.receipt_number) return res.status(400).json({ error: 'A receipt is available only after payment is paid.' });
+    const profile = payment.member_id
+      ? await supabaseAdmin.from('profiles').select('full_name, email, member_details(member_code)').eq('id', payment.member_id).single()
+      : { data: null, error: null };
+    if (profile.error) return next(profile.error);
+    const visit = payment.walk_in_visits;
+    const plan = payment.memberships?.membership_plans || visit?.membership_plans;
+    const settings = await getGymSettings();
+    const receipt = renderEmail('receipt', {
+      isWalkIn: Boolean(payment.walk_in_visit_id), memberName: profile.data?.full_name || visit?.guest_name || 'Walk-in Guest',
+      memberEmail: profile.data?.email || visit?.guest_email, memberCode: profile.data?.member_details?.member_code,
+      receiptNumber: payment.receipt_number, dateTimePaid: new Date(payment.paid_at || payment.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' }),
+      planName: plan?.name, periodStart: payment.memberships?.start_date, periodEnd: payment.memberships?.end_date,
+      amount: payment.amount, subtotal: payment.gross_amount ?? payment.amount, discount: payment.discount,
+      method: payment.method === 'qrph' ? 'QR Ph' : 'Cash', reference: payment.provider_payment_id || payment.reference_number,
+      cashTendered: payment.cash_tendered, changeGiven: payment.change_given, receivedBy: 'Front desk',
+      gymName: settings.gym_name, businessLegalName: settings.business_legal_name, businessAddress: settings.business_address,
+      businessTin: settings.business_tin, vatStatus: settings.vat_status, supportEmail: settings.support_email,
+      supportPhone: settings.support_phone, receiptFooterNote: settings.receipt_footer_note,
+    });
+    res.type('html').send(receipt.html);
   } catch (error) { next(error); }
 });
 
@@ -134,6 +251,9 @@ router.post('/clerk/payments/:id/cancel', async (req, res, next) => {
     if (findError || !current) return res.status(400).json({ error: 'Only pending payments can be cancelled.' });
     const payment = (await supabaseAdmin.from('payments').update({ status: 'cancelled', failure_reason: 'Cancelled by clerk' }).eq('id', req.params.id).eq('status', 'pending').select().single()).data;
     if (!payment) return res.status(400).json({ error: 'Only pending payments can be cancelled.' });
+    try { await cancelPaymongoIntent(current.provider_intent_id); } catch (cancelError) {
+      console.error(`Could not cancel PayMongo intent ${current.provider_intent_id}: ${cancelError.message}`);
+    }
     await auditPayment(req.user.id, 'payment_cancelled', payment.id);
     res.json(payment);
   } catch (error) { next(error); }
@@ -259,7 +379,7 @@ router.patch('/clerk/settings/preferences', async (req, res, next) => {
 
 router.get('/clerk/settings', async (_req, res, next) => {
   try {
-    const { data, error } = await supabaseAdmin.from('gym_settings').select('gym_name, address, phone, email, monday_saturday_open, monday_saturday_close, sunday_open, sunday_close, notifications').eq('id', true).maybeSingle();
+    const { data, error } = await supabaseAdmin.from('gym_settings').select('gym_name, address, phone, email, monday_saturday_open, monday_saturday_close, sunday_open, sunday_close, notifications, payment_modes').eq('id', true).maybeSingle();
     if (error) return next(error);
     res.json(data);
   } catch (error) { next(error); }
@@ -273,12 +393,14 @@ router.get('/clerk/payments', async (req, res, next) => {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit || 25)));
     let query = supabaseAdmin
       .from('payments')
-      .select('id, amount, method, status, receipt_number, created_at, paid_at, member_id, membership_id, walk_in_visit_id, memberships(membership_plans(name)), walk_in_visits(guest_name, guest_phone, plan_id, membership_plans(name))')
+      .select('id, amount, method, status, receipt_number, created_at, paid_at, member_id, membership_id, walk_in_visit_id, memberships(membership_plans(name)), walk_in_visits!payments_walk_in_visit_id_fkey(guest_name, guest_phone, guest_email, customer_id, plan_id, membership_plans(name), walk_in_customers(customer_code))')
       .gte('created_at', dayStart(`${from}T00:00:00+08:00`))
       .lt('created_at', nextDayStart(`${to}T00:00:00+08:00`))
       .order('created_at', { ascending: false });
     if (req.query.status) query = query.in('status', String(req.query.status).split(','));
     if (req.query.method) query = query.in('method', String(req.query.method).split(','));
+    if (req.query.type === 'member') query = query.not('member_id', 'is', null);
+    if (req.query.type === 'walkin') query = query.not('walk_in_visit_id', 'is', null);
     const { data: allData, error } = await query;
     if (error) return next(error);
     let data = allData || [];
@@ -287,7 +409,8 @@ router.get('/clerk/payments', async (req, res, next) => {
       const ids = [...new Set(data.map((payment) => payment.member_id).filter(Boolean))];
       const profilesResult = ids.length ? await supabaseAdmin.from('profiles').select('id, full_name, email').in('id', ids) : { data: [] };
       const matching = new Set((profilesResult.data || []).filter((profile) => `${profile.full_name} ${profile.email}`.toLowerCase().includes(search)).map((profile) => profile.id));
-      data = data.filter((payment) => matching.has(payment.member_id) || payment.receipt_number?.toLowerCase().includes(search));
+      const walkInMatches = data.filter((payment) => `${payment.walk_in_visits?.guest_name || ''} ${payment.walk_in_visits?.guest_phone || ''} ${payment.walk_in_visits?.guest_email || ''}`.toLowerCase().includes(search)).map((payment) => payment.id);
+      data = data.filter((payment) => matching.has(payment.member_id) || walkInMatches.includes(payment.id) || payment.receipt_number?.toLowerCase().includes(search));
     }
     const total = data.length;
     const rows = data.slice((page - 1) * limit, page * limit);
@@ -303,6 +426,7 @@ router.get('/clerk/payments', async (req, res, next) => {
       ...payment,
       profile: payment.member_id ? profileMap.get(payment.member_id) || null : null,
       display_name: profileMap.get(payment.member_id)?.full_name || payment.walk_in_visits?.guest_name || 'Walk-in Guest',
+      customer_code: payment.walk_in_visits?.walk_in_customers?.customer_code || null,
       plan_name: payment.memberships?.membership_plans?.name || payment.walk_in_visits?.membership_plans?.name || 'Payment',
     }));
     const paid = data.filter((payment) => payment.status === 'paid');
@@ -315,14 +439,138 @@ router.get('/clerk/payments', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.post('/clerk/walkins/validate', async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const plan = await getWalkInPlan();
+    const validation = validateWalkInCustomer(body, { plan });
+    if (!validation.valid) return res.status(422).json(walkInValidationResponse(validation.errors));
+    const { full_name: name, phone, email } = validation.values;
+    const profileResult = await supabaseAdmin.from('profiles').select('id, full_name, email, phone, status, member_details(member_code)').or(`phone.eq.${phone},email.eq.${email || 'none@example.invalid'}`).limit(10);
+    if (profileResult.error) throw profileResult.error;
+    for (const profile of profileResult.data || []) {
+      const state = await getMembershipState(profile.id);
+      if (state.current || state.queued.length) {
+        return res.status(409).json({
+          code: 'MEMBER_HAS_ACTIVE_PLAN',
+          member_match: memberSummary(profile, profile.member_details),
+          message: 'This person has an active or queued member plan.',
+        });
+      }
+    }
+    const customerResult = await supabaseAdmin.from('walk_in_customers').select('customer_code, visit_count, last_visit_at').or(`phone_normalized.eq.${phone},email_normalized.eq.${email || 'none@example.invalid'}`).limit(1).maybeSingle();
+    if (customerResult.error) throw customerResult.error;
+    res.json({
+      valid: true,
+      plan,
+      returning: customerResult.data || null,
+      member_match: (profileResult.data || [])[0] ? memberSummary(profileResult.data[0], profileResult.data[0].member_details) : null,
+    });
+  } catch (error) { next(error); }
+});
+
+router.post('/clerk/walkins/cash', async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const plan = await getWalkInPlan();
+    const validation = validateWalkInCustomer(body, { plan });
+    if (!validation.valid) return res.status(422).json(walkInValidationResponse(validation.errors));
+    const promo = await getPromo(body.promo_code || null, plan.id);
+    const pricing = priceFor(plan, Boolean(body.is_student), promo);
+    const tendered = Number(body.cash_tendered);
+    if (!Number.isFinite(tendered) || tendered < pricing.amount) return res.status(422).json({ error: 'Cash tendered must cover the total amount due.' });
+    const result = await createWalkInPayment({
+      plan, guestName: validation.values.full_name, guestPhone: validation.values.phone, guestEmail: validation.values.email,
+      isStudent: validation.values.is_student, notes: validation.values.notes, amount: pricing.amount, grossAmount: pricing.gross,
+      discount: pricing.discount, promoId: promo?.id, method: 'cash', cashTendered: tendered,
+      checkInNow: body.check_in_now !== false, actorId: req.user.id,
+    });
+    await auditPayment(req.user.id, 'walkin_payment_created', result.payment.id, { method: 'cash', walk_in_visit_id: result.visit.id });
+    res.status(201).json({ ...result, change: Math.round((tendered - pricing.amount) * 100) / 100, receipt_number: result.payment.receipt_number });
+  } catch (error) { next(error); }
+});
+
+router.post('/clerk/walkins/qrph', async (req, res, next) => {
+  let intent;
+  try {
+    const paymentError = paymentMethodError((await getGymSettings()).payment_modes || ['cash', 'qrph'], 'qrph');
+    if (paymentError) return res.status(400).json({ error: paymentError });
+    const body = req.body || {};
+    const plan = await getWalkInPlan();
+    const validation = validateWalkInCustomer(body, { plan });
+    if (!validation.valid) return res.status(422).json(walkInValidationResponse(validation.errors));
+    const { full_name, phone, email } = validation.values;
+    const pricing = priceFor(plan, Boolean(body.is_student), null);
+    const { data, error } = await supabaseAdmin.from('registration_intents').insert({
+      kind: 'walkin', email_normalized: email || `${phone}@walkin.invalid`, phone_normalized: phone,
+      plan_id: plan.id, is_student: Boolean(body.is_student), amount_total: pricing.amount, method: 'qrph',
+      form_encrypted: encryptFormForIntent({ ...body, full_name, phone, email }),
+      expires_at: new Date(Date.now() + 300000).toISOString(), created_by: req.user.id,
+    }).select().single();
+    if (error) return next(error);
+    intent = data;
+    const qr = await createQrphPayment({ payment: intent, amount: pricing.amount, description: `FITMETRICS day pass - ${plan.name}`, metadata: { walkin_intent_id: intent.id }, expirySeconds: 300 });
+    const updated = await supabaseAdmin.from('registration_intents').update({ provider_intent_id: qr.intentId, expires_at: qr.expiresAt }).eq('id', intent.id).select().single();
+    if (updated.error) throw updated.error;
+    res.status(201).json(qrPaymentResponse({ paymentId: intent.id, qrImageUrl: qr.imageUrl, expiresAt: qr.expiresAt, amountTotal: pricing.amount, simulationEnabled: process.env.NODE_ENV !== 'production' && process.env.ALLOW_PAYMENT_SIMULATION === 'true' }));
+  } catch (error) {
+    if (intent?.id) await supabaseAdmin.from('registration_intents').delete().eq('id', intent.id);
+    next(error);
+  }
+});
+
+router.get('/clerk/walkins/qrph/:id/status', async (req, res, next) => {
+  try {
+    const { data: intent, error } = await supabaseAdmin.from('registration_intents').select('*').eq('id', req.params.id).eq('kind', 'walkin').single();
+    if (error || !intent) return res.status(404).json({ error: 'Walk-in QR payment was not found.' });
+    if (intent.status === 'pending' && intent.provider_intent_id) {
+      const remote = await getPaymongoIntent(intent.provider_intent_id);
+      const attributes = remote?.data?.attributes || {};
+      return res.json(await finalizeIntent(intent, {
+        providerStatus: attributes.status, providerIntentId: intent.provider_intent_id,
+        paidAmount: attributes.amount == null ? null : Number(attributes.amount) / 100,
+        providerPaymentId: attributes.latest_payment_id, actorId: req.user.id, getPlan, getCoach, source: 'polling',
+      }));
+    }
+    res.json(intent);
+  } catch (error) { next(error); }
+});
+
+router.post('/clerk/walkins/qrph/:id/cancel', async (req, res, next) => {
+  try {
+    const { data: current, error: findError } = await supabaseAdmin.from('registration_intents').select('*').eq('id', req.params.id).eq('kind', 'walkin').single();
+    if (findError || !current) return res.status(404).json({ error: 'Walk-in QR payment was not found.' });
+    const { data, error } = await supabaseAdmin.from('registration_intents').update({ status: 'cancelled', form_encrypted: null }).eq('id', req.params.id).eq('kind', 'walkin').eq('status', 'pending').select('id, status').maybeSingle();
+    if (error) return next(error);
+    if (!data) return res.status(400).json({ error: 'Only a pending walk-in QR payment can be cancelled.' });
+    try { await cancelPaymongoIntent(current.provider_intent_id); } catch (cancelError) { console.error(`Could not cancel walk-in PayMongo intent ${current.provider_intent_id}: ${cancelError.message}`); }
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post('/clerk/walkins/qrph/:id/simulate-paid', requireRole('admin', 'clerk'), async (req, res, next) => {
+  if (process.env.NODE_ENV === 'production' || process.env.ALLOW_PAYMENT_SIMULATION !== 'true') return res.status(404).json({ error: 'Not found.' });
+  try {
+    const { data: intent, error } = await supabaseAdmin.from('registration_intents').select('*').eq('id', req.params.id).eq('kind', 'walkin').single();
+    if (error || !intent) return res.status(404).json({ error: 'Walk-in QR payment was not found.' });
+    const result = await finalizeIntent(intent, {
+      providerStatus: 'succeeded', providerIntentId: intent.provider_intent_id, paidAmount: intent.amount_total,
+      providerPaymentId: `sim_${intent.id}`, actorId: req.user.id, getPlan, getCoach, source: 'simulate',
+    });
+    await auditPayment(req.user.id, 'walkin_payment_simulated', intent.id, { simulated: true });
+    res.json(result);
+  } catch (error) { next(error); }
+});
+
 router.post('/clerk/payments', async (req, res, next) => {
   try {
     const {
       member_id, plan_code, is_student = false, payment_method = 'cash',
-      guest_name, guest_phone, promo_code = null, coach_id = null,
+      guest_name, guest_phone, promo_code = null, coach_id = null, cash_tendered = null,
     } = req.body || {};
     if (!plan_code) return res.status(400).json({ error: 'A payment plan is required.' });
-    const paymentModes = (await getGymSettings()).payment_modes || ['cash', 'gcash', 'maya'];
+    const paymentModes = (await getGymSettings()).payment_modes || ['cash', 'qrph'];
+    if (['gcash', 'maya'].includes(payment_method)) return res.status(410).json({ error: 'GCash and Maya are no longer supported. Use Cash or QR Ph.' });
     if (!paymentModes.includes(payment_method)) return res.status(400).json({ error: `Payment method "${payment_method}" is disabled.` });
     const plan = await getPlan(plan_code);
     const promo = await getPromo(promo_code, plan.id);
@@ -343,7 +591,7 @@ router.post('/clerk/payments', async (req, res, next) => {
     if (!member_id) return res.status(400).json({ error: 'Select a member for this membership payment.' });
     const result = await startClerkPayment({
       memberId: member_id, plan, isStudent: Boolean(is_student), promo, coach,
-      method: payment_method, actorId: req.user.id,
+      method: payment_method, actorId: req.user.id, cashTendered: cash_tendered,
       createCheckout: ({ payment, amount, method }) => createPaymongoCheckout({ payment, plan, amount, method }),
     });
     await auditPayment(req.user.id, 'payment_created', result.payment.id, { method: payment_method });
@@ -379,23 +627,15 @@ const memberRoster = async (req) => {
   if (membershipResult.error) throw membershipResult.error;
   if (settingsResult.error) throw settingsResult.error;
   const reminderDays = Number(settingsResult.data?.expiry_reminder_days || 3);
-  const byMember = new Map();
-  (membershipResult.data || []).forEach((membership) => {
-    const list = byMember.get(membership.member_id) || [];
-    list.push(membership);
-    byMember.set(membership.member_id, list);
-  });
+  const states = await getMembershipState(ids);
   return (members || []).map((member) => {
-    const memberships = byMember.get(member.id) || [];
-    const current = memberships.find((item) => item.status === 'active'
-      && item.start_date <= today() && item.end_date >= today());
-    const queued = memberships.find((item) => item.status === 'active' && item.start_date > today());
-    const expired = memberships.find((item) => item.status === 'expired' && item.end_date < today());
-    const membership = current || queued || expired || null;
+    const state = states.get(member.id) || { current: null, queued: [], last_expired: null };
+    const membership = state.current || state.queued[0] || state.last_expired || null;
     const status = memberStatus(member, membership, reminderDays);
     return {
       ...member,
-      membership: membership ? { ...membership, queued: membership === queued, derived_status: status } : null,
+      membership: membership ? { ...membership, queued: membership === state.queued[0], derived_status: status } : null,
+      next_membership: state.queued[0] || null,
       status_label: status,
       joined_date: member.member_details?.join_date || member.created_at?.slice(0, 10),
       is_student: Boolean(member.member_details?.is_student),
@@ -478,7 +718,19 @@ router.post('/clerk/members/:id/information-email', async (req, res, next) => {
         portalLink: `${process.env.CLIENT_URL || 'http://localhost:5173'}/member/dashboard`,
       },
     });
-    res.status(202).json({ queued: true, email: queued });
+    await processEmailQueue();
+    const { data: delivery, error: deliveryError } = await supabaseAdmin.from('email_log')
+      .select('status, error, provider, provider_message_id').eq('id', queued.id).single();
+    if (deliveryError) return next(deliveryError);
+    if (delivery.status === 'failed') {
+      return res.status(502).json({ error: delivery.error || 'The information email could not be delivered.' });
+    }
+    res.status(delivery.status === 'sent' ? 200 : 202).json({
+      queued: delivery.status !== 'sent',
+      sent: delivery.status === 'sent',
+      email: queued,
+      provider: delivery.provider || null,
+    });
   } catch (error) { next(error); }
 });
 
@@ -487,14 +739,31 @@ router.post('/clerk/register/validate', async (req, res, next) => {
     const body = req.body || {};
     const settings = await getGymSettings();
     if (!settings.allow_member_registrations) return res.status(403).json({ error: 'Member registrations are currently disabled in gym settings.' });
+    if (body.field === 'email' || body.field === 'phone') {
+      const value = body.field === 'email' ? normalizeEmail(body.value) : normalizePhone(body.value);
+      const valid = body.field === 'email' ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) : /^09\d{9}$/.test(value);
+      if (!valid) return res.json({ exists: false, field: null, member: null });
+      const conflict = await findRegistrationConflict({ [body.field]: value });
+      if (!conflict) return res.json({ exists: false, field: null, member: null });
+      return res.status(409).json({ exists: true, ...conflict, message: conflict.staff
+        ? `This ${body.field} is used by a staff account and cannot be used for a member.`
+        : `This ${body.field === 'phone' ? 'mobile number' : 'email'} is already registered.` });
+    }
     const errors = registrationErrors(body);
     if (errors.plan_code) {
       const plan = await getPlan(body.plan_code).catch(() => null);
       if (!plan) errors.plan_code = 'Please choose an available membership plan to continue.';
     }
     if (Object.keys(errors).length) return res.status(422).json({ errors: Object.entries(errors).map(([field, message]) => ({ field, message })) });
-    const conflict = await findRegistrationConflict(body);
-    if (conflict) return res.status(409).json({ ...conflict, message: conflict.code === 'REGISTRATION_PENDING' ? 'A registration for this person is waiting for payment.' : 'This member is already registered.' });
+    const conflicts = await findRegistrationConflicts(body);
+    if (conflicts.length) {
+      const conflict = conflicts[0];
+      return res.status(409).json({
+        ...conflict,
+        matches: conflicts,
+        message: conflict.code === 'REGISTRATION_PENDING' ? 'A registration for this person is waiting for payment.' : 'This member is already registered.',
+      });
+    }
     await auditPayment(req.user.id, 'registration_validated', null, { email: normalizeEmail(body.email), phone: normalizePhone(body.phone) });
     res.json({ valid: true });
   } catch (error) { next(error); }
@@ -524,6 +793,9 @@ router.post('/clerk/register/cash', async (req, res, next) => {
 router.post('/clerk/register/qrph', async (req, res, next) => {
   let intent;
   try {
+    const paymentModes = (await getGymSettings()).payment_modes || ['cash', 'gcash', 'maya'];
+    const paymentError = paymentMethodError(paymentModes, 'qrph');
+    if (paymentError) return res.status(400).json({ error: paymentError });
     const body = req.body || {};
     const errors = registrationErrors(body);
     if (Object.keys(errors).length) return res.status(422).json({ errors: Object.entries(errors).map(([field, message]) => ({ field, message })) });
@@ -546,7 +818,10 @@ router.post('/clerk/register/qrph', async (req, res, next) => {
     const { data: updated, error: updateError } = await supabaseAdmin.from('registration_intents').update({ provider_intent_id: qr.intentId, expires_at: qr.expiresAt }).eq('id', intent.id).select().single();
     if (updateError) throw updateError;
     await auditPayment(req.user.id, 'registration_qr_started', intent.id, { method: 'qrph' });
-    res.status(201).json({ intent_id: updated.id, qr_image_url: qr.imageUrl, expires_at: qr.expiresAt, amount: total });
+    res.status(201).json(qrPaymentResponse({
+      paymentId: updated.id, qrImageUrl: qr.imageUrl, expiresAt: qr.expiresAt, amountTotal: total,
+      simulationEnabled: process.env.NODE_ENV !== 'production' && process.env.ALLOW_PAYMENT_SIMULATION === 'true',
+    }));
   } catch (error) {
     if (intent?.id) await supabaseAdmin.from('registration_intents').delete().eq('id', intent.id);
     next(error);
@@ -560,7 +835,7 @@ router.get('/clerk/register/qrph/:id/status', async (req, res, next) => {
     if (intent.status === 'pending' && intent.provider_intent_id) {
       const remote = await getPaymongoIntent(intent.provider_intent_id);
       const attributes = remote?.data?.attributes || {};
-      const result = await finalizeRegistrationIntent({ intent, providerStatus: attributes.status, providerIntentId: intent.provider_intent_id, providerAmount: attributes.amount, actorId: req.user.id, getPlan, getCoach, providerPaymentId: attributes.latest_payment_id });
+      const result = await finalizeIntent(intent, { providerStatus: attributes.status, providerIntentId: intent.provider_intent_id, paidAmount: attributes.amount == null ? null : Number(attributes.amount) / 100, actorId: req.user.id, getPlan, getCoach, providerPaymentId: attributes.latest_payment_id, source: 'polling' });
       return res.json(result);
     }
     res.json(intent);
@@ -580,25 +855,80 @@ router.post('/clerk/register/qrph/:id/cancel', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/clerk/register/qrph/:id/simulate-paid', requireRole('admin'), async (req, res, next) => {
-  if (process.env.NODE_ENV === 'production') return res.status(404).json({ error: 'Not found.' });
+export const simulatePaidRegistration = async ({
+  req, res, next,
+  loadIntent = async (id) => supabaseAdmin.from('registration_intents').select('*').eq('id', id).single(),
+  finalize = finalizeIntent,
+  audit = auditPayment,
+}) => {
+  if (process.env.NODE_ENV === 'production' || process.env.ALLOW_PAYMENT_SIMULATION !== 'true') return res.status(404).json({ error: 'Not found.' });
   try {
-    const { data: intent, error } = await supabaseAdmin.from('registration_intents').select('*').eq('id', req.params.id).single();
+    const { data: intent, error } = await loadIntent(req.params.id);
     if (error || !intent) return res.status(404).json({ error: 'Registration payment not found.' });
-    res.json(await finalizeRegistrationIntent({ intent, providerStatus: 'succeeded', providerIntentId: intent.provider_intent_id, providerAmount: Math.round(Number(intent.amount_total) * 100), actorId: req.user.id, getPlan, getCoach, providerPaymentId: `dev-${intent.id}` }));
+    const result = await finalize(intent, { providerStatus: 'succeeded', providerIntentId: intent.provider_intent_id, paidAmount: intent.amount_total, actorId: req.user.id, getPlan, getCoach, providerPaymentId: `sim_${intent.id}`, source: 'simulate' });
+    await audit(req.user.id, 'registration_payment_simulated', intent.id, { simulated: true });
+    res.json(result);
   } catch (error) { next(error); }
-});
+};
+
+router.post('/clerk/register/qrph/:id/simulate-paid', requireRole('admin', 'clerk'), (req, res, next) => simulatePaidRegistration({ req, res, next }));
 
 router.post('/clerk/memberships', async (req, res, next) => {
   try {
-    const { member_id, plan_code, coach_id, payment_method = 'cash', promo_code = null } = req.body || {};
-    if (!((await getGymSettings()).payment_modes || ['cash', 'gcash', 'maya']).includes(payment_method)) return res.status(400).json({ error: `Payment method "${payment_method}" is disabled.` });
+    const { member_id, plan_code, coach_id, payment_method = 'cash', promo_code = null, cash_tendered = null } = req.body || {};
+    const paymentError = paymentMethodError((await getGymSettings()).payment_modes || ['cash', 'gcash', 'maya'], payment_method);
+    if (paymentError) return res.status(400).json({ error: paymentError });
     if (!member_id || !plan_code) return res.status(400).json({ error: 'Member and plan are required.' });
+    if (!['cash', 'qrph'].includes(payment_method)) return res.status(400).json({ error: 'Renewals support Cash or QR Ph.' });
     const plan = await getPlan(plan_code);
     const coach = await getCoach(coach_id);
     const promo = await getPromo(promo_code, plan.id);
+    const pricing = priceFor(plan, Boolean(req.body?.is_student), promo);
+    const coachAddonAmount = Number(coach?.addon_amount || coach?.monthly_price || 0);
+    const total = pricing.amount + coachAddonAmount;
+    if (payment_method === 'cash' && (!Number.isFinite(Number(cash_tendered)) || Number(cash_tendered) < total)) {
+      return res.status(422).json({ error: 'Cash tendered must cover the total amount due.' });
+    }
+    if (payment_method === 'qrph') {
+      await expirePendingQrPayments();
+      const { data: waiting, error: waitingError } = await supabaseAdmin.from('payments')
+        .select('*').eq('member_id', member_id).eq('method', 'qrph').eq('status', 'pending').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (waitingError) return next(waitingError);
+      if (waiting) {
+        const simulationEnabled = process.env.NODE_ENV !== 'production' && process.env.ALLOW_PAYMENT_SIMULATION === 'true';
+        const summary = { payment_id: waiting.id, qr_image_url: null, expires_at: waiting.qr_expires_at, amount_total: Number(waiting.amount), plan_id: waiting.plan_id, coach_id: waiting.coach_id, simulation_enabled: simulationEnabled };
+        if (waiting.plan_id === plan.id && (waiting.coach_id || null) === (coach?.id || null) && Number(waiting.amount) === total) {
+          const remote = await getPaymongoIntent(waiting.provider_intent_id);
+          const qrImageUrl = remote?.data?.attributes?.next_action?.code?.image_url;
+          if (!qrImageUrl) return res.status(409).json({ error: 'The previous QR is no longer available. Cancel it and start a new one.', payment: summary });
+          return res.status(200).json({ resumed: true, ...qrPaymentResponse({ paymentId: waiting.id, qrImageUrl, expiresAt: waiting.qr_expires_at, amountTotal: waiting.amount, simulationEnabled }) });
+        }
+        return res.status(409).json({ error: 'A QR payment with different renewal details is waiting.', payment: summary });
+      }
+      const { data: payment, error: paymentError } = await supabaseAdmin.from('payments').insert({
+        member_id, plan_id: plan.id, amount: total, gross_amount: pricing.gross + coachAddonAmount,
+        discount: pricing.discount, promo_id: promo?.id || null, method: 'qrph', status: 'pending',
+        received_by: req.user.id, provider: 'paymongo', coach_id: coach?.id || null, coach_addon_amount: coachAddonAmount,
+        send_receipt: true, qr_expires_at: new Date(Date.now() + 300000).toISOString(),
+      }).select().single();
+      if (paymentError) return next(paymentError);
+      try {
+        const qr = await createQrphPayment({ payment, amount: total, description: `FITMETRICS renewal - ${plan.name}`, metadata: { payment_id: payment.id, member_id }, expirySeconds: 300 });
+        const { data: updated, error: updateError } = await supabaseAdmin.from('payments').update({ provider_intent_id: qr.intentId, qr_expires_at: qr.expiresAt }).eq('id', payment.id).select().single();
+        if (updateError) throw updateError;
+        await auditPayment(req.user.id, 'renewal_qr_started', payment.id, { method: 'qrph' });
+        return res.status(201).json(qrPaymentResponse({
+          paymentId: updated.id, qrImageUrl: qr.imageUrl, expiresAt: qr.expiresAt, amountTotal: total,
+          simulationEnabled: process.env.NODE_ENV !== 'production' && process.env.ALLOW_PAYMENT_SIMULATION === 'true',
+        }));
+      } catch (error) {
+        await supabaseAdmin.from('payments').update({ status: 'failed', failure_reason: error.message }).eq('id', payment.id);
+        throw error;
+      }
+    }
     const result = await startClerkPayment({
-      memberId: member_id, plan, promo, coach, method: payment_method, actorId: req.user.id,
+      memberId: member_id, plan, promo, coach,       method: payment_method, actorId: req.user.id, cashTendered: cash_tendered,
+      cashTendered: Number(cash_tendered),
       createCheckout: ({ payment, amount, method }) => createPaymongoCheckout({ payment, plan, amount, method, returnPath: '/clerk/membership' }),
     });
     await auditPayment(req.user.id, 'payment_created', result.payment.id, { method: payment_method, renewal: true });
@@ -731,7 +1061,7 @@ router.get('/clerk/dashboard', async (_req, res, next) => {
     const gcash = payments.data.filter((payment) => payment.method === 'gcash').reduce((sum, payment) => sum + Number(payment.amount), 0);
     const maya = payments.data.filter((payment) => payment.method === 'maya').reduce((sum, payment) => sum + Number(payment.amount), 0);
     const recentResult = await supabaseAdmin.from('payments')
-      .select('id, amount, method, created_at, member_id, memberships(membership_plans(name)), walk_in_visits(guest_name, membership_plans(name))')
+      .select('id, amount, method, created_at, member_id, memberships(membership_plans(name)), walk_in_visits!payments_walk_in_visit_id_fkey(guest_name, membership_plans(name))')
       .eq('status', 'paid').gte('paid_at', dayStart()).lt('paid_at', nextDayStart())
       .order('paid_at', { ascending: false }).limit(4);
     if (recentResult.error) return next(recentResult.error);
@@ -747,7 +1077,7 @@ router.get('/clerk/dashboard', async (_req, res, next) => {
       plan_name: payment.memberships?.membership_plans?.name || payment.walk_in_visits?.membership_plans?.name || 'Payment',
     }));
     const recentAttendanceResult = await supabaseAdmin.from('attendance')
-      .select('id, member_id, check_in_at, method, memberships(membership_plans(name))')
+      .select('id, member_id, walk_in_visit_id, check_in_at, method, memberships(membership_plans(name)), walk_in_visits(guest_name)')
       .gte('check_in_at', dayStart()).lt('check_in_at', nextDayStart())
       .order('check_in_at', { ascending: false }).limit(10);
     if (recentAttendanceResult.error) return next(recentAttendanceResult.error);
@@ -759,7 +1089,7 @@ router.get('/clerk/dashboard', async (_req, res, next) => {
     const attendanceProfileMap = new Map((attendanceProfiles.data || []).map((profile) => [profile.id, profile]));
     const recentAttendance = (recentAttendanceResult.data || []).map((row) => ({
       ...row,
-      display_name: attendanceProfileMap.get(row.member_id)?.full_name || 'Walk-in Guest',
+      display_name: attendanceProfileMap.get(row.member_id)?.full_name || row.walk_in_visits?.guest_name || 'Walk-in Guest',
       plan_name: row.memberships?.membership_plans?.name || 'Membership',
     }));
     const settingResult = await supabaseAdmin.from('gym_settings').select('expiry_reminder_days').eq('id', true).maybeSingle();
@@ -777,7 +1107,8 @@ router.get('/clerk/dashboard', async (_req, res, next) => {
       member_email: membership.profiles?.email || null,
       days_left: Math.max(0, Math.ceil((new Date(`${membership.end_date}T00:00:00+08:00`) - new Date()) / 86400000)),
     }));
-    res.json({ checkIns: attendance.data.length, activeOnFloor: new Set(members.data.map((row) => row.member_id)).size, openSessions: members.data.length + walkIns.data.length, registrations: registrations.data.length, capacity: Number(settings.data?.floor_capacity || 50), totalCollected: total, cashCollected: cash, gcashCollected: gcash, mayaCollected: maya, eWalletCollected: gcash + maya, cashTransactions: payments.data.filter((payment) => payment.method === 'cash').length, eWalletTransactions: payments.data.filter((payment) => ['gcash', 'maya'].includes(payment.method)).length, transactionCount: payments.data.length, recentPayments, recentAttendance, expiringSoon, updatedAt: new Date().toISOString() });
+    const qrph = payments.data.filter((payment) => payment.method === 'qrph').reduce((sum, payment) => sum + Number(payment.amount), 0);
+    res.json({ checkIns: attendance.data.length, activeOnFloor: new Set(members.data.map((row) => row.member_id)).size + walkIns.data.length, openSessions: members.data.length + walkIns.data.length, registrations: registrations.data.length, capacity: Number(settings.data?.floor_capacity || 50), totalCollected: total, cashCollected: cash, gcashCollected: gcash, mayaCollected: maya, qrphCollected: qrph, eWalletCollected: gcash + maya + qrph, cashTransactions: payments.data.filter((payment) => payment.method === 'cash').length, eWalletTransactions: payments.data.filter((payment) => ['gcash', 'maya', 'qrph'].includes(payment.method)).length, transactionCount: payments.data.length, recentPayments, recentAttendance, expiringSoon, updatedAt: new Date().toISOString() });
   } catch (error) { next(error); }
 });
 

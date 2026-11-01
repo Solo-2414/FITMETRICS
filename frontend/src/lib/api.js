@@ -2,27 +2,60 @@ import { supabase } from "./supabase";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
+export function getFriendlyError(error) {
+    if (typeof error === "string") return error;
+    const status = error?.status;
+    if (!status || error?.name === "TypeError" || error?.message === "Failed to fetch") {
+        return "Can't reach the server. Check your connection and try again.";
+    }
+    if (status === 401) return "Your session expired. Please sign in again.";
+    if (status === 403) return "You don't have permission to do that.";
+    if (status === 404) return "We couldn't find that record.";
+    if (status === 409) return error.message || "That request conflicts with existing data.";
+    if (status === 422) {
+        return error.message || error.errors?.[0]?.message || "Please check the information you entered.";
+    }
+    if (status === 429) return "Too many attempts. Please wait a moment.";
+    if (status >= 500) return "Something went wrong on our side. Please try again.";
+    return error.message || "Something went wrong. Please try again.";
+}
+
 export async function api(path, { method = "GET", body } = {}) {
     const { data: { session } } = await supabase.auth.getSession();
     const isFormData = body instanceof FormData;
-    const res = await fetch(`${API_URL}${path}`, {
+    let res;
+    try {
+        res = await fetch(`${API_URL}${path}`, {
         method,
         headers: {
             ...(isFormData ? {} : { "Content-Type": "application/json" }),
             ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
-    });
+        });
+    } catch (error) {
+        window.dispatchEvent(new CustomEvent("fitmetrics:system-error", {
+            detail: { message: "Can't reach the server. Check your connection and try again." },
+        }));
+        throw error;
+    }
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
         if (res.status === 503 && json.maintenance) {
             window.dispatchEvent(new CustomEvent("fitmetrics:maintenance", { detail: json }));
         }
         const error = new Error(json.error || json.message || `Request failed (${res.status})`);
+        error.status = res.status;
         error.code = json.code;
+        error.requestId = json.requestId;
         error.field = json.field;
         error.errors = json.errors;
         error.member = json.member;
+        error.member_match = json.member_match;
+        error.returning = json.returning;
+        error.staff = json.staff === true;
+        error.matches = json.matches;
+        error.payment = json.payment;
         error.expires_at = json.expires_at;
         error.maintenance = json.maintenance === true;
         throw error;

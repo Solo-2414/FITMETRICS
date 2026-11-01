@@ -3,20 +3,56 @@ import { useNavigate } from "react-router-dom";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
 import { api } from "../../lib/api";
 import { SkeletonKpiCards, SkeletonList, SkeletonTable } from "../../components/ui/Skeleton";
+import { attendanceMethodLabel } from "../../lib/attendanceMethod";
 import styles from "./ClerkDashboard.module.css";
+import InlineError from "../../components/ui/InlineError";
+import { useTerminalPreferences } from "../../hooks/useTerminalPreferences";
 
 export default function ClerkDashboard() {
     const [stats, setStats] = useState(null);
     const [error, setError] = useState("");
-    const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [drawer, setDrawer] = useState(null);
+    const [drawerModal, setDrawerModal] = useState("");
+    const [drawerForm, setDrawerForm] = useState({ amount: "", counted_cash: "", kind: "correction", reason: "", note: "" });
+    const [drawerSaving, setDrawerSaving] = useState(false);
     const [reminderState, setReminderState] = useState("");
     const navigate = useNavigate();
+    const { preferences } = useTerminalPreferences();
     useEffect(() => {
-        Promise.all([api("/clerk/dashboard"), api("/clerk/plans")])
-            .then(([dashboard, planRows]) => { setStats(dashboard); setPlans(planRows); })
+        api("/clerk/dashboard")
+            .then(setStats)
             .catch((err) => setError(err.message))
             .finally(() => setLoading(false));
+    }, []);
+    useEffect(() => {
+        api("/clerk/cash-drawer/today").then(setDrawer).catch(() => {});
+    }, []);
+    const updateDrawer = () => {
+        setDrawerForm((form) => ({ ...form, amount: String(preferences.openingFloat || ""), counted_cash: drawer?.expectedCash == null ? "" : String(drawer.expectedCash) }));
+        setDrawerModal(drawer?.session ? (drawer.session.status === "open" ? "count" : "") : "open");
+    };
+    const submitDrawerAction = async (event) => {
+        event.preventDefault();
+        setDrawerSaving(true);
+        try {
+            let result;
+            if (drawerModal === "open") result = await api("/clerk/cash-drawer/open", { method: "POST", body: { opening_float: Number(drawerForm.amount) } });
+            if (drawerModal === "count") result = await api("/clerk/cash-drawer/close", { method: "POST", body: { counted_cash: Number(drawerForm.counted_cash), note: drawerForm.note } });
+            if (drawerModal === "adjust") result = await api("/clerk/cash-drawer/adjust", { method: "POST", body: { kind: drawerForm.kind, amount: Number(drawerForm.amount), reason: drawerForm.reason } });
+            if (result) setDrawer(result);
+            setDrawerModal("");
+        } catch (err) { setError(err.message); } finally { setDrawerSaving(false); }
+    };
+    useEffect(() => {
+        const refresh = () => {
+            if (document.visibilityState !== "visible") return;
+            setRefreshing(true);
+            api("/clerk/dashboard").then(setStats).catch((err) => setError(err.message)).finally(() => setRefreshing(false));
+        };
+        const interval = window.setInterval(refresh, 30000);
+        return () => window.clearInterval(interval);
     }, []);
     return (
         <ClerkLayout>
@@ -29,14 +65,14 @@ export default function ClerkDashboard() {
                 </div>
                 <div className={styles.timeBadge}>
                     <i className="fa-regular fa-clock text-secondary"></i>{" "}
-                    Shift: Morning to Afternoon{" "}
-                    <span className={styles.shiftText}>Live shift</span>
+                    Today{" "}
+                    <span className={styles.shiftText}>{stats?.updatedAt ? `Updated ${new Date(stats.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}</span>
                 </div>
             </div>
 
-            {error && <div className="alert alert-danger">{error}</div>}
-            {loading && <SkeletonKpiCards count={4} />}
-            <div className="row g-3 mb-4 fm-fade-in">
+            {error && <InlineError error={error} onRetry={() => { setError(""); setLoading(true); api("/clerk/dashboard").then(setStats).catch((err) => setError(err.message)).finally(() => setLoading(false)); }} />}
+            {refreshing && <span className="text-secondary small d-block mb-2 fm-refreshing">Refreshing dashboard...</span>}
+            {loading ? <SkeletonKpiCards count={4} /> : <div className="row g-3 mb-4 fm-fade-in">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
                         <div className={styles.kpiHeader}>
@@ -46,14 +82,14 @@ export default function ClerkDashboard() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            {stats ? stats.activeOnFloor : "..."}{" "}
+                            {stats ? stats.activeOnFloor : "-"}{" "}
                             <span className={styles.kpiValueUnit}>Members</span>
                         </h3>
                         <div className={styles.progressContainer}>
                             <div className={styles.progressBarBg}>
                                 <div
                                     className={`${styles.progressBarFillPrimary} fm-grow-x`}
-                                    style={{ width: `${Math.min(100, ((stats?.activeOnFloor || 0) / 50) * 100)}%`, "--i": 0 }}
+                                    style={{ width: `${Math.min(100, ((stats?.activeOnFloor || 0) / (stats?.capacity || 1)) * 100)}%`, "--i": 0 }}
                                 ></div>
                             </div>
                             <div className="d-flex justify-content-between align-items-center mt-2">
@@ -61,7 +97,7 @@ export default function ClerkDashboard() {
                                     Current floor occupancy
                                 </span>
                                 <span className={styles.kpiPositive}>
-                                    Live status
+                                    {stats && stats.activeOnFloor >= stats.capacity ? "Full" : stats && stats.activeOnFloor / stats.capacity >= 0.75 ? "Busy" : stats && stats.activeOnFloor / stats.capacity >= 0.4 ? "Comfortable" : "-"}
                                 </span>
                             </div>
                         </div>
@@ -77,7 +113,7 @@ export default function ClerkDashboard() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            {stats ? stats.checkIns : "..."}{" "}
+                            {stats ? stats.checkIns : "-"}{" "}
                             <span className={styles.kpiValueUnit}>Visits</span>
                         </h3>
                         <div className="d-flex align-items-center gap-2 mt-1 mb-2">
@@ -88,11 +124,11 @@ export default function ClerkDashboard() {
                         <div className="d-flex justify-content-between mt-auto">
                             <span className={styles.kpiSub}>
                                 Today's total:{" "}
-                                <strong className="text-white">{stats ? stats.checkIns : "..."}</strong>
+                                <strong className="text-white">{stats ? stats.checkIns : "-"}</strong>
                             </span>
                             <span className={styles.kpiSub}>
                                 Open sessions:{" "}
-                                <strong className="text-white">{stats ? stats.activeOnFloor : "..."}</strong>
+                                <strong className="text-white">{stats ? stats.openSessions : "-"}</strong>
                             </span>
                         </div>
                     </div>
@@ -106,7 +142,7 @@ export default function ClerkDashboard() {
                                 <i className="fa-solid fa-money-bill"></i>
                             </div>
                         </div>
-                        <h3 className={styles.kpiValue}>₱{stats ? Number(stats.totalCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}</h3>
+                        <h3 className={styles.kpiValue}>₱{stats ? Number(stats.totalCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}</h3>
                         <div className="mb-2">
                             <span className={styles.kpiSub}>
                                 Cash Drawer + GCash/Maya summary
@@ -115,11 +151,11 @@ export default function ClerkDashboard() {
                         <div className="d-flex justify-content-between mt-auto">
                             <span className={styles.kpiSub}>
                                 Cash:{" "}
-                                <strong className="text-white">₱{stats ? Number(stats.cashCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}</strong>
+                                <strong className="text-white">₱{stats ? Number(stats.cashCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}</strong>
                             </span>
                             <span className={styles.kpiSub}>
                                 E-Wallets:{" "}
-                                <strong className="text-white">₱{stats ? Number(stats.eWalletCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}</strong>
+                                <strong className="text-white">₱{stats ? Number(stats.eWalletCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}</strong>
                             </span>
                         </div>
                     </div>
@@ -134,7 +170,7 @@ export default function ClerkDashboard() {
                             </div>
                         </div>
                         <h3 className={styles.kpiValue}>
-                            {stats ? stats.registrations : "..."}{" "}
+                            {stats ? stats.registrations : "-"}{" "}
                             <span className={styles.kpiValueUnit}>
                                 New Members
                             </span>
@@ -151,7 +187,7 @@ export default function ClerkDashboard() {
                         </div>
                     </div>
                 </div>
-            </div>
+            </div>}
             <div
                 className={styles.quickActionsBar}
                 data-aos="fade-up"
@@ -167,31 +203,25 @@ export default function ClerkDashboard() {
                     </span>
                 </div>
                 <div className={styles.actionsScroll}>
-                    <button className={styles.btnQuickActionActive} onClick={() => navigate(`/clerk/payments?plan=session`)}>
-                        Record Walk-in / Day Pass ({plans.find((plan) => plan.code === "session")?.price ? `₱${Number(plans.find((plan) => plan.code === "session").price).toLocaleString()}` : "live price"})
+                    <button className={styles.btnQuickAction} onClick={() => navigate("/clerk/payments?mode=walkin")}>
+                        <i className="fa-solid fa-person-walking"></i> Session Pass (walk-in)
                     </button>
-                    <button className={styles.btnQuickAction} onClick={() => navigate("/clerk/attendance")}>
-                        <i className="fa-solid fa-id-card-clip"></i> Verify
-                        Membership
+                    <button className={styles.btnQuickAction} onClick={() => navigate("/clerk/attendance?focus=checkin")}>
+                        <i className="fa-solid fa-id-card-clip"></i> Check-in
                     </button>
-                    <button className={styles.btnQuickAction} onClick={() => navigate("/clerk/register")}>
+                    <button className={styles.btnQuickAction} onClick={() => navigate("/clerk/member-registration")}>
                         <i className="fa-solid fa-user-plus"></i> New Member
                         Registration
                     </button>
-                    <button className={styles.btnQuickAction} onClick={() => navigate("/clerk/payments")}>
+                    <button className={styles.btnQuickAction} onClick={() => navigate("/clerk/payments?mode=member")}>
                         <i className="fa-solid fa-money-bill-wave"></i> Record
                         Member Payment
                     </button>
                 </div>
             </div>
 
-            {loading && <div className="row g-4 mt-1"><div className="col-12 col-xl-8"><SkeletonTable rows={5} cols={4} /></div><div className="col-12 col-xl-4"><SkeletonList rows={4} /></div></div>}
-            <div className="row g-4 mt-1 fm-fade-in">
-                <div
-                    className="col-12 col-xl-8"
-                    data-aos="fade-right"
-                    data-aos-delay="200"
-                >
+            {loading ? <div className="row g-4 mt-1"><div className="col-12 col-xl-8"><SkeletonTable rows={5} cols={4} /></div><div className="col-12 col-xl-4"><SkeletonList rows={4} /></div></div> : <div className="row g-4 mt-1 fm-fade-in">
+                <div className="col-12 col-xl-8">
                     <div className={styles.panelCard}>
                         <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                             <div className="d-flex align-items-center gap-3">
@@ -229,7 +259,7 @@ export default function ClerkDashboard() {
                                             <td><div className="d-flex align-items-center gap-3"><div className={styles.avatar}>{record.display_name.split(" ").map((part) => part[0]).slice(0, 2).join("")}</div><div><strong className="d-block text-white mb-1">{record.display_name}</strong><span className={styles.subText}>Live attendance record</span></div></div></td>
                                             <td><strong className="d-block text-white mb-1">{new Date(record.check_in_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</strong><span className={styles.subText}>Today</span></td>
                                             <td><span className={styles.planBadgeOutline}>{record.plan_name}</span></td>
-                                            <td><span className={styles.subText}><i className="fa-solid fa-desktop"></i> {record.method}</span></td>
+                                            <td>{(() => { const method = attendanceMethodLabel(record.method); return <span className={styles.subText}><i className={`fa-solid ${method.icon}`}></i> {method.label}</span>; })()}</td>
                                         </tr>
                                     ))}
                                     {!stats?.recentAttendance?.length && <tr><td colSpan="4" className="text-secondary text-center">No check-ins recorded today.</td></tr>}
@@ -480,9 +510,7 @@ export default function ClerkDashboard() {
                                 }}
                             >
                                 <i className="fa-solid fa-circle-info mt-1"></i>
-                                Showing last 5 of 86 total check-ins today.
-                                Click 'Check Out' when members hand in their key
-                                or exit.
+                                Showing {stats?.recentAttendance?.length || 0} recent check-ins today.
                             </span>
                             <button className={styles.btnLink}>
                                 View full attendance sheet
@@ -491,11 +519,7 @@ export default function ClerkDashboard() {
                     </div>
                 </div>
 
-                <div
-                    className="col-12 col-xl-4"
-                    data-aos="fade-left"
-                    data-aos-delay="300"
-                >
+                <div className="col-12 col-xl-4">
                     <div className={styles.panelCard}>
                         <div className="d-flex justify-content-between align-items-start mb-4">
                             <div className="d-flex align-items-center gap-3">
@@ -523,7 +547,7 @@ export default function ClerkDashboard() {
                                     Starting morning float
                                 </span>
                                 <strong className="text-white">
-                                    ₱{Number(localStorage.getItem("fitmetrics_opening_float") || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    ₱{Number(preferences.openingFloat || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </strong>
                             </div>
                             <div
@@ -535,7 +559,7 @@ export default function ClerkDashboard() {
                                     Cash collected today
                                 </span>
                                 <strong className="text-success">
-                                    + ₱{stats ? Number(stats.cashCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}
+                                    + ₱{stats ? Number(stats.cashCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}
                                 </strong>
                             </div>
                             <div
@@ -547,7 +571,7 @@ export default function ClerkDashboard() {
                                     GCash / Maya digital
                                 </span>
                                 <strong className="text-primary">
-                                    ₱{stats ? Number(stats.eWalletCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}
+                                    ₱{stats ? Number(stats.eWalletCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}
                                 </strong>
                             </div>
                         </div>
@@ -568,7 +592,7 @@ export default function ClerkDashboard() {
                                         fontWeight: "700",
                                     }}
                                 >
-                                    ₱{stats ? (Number(stats.cashCollected) + Number(localStorage.getItem("fitmetrics_opening_float") || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "..."}
+                                    ₱{drawer?.expectedCash == null ? "-" : Number(drawer.expectedCash).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </h3>
                             </div>
                             <div className="text-end">
@@ -579,7 +603,7 @@ export default function ClerkDashboard() {
                                         fontWeight: "600",
                                     }}
                                 >
-                                    Ready for count
+                                    {drawer?.session?.status === "closed" ? `Closed (variance ₱${Number(drawer.session.variance || 0).toFixed(2)})` : drawer?.session ? "Ready for count" : "Drawer not opened"}
                                 </span>
                                 <span
                                     className="text-secondary"
@@ -590,10 +614,14 @@ export default function ClerkDashboard() {
                             </div>
                         </div>
 
-                        <button className={styles.btnPrimaryOutlineFull}>
-                            <i className="fa-solid fa-rotate"></i> Update Cash
-                            Drawer
-                        </button>
+                        <div className="d-flex gap-2">
+                            <button className={styles.btnPrimaryOutlineFull} onClick={updateDrawer}>
+                                <i className="fa-solid fa-rotate"></i> {drawer?.session ? "Count / Close" : "Open drawer"}
+                            </button>
+                            {drawer?.session?.status === "open" && <button className={styles.btnPrimaryOutlineFull} onClick={() => setDrawerModal("adjust")}>
+                                <i className="fa-solid fa-right-left"></i> Adjust
+                            </button>}
+                        </div>
                     </div>
 
                     <div className={`${styles.panelCard} mt-4`}>
@@ -623,108 +651,10 @@ export default function ClerkDashboard() {
                                         <div><h6 className="text-white mb-1" style={{ fontSize: "0.95rem" }}>{member.member_name}</h6><span className="text-secondary d-block mb-1" style={{ fontSize: "0.75rem" }}>{member.membership_plans?.name || "Membership"} · Expires {member.end_date}</span></div>
                                         <span className={member.days_left <= 1 ? styles.badgeDanger : styles.badgeWarning}>{member.days_left === 0 ? "Expires today" : `Expires in ${member.days_left} days`}</span>
                                     </div>
-                                    <div className="d-flex gap-2"><button className={styles.btnActionPrimary} onClick={() => navigate("/clerk/membership")}><i className="fa-solid fa-rotate-right"></i> Renew Membership</button><button className={styles.btnActionOutline} disabled={!member.member_email} onClick={async () => { setReminderState(member.id); try { await api(`/clerk/members/${member.member_id}/expiry-reminder`, { method: "POST", body: { membership_id: member.id } }); setReminderState(`${member.id}:sent`); } catch (err) { setError(err.message); setReminderState(""); } }}><i className="fa-regular fa-envelope"></i> {reminderState === `${member.id}:sent` ? "Reminder Sent" : reminderState === member.id ? "Sending..." : "Send Reminder Email"}</button></div>
+                                    <div className="d-flex gap-2"><button className={styles.btnActionPrimary} onClick={() => navigate(`/clerk/membership?member=${member.member_id}`)}><i className="fa-solid fa-rotate-right"></i> Renew Membership</button><button className={styles.btnActionOutline} disabled={!member.member_email} onClick={async () => { setReminderState(member.id); try { await api(`/clerk/members/${member.member_id}/expiry-reminder`, { method: "POST", body: { membership_id: member.id } }); setReminderState(`${member.id}:sent`); } catch (err) { setError(err.message); setReminderState(""); } }}><i className="fa-regular fa-envelope"></i> {reminderState === `${member.id}:sent` ? "Reminder Sent" : reminderState === member.id ? "Sending..." : "Send Reminder Email"}</button></div>
                                 </div>
                             ))}
                             {!stats?.expiringSoon?.length && <div className="text-secondary text-center">No memberships are expiring soon.</div>}
-                            <div style={{ display: "none" }}>
-                            <div className={styles.expiringItem}>
-                                <div className="d-flex justify-content-between align-items-start mb-3">
-                                    <div>
-                                        <h6
-                                            className="text-white mb-1"
-                                            style={{ fontSize: "0.95rem" }}
-                                        >
-                                            Clarisse Domingo
-                                        </h6>
-                                        <span
-                                            className="text-secondary d-block mb-1"
-                                            style={{ fontSize: "0.75rem" }}
-                                        >
-                                            Monthly Fitness · Plan #1042
-                                        </span>
-                                    </div>
-                                    <span className={styles.badgeDanger}>
-                                        Expires Tomorrow
-                                    </span>
-                                </div>
-                                <div className="d-flex gap-2">
-                                    <button className={styles.btnActionPrimary}>
-                                        <i className="fa-solid fa-rotate-right"></i>{" "}
-                                        Renew Membership
-                                    </button>
-                                    <button className={styles.btnActionOutline}>
-                                        <i className="fa-regular fa-envelope"></i>{" "}
-                                        Send Reminder Email
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className={styles.expiringItem}>
-                                <div className="d-flex justify-content-between align-items-start mb-3">
-                                    <div>
-                                        <h6
-                                            className="text-white mb-1"
-                                            style={{ fontSize: "0.95rem" }}
-                                        >
-                                            Marcus Vane
-                                        </h6>
-                                        <span
-                                            className="text-secondary d-block mb-1"
-                                            style={{ fontSize: "0.75rem" }}
-                                        >
-                                            Quarterly VIP · Plan #0892
-                                        </span>
-                                    </div>
-                                    <span className={styles.badgeWarning}>
-                                        Expires in 2 days
-                                    </span>
-                                </div>
-                                <div className="d-flex gap-2">
-                                    <button className={styles.btnActionPrimary}>
-                                        <i className="fa-solid fa-rotate-right"></i>{" "}
-                                        Renew Membership
-                                    </button>
-                                    <button className={styles.btnActionOutline}>
-                                        <i className="fa-regular fa-envelope"></i>{" "}
-                                        Send Reminder Email
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className={styles.expiringItem}>
-                                <div className="d-flex justify-content-between align-items-start mb-3">
-                                    <div>
-                                        <h6
-                                            className="text-white mb-1"
-                                            style={{ fontSize: "0.95rem" }}
-                                        >
-                                            Beatrice Luna
-                                        </h6>
-                                        <span
-                                            className="text-secondary d-block mb-1"
-                                            style={{ fontSize: "0.75rem" }}
-                                        >
-                                            Monthly Standard · Plan #1128
-                                        </span>
-                                    </div>
-                                    <span className={styles.badgeWarning}>
-                                        Expires in 3 days
-                                    </span>
-                                </div>
-                                <div className="d-flex gap-2">
-                                    <button className={styles.btnActionPrimary}>
-                                        <i className="fa-solid fa-rotate-right"></i>{" "}
-                                        Renew Membership
-                                    </button>
-                                    <button className={styles.btnActionOutline}>
-                                        <i className="fa-regular fa-envelope"></i>{" "}
-                                        Send Reminder Email
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
                         <p
                             className="text-center text-secondary mt-4 mb-0"
                             style={{ fontSize: "0.75rem" }}
@@ -735,7 +665,34 @@ export default function ClerkDashboard() {
                     </div>
                 </div>
                 </div>
-            </div>
+            </div>}
+            {drawerModal && <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDrawerModal(""); }}>
+                <div className={styles.drawerModal} role="dialog" aria-modal="true" aria-labelledby="drawer-modal-title">
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                        <h2 id="drawer-modal-title" className={styles.panelTitle}>
+                            {drawerModal === "open" ? "Open cash drawer" : drawerModal === "count" ? "Count / close drawer" : "Add cash adjustment"}
+                        </h2>
+                        <button type="button" className={styles.modalClose} onClick={() => setDrawerModal("")} aria-label="Close"><i className="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onSubmit={submitDrawerAction}>
+                        {drawerModal === "open" && <label className={styles.drawerField}>Opening float (₱)<input required min="0" step="0.01" type="number" value={drawerForm.amount} onChange={(event) => setDrawerForm({ ...drawerForm, amount: event.target.value })} /></label>}
+                        {drawerModal === "count" && <>
+                            <p className="text-secondary">Expected cash: <strong className="text-white">₱{Number(drawer?.expectedCash || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></p>
+                            <label className={styles.drawerField}>Counted cash (₱)<input required min="0" step="0.01" type="number" value={drawerForm.counted_cash} onChange={(event) => setDrawerForm({ ...drawerForm, counted_cash: event.target.value })} /></label>
+                            <label className={styles.drawerField}>Note <textarea required={Number(drawerForm.counted_cash || 0).toFixed(2) !== Number(drawer?.expectedCash || 0).toFixed(2)} value={drawerForm.note} onChange={(event) => setDrawerForm({ ...drawerForm, note: event.target.value })} placeholder="Required when there is a variance" /></label>
+                        </>}
+                        {drawerModal === "adjust" && <>
+                            <label className={styles.drawerField}>Adjustment type<select value={drawerForm.kind} onChange={(event) => setDrawerForm({ ...drawerForm, kind: event.target.value })}><option value="correction">Cash in</option><option value="payout">Payout / cash out</option><option value="refund">Refund / cash out</option></select></label>
+                            <label className={styles.drawerField}>Amount (₱)<input required min="0.01" step="0.01" type="number" value={drawerForm.amount} onChange={(event) => setDrawerForm({ ...drawerForm, amount: event.target.value })} /></label>
+                            <label className={styles.drawerField}>Reason<textarea required maxLength="500" value={drawerForm.reason} onChange={(event) => setDrawerForm({ ...drawerForm, reason: event.target.value })} /></label>
+                        </>}
+                        <div className="d-flex justify-content-end gap-2 mt-4">
+                            <button type="button" className={styles.modalCancel} onClick={() => setDrawerModal("")}>Cancel</button>
+                            <button type="submit" className={styles.modalSubmit} disabled={drawerSaving}>{drawerSaving ? "Saving..." : "Save"}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>}
         </ClerkLayout>
     );
 }

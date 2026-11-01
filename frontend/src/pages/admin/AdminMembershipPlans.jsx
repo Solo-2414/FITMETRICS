@@ -3,6 +3,7 @@ import AdminLayout from "../../components/admin/AdminLayout";
 import { api } from "../../lib/api";
 import { SkeletonCards, SkeletonKpiCards } from "../../components/ui/Skeleton";
 import styles from "./AdminMembershipPlans.module.css";
+import InlineError from "../../components/ui/InlineError";
 
 const emptyPlan = {
     name: "",
@@ -98,7 +99,7 @@ export default function AdminMembershipPlans() {
                 </div>
             </div>
 
-            {error && <div className="alert alert-danger mb-4" role="alert">{error}</div>}
+            {error && <InlineError error={error} />}
 
             {loading ? <SkeletonKpiCards count={3} colClass="col-12 col-md-4" /> : <div className="row g-3 mb-5 fm-fade-in" data-aos="fade-up" data-aos-delay="100">
                 {[

@@ -2,13 +2,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ClerkLayout from "../../components/clerk/ClerkLayout";
 import { api } from "../../lib/api";
 import QRCode from "qrcode";
+import { attendanceMethodLabel } from "../../lib/attendanceMethod";
 import { SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
 import styles from "./ClerkAttendance.module.css";
+import { playTerminalAlert, useTerminalPreferences } from "../../hooks/useTerminalPreferences";
+import InlineError from "../../components/ui/InlineError";
+import { useToast } from "../../components/ui/toast/useToast";
+import { useConfirm } from "../../components/ui/toast/useConfirm";
 
 export default function ClerkAttendance() {
+    const toast = useToast();
+    const confirm = useConfirm();
     const [members, setMembers] = useState([]);
     const [error, setError] = useState("");
-    const [success, setSuccess] = useState("");
     const [saving, setSaving] = useState(false);
     const [analysis, setAnalysis] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -16,8 +22,11 @@ export default function ClerkAttendance() {
     const [recordSearch, setRecordSearch] = useState("");
     const [checkInSearch, setCheckInSearch] = useState("");
     const [checkInMemberId, setCheckInMemberId] = useState("");
-    const [qrUrl, setQrUrl] = useState("");
+    const [stationQr, setStationQr] = useState(null);
+    const [memberCode, setMemberCode] = useState("");
+    const checkInInputRef = useRef(null);
     const [date, setDate] = useState(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()));
+    const { preferences } = useTerminalPreferences();
     const selectedMember = members.find((member) => member.id === checkInMemberId);
     const memberForRow = (id) => members.find((member) => member.id === id);
     const filteredRecords = useMemo(() => (analysis?.records || []).filter((row) => {
@@ -41,21 +50,38 @@ export default function ClerkAttendance() {
             setRefreshing(false);
         }
     };
-    const createMemberQr = async (member) => {
-        const code = member?.member_details?.member_code;
-        if (!code) return setError("This member has no member code for QR generation.");
-        setQrUrl(await QRCode.toDataURL(code));
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (preferences.fastCheckinAutoFocus || params.get("focus") === "checkin") checkInInputRef.current?.focus();
+    }, [preferences.fastCheckinAutoFocus]);
+    const loadStationQr = async () => {
+        try {
+            const station = await api("/clerk/attendance/qr");
+            setStationQr({ ...station, image: await QRCode.toDataURL(station.url) });
+        } catch (err) { setError(err.message); }
     };
+    useEffect(() => {
+        loadStationQr();
+        const interval = window.setInterval(loadStationQr, 50_000);
+        return () => window.clearInterval(interval);
+    }, []);
+    useEffect(() => {
+        if (!document.visibilityState) return undefined;
+        const interval = window.setInterval(() => {
+            if (document.visibilityState === "visible") refresh();
+        }, 10_000);
+        return () => window.clearInterval(interval);
+    }, [date]);
     const recordCheckIn = async (event) => {
         event.preventDefault();
         setSaving(true);
         setError("");
-        setSuccess("");
         try {
             if (!selectedMember) throw new Error("Select a registered member before checking in.");
-            await api("/clerk/attendance", { method: "POST", body: { member_id: selectedMember.id, method: "member_id" } });
+            await api("/clerk/attendance", { method: "POST", body: { member_id: selectedMember.id, method: "manual" } });
             await refresh();
-            setSuccess("Check-in recorded successfully.");
+            if (preferences.autoClearCheckinSearch) { setCheckInSearch(""); setCheckInMemberId(""); }
+            playTerminalAlert(preferences.audioAlerts);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -72,8 +98,7 @@ export default function ClerkAttendance() {
     }
     return (
         <ClerkLayout>
-            {error && <div className="alert alert-danger">{error}</div>}
-            {success && <div className="alert alert-success">{success}</div>}
+            {error && <InlineError error={error} />}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                 data-aos="fade-down"
@@ -122,6 +147,7 @@ export default function ClerkAttendance() {
                                 <div className={styles.inputGroup}>
                                     <input
                                         type="text"
+                                        ref={checkInInputRef}
                                         className={styles.formInputGroup}
                                         placeholder="Type member name or ID..."
                                         value={checkInSearch}
@@ -129,7 +155,11 @@ export default function ClerkAttendance() {
                                     />
                                     <i className="fa-solid fa-magnifying-glass"></i>
                                 </div>
-                                {checkInSearch && !selectedMember && <div className="list-group mt-2">{members.filter((member) => `${member.full_name || ""} ${member.member_details?.member_code || ""}`.toLowerCase().includes(checkInSearch.toLowerCase())).slice(0, 5).map((member) => <button type="button" className="list-group-item list-group-item-action" key={member.id} onClick={() => { setCheckInMemberId(member.id); setCheckInSearch(member.full_name || member.member_details?.member_code); }}>{member.full_name || member.email} <small>{member.member_details?.member_code || ""}</small></button>)}</div>}
+                                {checkInSearch && !selectedMember && <div className={styles.memberSearchResults}>{members.filter((member) => `${member.full_name || ""} ${member.member_details?.member_code || ""}`.toLowerCase().includes(checkInSearch.toLowerCase())).slice(0, 5).map((member) => <button type="button" className={styles.memberSearchResult} key={member.id} onClick={() => { setCheckInMemberId(member.id); setCheckInSearch(member.full_name || member.member_details?.member_code); }}>{member.full_name || member.email} <small>{member.member_details?.member_code || ""}</small></button>)}{!members.some((member) => `${member.full_name || ""} ${member.member_details?.member_code || ""}`.toLowerCase().includes(checkInSearch.toLowerCase())) && <span className={styles.memberSearchEmpty}>No member found</span>}</div>}
+                            </div>
+                            <div className="mb-4">
+                                <label className={styles.formLabel}>Member ID QR scanner code</label>
+                                <input className={styles.formInputGroup} value={memberCode} placeholder="Scan or type member code, then press Enter" onChange={(event) => setMemberCode(event.target.value)} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); const match = members.find((member) => member.member_details?.member_code?.toLowerCase() === memberCode.trim().toLowerCase()); if (match) { setCheckInMemberId(match.id); setCheckInSearch(match.full_name || match.email); setMemberCode(""); } else setError("No member found for that code."); }} />
                             </div>
 
                             <div className="mb-4">
@@ -184,7 +214,7 @@ export default function ClerkAttendance() {
 
                         <div className={styles.qrBox}>
                             <div className={styles.qrIconWrapper}>
-                                {qrUrl ? <img src={qrUrl} alt="Member QR" id="member-qr-block" style={{ width: 110, height: 110 }} /> : <i className="fa-solid fa-qrcode"></i>}
+                                {stationQr?.image ? <img id="member-qr-block" src={stationQr.image} alt="Gym Entrance QR" style={{ width: 150, height: 150 }} /> : <i className="fa-solid fa-qrcode"></i>}
                             </div>
                             <div>
                                 <h4
@@ -195,7 +225,7 @@ export default function ClerkAttendance() {
                                         fontWeight: "600",
                                     }}
                                 >
-                                    Gym Entrance QR Code
+                                    Gym Entrance QR (members scan this)
                                 </h4>
                                 <p
                                     className="text-secondary m-0"
@@ -204,22 +234,15 @@ export default function ClerkAttendance() {
                                         lineHeight: "1.5",
                                     }}
                                 >
-                                    Members scan this QR code using their phone
-                                    camera to check in automatically through
-                                    their portal, or clerk can scan member's QR
-                                    pass.
+                                    Members scan this rotating QR code with their phone. It refreshes automatically and never contains member data.
                                 </p>
                             </div>
                         </div>
 
                         <div className="d-flex flex-column flex-sm-row gap-3 mt-4">
-                            <button className={styles.btnOutlineAction} onClick={() => { if (!qrUrl) return setError("Select a member in Fast Check-in first to generate a QR."); const printWindow = window.open("", "_blank"); printWindow.document.write(`<img src="${qrUrl}" style="width:300px;height:300px" onload="window.print();window.close()">`); }}>
-                                <i className="fa-solid fa-print"></i> Print QR
-                                Code Poster
-                            </button>
-                            <button className={styles.btnOutlineActionPrimary} onClick={() => setCheckInSearch("")}>
-                                <i className="fa-solid fa-camera"></i> Scan
-                                Member Phone Pass
+                            <span className="text-secondary small">Expires {stationQr ? new Date(stationQr.expires_at).toLocaleTimeString() : "loading..."}</span>
+                            <button className={styles.btnOutlineActionPrimary} onClick={() => document.getElementById("member-qr-block")?.requestFullscreen?.()}>
+                                <i className="fa-solid fa-expand"></i> Full screen
                             </button>
                         </div>
                     </div>
@@ -388,8 +411,8 @@ export default function ClerkAttendance() {
                                     <td>{memberForRow(row.member_id)?.membership?.membership_plans?.name || "Membership"}</td>
                                     <td><span className="text-white fw-bold">{new Date(row.check_in_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></td>
                                     <td><span className="text-secondary">{row.check_out_at ? new Date(row.check_out_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--"}</span></td>
-                                    <td><span className={styles.methodBadgeOutline}><i className="fa-solid fa-desktop"></i>{" "}{row.method}</span></td>
-                                    <td className="text-end">{!row.check_out_at ? <button className={styles.btnActionOutline} onClick={async () => { if (!window.confirm("Check out this member?")) return; try { await api(`/attendance/${row.id}/checkout`, { method: "PATCH" }); await refresh(); setSuccess("Check-out recorded."); } catch (err) { setError(err.message); } }}>Check Out</button> : <span className={styles.statusCheckedOut}>Checked Out</span>}</td>
+                                    <td>{(() => { const method = attendanceMethodLabel(row.method); return <span className={styles.methodBadgeOutline}><i className={`fa-solid ${method.icon}`}></i>{" "}{method.label}</span>; })()}</td>
+                                    <td className="text-end">{!row.check_out_at ? <button className={styles.btnActionOutline} onClick={async () => { if (!await confirm({ title: "Check out member?", message: "Check out this member?", danger: false })) return; try { await api(`/attendance/${row.id}/checkout`, { method: "PATCH" }); await refresh(); toast.success("Check-out recorded."); } catch (err) { toast.error(err.message); } }}>Check Out</button> : <span className={styles.statusCheckedOut}>Checked Out</span>}</td>
                                 </tr>
                             ))}
                             {!analysis?.records?.length && <tr><td colSpan="6" className="text-center text-secondary py-4">No attendance records today.</td></tr>}
