@@ -46,6 +46,12 @@ export const runDailyEmailJobs = async () => {
   const { error: walkInError } = await supabaseAdmin.from('walk_in_visits')
     .update({ status: 'completed' }).eq('status', 'active').lt('valid_until', new Date().toISOString());
   if (walkInError) throw walkInError;
+  const { error: attemptsError } = await supabaseAdmin.from('checkin_attempts')
+    .delete().lt('created_at', new Date(Date.now() - 30 * 86400000).toISOString());
+  if (attemptsError) throw attemptsError;
+  const { error: codesError } = await supabaseAdmin.from('member_check_in_codes')
+    .delete().lt('created_at', new Date(Date.now() - 30 * 86400000).toISOString());
+  if (codesError) throw codesError;
   await queueExpiryReminders();
 };
 

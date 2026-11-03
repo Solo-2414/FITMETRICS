@@ -11,6 +11,7 @@ export default function MemberProfile() {
     const [data, setData] = useState(null);
     const [dashboard, setDashboard] = useState(null);
     const [profile, setProfile] = useState(null);
+    const [devices, setDevices] = useState([]);
     const attendance = dashboard?.attendance;
     const [error, setError] = useState("");
     const membership = dashboard?.membership;
@@ -20,6 +21,14 @@ export default function MemberProfile() {
     useEffect(() => { api("/member/membership").then(setData).catch((err) => setError(err.message)); }, []);
     useEffect(() => { api("/member/dashboard").then(setDashboard).catch((err) => setError(err.message)); }, []);
     useEffect(() => { api("/me").then(setProfile).catch((err) => setError(err.message)); }, []);
+    useEffect(() => { api("/member/check-in-devices").then(setDevices).catch((err) => setError(err.message)); }, []);
+    const removeDevice = async (id) => {
+        try {
+            await api(`/member/check-in-devices/${id}`, { method: "DELETE" });
+            setDevices((currentDevices) => currentDevices.filter((device) => device.id !== id));
+            toast.success("Check-in device removed.");
+        } catch (err) { toast.error(err.message); }
+    };
     const save = async (event) => {
         event.preventDefault();
         const data = Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -427,6 +436,16 @@ export default function MemberProfile() {
                     </button>
                 </div>
             </form>
+            <div className={`${styles.panelCard} p-4 mt-4`}>
+                <h3 className={styles.panelTitle}>Check-in devices</h3>
+                <p className={styles.panelDesc}>Trusted phones can check you in without an email code.</p>
+                {devices.length === 0 ? <p className="text-secondary mb-0">No trusted devices.</p> : devices.map((device) => (
+                    <div className="d-flex justify-content-between align-items-center border-bottom border-secondary py-2" key={device.id}>
+                        <span className="text-white">{device.label}<small className="d-block text-secondary">Last used {new Date(device.last_used_at).toLocaleDateString()}</small></span>
+                        <button type="button" className={styles.btnCancel} onClick={() => removeDevice(device.id)}>Remove</button>
+                    </div>
+                ))}
+            </div>
             </>}
         </MemberLayout>
     );

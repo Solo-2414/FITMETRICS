@@ -2,7 +2,9 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { today } from '../utils/time.js';
 import { notifyStaff } from './notify.js';
 
-export const checkInMember = async ({ memberId, method, recordedBy = null }) => {
+export const checkInMember = async ({
+  memberId, method, recordedBy = null, deviceId = null, ipHash = null, userAgent = null, sourceQrId = null,
+}) => {
   const { data: membership, error: membershipError } = await supabaseAdmin.from('memberships')
     .select('id, end_date, status, membership_plans(name)')
     .eq('member_id', memberId)
@@ -28,12 +30,13 @@ export const checkInMember = async ({ memberId, method, recordedBy = null }) => 
   }
   const { data, error } = await supabaseAdmin.from('attendance').insert({
     member_id: memberId, membership_id: membership.id, method, recorded_by: recordedBy,
+    device_id: deviceId, ip_hash: ipHash, user_agent: userAgent, source_qr_id: sourceQrId,
   }).select().single();
   if (error) throw error;
   await notifyStaff({
     type: 'system',
     title: 'Member checked in',
-    message: `A member checked in using ${method === 'qr' ? 'the gym QR code' : 'the front desk'}.`,
+    message: `A member checked in using ${method === 'qr_phone' ? 'phone QR check-in' : method === 'qr' ? 'the gym QR code' : 'the front desk'}.`,
     meta: { member_id: memberId },
   });
   return { ...data, plan_name: membership.membership_plans?.name || 'Current plan', membership };

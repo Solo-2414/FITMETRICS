@@ -498,6 +498,171 @@
     white-space: nowrap;
 }
 
+/* added for operations-table Attendance redesign */
+.qrStationCard {
+    border-color: rgba(56, 189, 248, 0.35);
+}
+
+.recommendedLabel,
+.sectionEyebrow {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--primary-color);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.qrWarning {
+    color: var(--text-color);
+    font-size: 0.75rem;
+    line-height: 1.45;
+    margin: 12px 0 0;
+}
+
+.qrPreview {
+    width: 220px;
+    height: 220px;
+    background: #fff;
+    padding: 8px;
+    border-radius: 8px;
+}
+
+.countPill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 7px;
+    margin-left: 5px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 999px;
+    color: var(--text-color);
+    font-family: var(--text-font);
+    font-size: 0.75rem;
+    vertical-align: middle;
+}
+
+.btnOutlineActionCompact {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btnOutlineActionCompact:hover {
+    border-color: var(--primary-color);
+    color: var(--header-text-color);
+}
+
+.floorGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0 24px;
+}
+
+.floorRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-width: 0;
+    padding: 12px 0;
+    border-top: 1px solid var(--card-stroke-color);
+}
+
+.flagged {
+    display: inline-block;
+    margin-left: 6px;
+    color: #fbbf24;
+}
+
+.logTools {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.tableScroll {
+    overflow-x: auto;
+    margin-top: 18px;
+}
+
+.tableScroll .customTable {
+    min-width: 720px;
+    width: 100%;
+}
+
+.customTable tbody tr {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.customTable tbody td {
+    padding: 13px 10px;
+    color: var(--text-color);
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+.customTable tbody tr:last-child {
+    border-bottom: 0;
+}
+
+.memberCell {
+    color: var(--header-text-color) !important;
+    font-weight: 600;
+}
+
+.methodPill,
+.statusInside,
+.statusComplete {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.methodPill {
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+}
+
+.statusInside {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--green-color);
+}
+
+.statusComplete {
+    color: var(--text-color);
+}
+
+.emptyCell {
+    padding: 24px 10px !important;
+    color: var(--text-color);
+}
+
+@media (max-width: 767.98px) {
+    .floorGrid {
+        display: block;
+    }
+
+    .logTools,
+    .searchBox {
+        width: 100%;
+    }
+}
+
 .customTable td {
     background-color: transparent !important;
     color: var(--text-color);

@@ -122,6 +122,20 @@ export const renderEmail = (emailType, payload = {}) => {
       html: `<p>Your FITMETRICS password reset code is <strong>${escapeHtml(payload.otp)}</strong>.</p>`,
     };
   }
+  if (emailType === 'checkin_code') {
+    const gymName = escapeHtml(payload.gymName || 'FITMETRICS');
+    return {
+      subject: `${payload.gymName || 'FITMETRICS'} check-in code`,
+      text: `Your ${payload.gymName || 'FITMETRICS'} check-in code is ${payload.code}. It expires in 10 minutes. If you did not request this, ignore this email.`,
+      html: brandedShell({
+        gymName,
+        logoUrl: payload.logoUrl || process.env.EMAIL_LOGO_URL,
+        label: 'Check-in code',
+        heading: 'Your check-in code',
+        content: `<p style="text-align:center;font-size:36px;letter-spacing:8px;font-weight:800;color:#f8fafc;">${escapeHtml(payload.code)}</p><p>This code expires in 10 minutes.</p><p>If you didn't request this, ignore this email.</p>`,
+      }),
+    };
+  }
   if (emailType === 'welcome') {
     const gymName = escapeHtml(payload.gymName || 'FITMETRICS');
     return {

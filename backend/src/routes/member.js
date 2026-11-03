@@ -66,4 +66,23 @@ router.patch('/member/notifications', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get('/member/check-in-devices', async (req, res, next) => {
+  try {
+    const { data, error } = await supabaseAdmin.from('member_check_in_devices')
+      .select('id, label, created_at, last_used_at, expires_at').eq('member_id', req.user.id)
+      .is('revoked_at', null).order('last_used_at', { ascending: false });
+    if (error) return next(error);
+    return res.json(data || []);
+  } catch (error) { return next(error); }
+});
+
+router.delete('/member/check-in-devices/:id', async (req, res, next) => {
+  try {
+    const { error } = await supabaseAdmin.from('member_check_in_devices').update({ revoked_at: new Date().toISOString() })
+      .eq('id', req.params.id).eq('member_id', req.user.id).is('revoked_at', null);
+    if (error) return next(error);
+    return res.json({ ok: true });
+  } catch (error) { return next(error); }
+});
+
 export default router;

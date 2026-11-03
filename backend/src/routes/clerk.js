@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import { checkinQrExpiry, createCheckinToken } from '../lib/checkinQr.js';
 import { qrPaymentResponse } from '../lib/qrPayment.js';
 import { paymentMethodError } from '../lib/paymentModes.js';
@@ -950,6 +951,144 @@ router.post('/clerk/attendance', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+    router.get('/clerk/members/lookup', async (req, res, next) => {
+      try {
+        const query = String(req.query.q || '').trim().slice(0, 100);
+        if (query.length < 2) return res.json([]);
+        const digits = query.replace(/\D/g, '');
+        const normalized = digits.startsWith('63') && digits.length === 12 ? `0${digits.slice(2)}` : digits;
+        const { data: members, error } = await supabaseAdmin.from('profiles')
+          .select('id, full_name, email, phone, phone_normalized, status, member_details(member_code)')
+          .eq('role', 'member')
+          .or(`full_name.ilike.%${query}%,email.ilike.%${query}%,phone_normalized.ilike.%${normalized}%`)
+          .limit(8);
+        if (error) return next(error);
+        const ids = (members || []).map((member) => member.id);
+        const states = await getMembershipState(ids);
+        return res.json((members || []).map((member) => {
+          const state = states.get(member.id) || { current: null, queued: [], last_expired: null };
+          const membership = state.current || state.queued[0] || state.last_expired;
+          const status = member.status === 'suspended' ? 'suspended'
+            : state.current ? (new Date(`${state.current.end_date}T00:00:00+08:00`) - new Date()) < 7 * 86400000 ? 'expiring' : 'active'
+              : state.queued[0] ? 'no_plan' : state.last_expired ? 'expired' : 'no_plan';
+          return {
+            id: member.id, full_name: member.full_name, member_code: member.member_details?.member_code || null,
+            status, plan_name: membership?.membership_plans?.name || null, valid_until: membership?.end_date || null,
+            email: member.email, phone: member.phone,
+          };
+        }));
+      } catch (error) { return next(error); }
+    });
+
+    router.get('/clerk/attendance/live', async (_req, res, next) => {
+      try {
+        const { data, error } = await supabaseAdmin.from('attendance')
+          .select('id, member_id, walk_in_visit_id, check_in_at, method, flagged, profiles:member_id(full_name, member_details(member_code)), memberships(membership_plans(name)), walk_in_visits(guest_name, membership_plans(name))')
+          .eq('status', 'open').is('check_out_at', null).order('check_in_at', { ascending: true });
+        if (error) return next(error);
+        const settings = await supabaseAdmin.from('gym_settings').select('capacity').eq('id', true).maybeSingle();
+        if (settings.error) return next(settings.error);
+        return res.json({
+          capacity: settings.data?.capacity || 100,
+          people: (data || []).map((row) => ({
+            id: row.id, name: row.profiles?.full_name || row.walk_in_visits?.guest_name || 'Walk-in Guest',
+            code: row.profiles?.member_details?.member_code || null, plan: row.memberships?.membership_plans?.name || row.walk_in_visits?.membership_plans?.name || 'Day pass',
+            method: row.method, check_in_at: row.check_in_at, flagged: Boolean(row.flagged),
+          })),
+        });
+      } catch (error) { return next(error); }
+    });
+
+    router.get('/clerk/attendance/log', async (req, res, next) => {
+      try {
+        const value = String(req.query.date || today());
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return res.status(400).json({ error: 'Invalid attendance date.' });
+        const page = Math.max(1, Number(req.query.page) || 1);
+        const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+        const end = new Date(`${value}T00:00:00+08:00`);
+        end.setDate(end.getDate() + 1);
+        const { data, error, count } = await supabaseAdmin.from('attendance')
+          .select('id, check_in_at, check_out_at, method, status, flagged, recorded_by, member_id, profiles:member_id(full_name, member_details(member_code)), memberships(membership_plans(name))', { count: 'exact' })
+          .gte('check_in_at', `${value}T00:00:00+08:00`).lt('check_in_at', end.toISOString())
+          .order('check_in_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
+        if (error) return next(error);
+        const filtered = data || [];
+        if (req.query.state === 'in') filtered.splice(0, filtered.length, ...filtered.filter((row) => !row.check_out_at));
+        if (req.query.state === 'out') filtered.splice(0, filtered.length, ...filtered.filter((row) => row.check_out_at));
+        const search = String(req.query.search || '').toLowerCase();
+        const rows = filtered.filter((row) => !search || `${row.profiles?.full_name || ''} ${row.profiles?.member_details?.member_code || ''}`.toLowerCase().includes(search));
+        return res.json({ rows: rows.map((row) => ({ ...row, member_name: row.profiles?.full_name || 'Walk-in Guest', plan_name: row.memberships?.membership_plans?.name || 'Day pass', duration_minutes: row.check_out_at ? Math.round((new Date(row.check_out_at) - new Date(row.check_in_at)) / 60000) : null })), total: count || 0, page, limit });
+      } catch (error) { return next(error); }
+    });
+
+    router.get('/clerk/attendance/stats', async (req, res, next) => {
+      try {
+        const value = String(req.query.date || today());
+        const { data, error } = await supabaseAdmin.from('attendance').select('check_in_at, check_out_at, method, flagged')
+          .gte('check_in_at', `${value}T00:00:00+08:00`).lt('check_in_at', `${value}T23:59:59+08:00`);
+        if (error) return next(error);
+        const rows = data || [];
+        const open = rows.filter((row) => !row.check_out_at);
+        const hours = rows.map((row) => Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', hour12: false }).format(new Date(row.check_in_at))));
+        const peak = hours.length ? Object.entries(hours.reduce((all, hour) => ({ ...all, [hour]: (all[hour] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1])[0][0] : null;
+        return res.json({ on_floor: open.length, check_ins: rows.length, qr_check_ins: rows.filter((row) => ['qr', 'qr_phone'].includes(row.method)).length, desk_check_ins: rows.filter((row) => row.method === 'manual').length, peak_hour: peak, flagged_count: rows.filter((row) => row.flagged).length });
+      } catch (error) { return next(error); }
+    });
+
+    router.post('/clerk/attendance/:id/check-out', async (req, res, next) => {
+      try {
+        const { data, error } = await supabaseAdmin.from('attendance').update({ check_out_at: new Date().toISOString(), status: 'completed', checked_out_via: 'clerk' })
+          .eq('id', req.params.id).is('check_out_at', null).select().single();
+        if (error) return res.status(error.code === 'PGRST116' ? 404 : 400).json({ error: 'That check-in is already closed or missing.' });
+        await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'attendance_manual_checkout', entity_type: 'attendance', entity_id: data.id, details: { checked_out_via: 'clerk' } });
+        return res.json(data);
+      } catch (error) { return next(error); }
+    });
+
+    router.post('/clerk/attendance/check-out-all', async (req, res, next) => {
+      try {
+        const { data, error } = await supabaseAdmin.from('attendance').update({ check_out_at: new Date().toISOString(), status: 'completed', checked_out_via: 'clerk' })
+          .eq('status', 'open').is('check_out_at', null).select('id');
+        if (error) return next(error);
+        await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'attendance_manual_checkout_all', entity_type: 'attendance', details: { count: data?.length || 0 } });
+        return res.json({ count: data?.length || 0 });
+      } catch (error) { return next(error); }
+    });
+
+    router.get('/clerk/attendance/qr-codes', async (_req, res, next) => {
+      try {
+        const { data, error } = await supabaseAdmin.from('checkin_qr_codes').select('id, label, expires_at, revoked_at, created_at, last_used_at, scan_count').order('created_at', { ascending: false });
+        if (error) return next(error);
+        return res.json(data || []);
+      } catch (error) { return next(error); }
+    });
+
+    router.post('/clerk/attendance/qr-codes', async (req, res, next) => {
+      try {
+        const label = String(req.body?.label || '').trim();
+        const validFor = String(req.body?.valid_for || 'until_revoked');
+        if (!label || label.length > 80 || !['day', '7d', '30d', 'until_revoked'].includes(validFor)) return res.status(422).json({ error: 'Enter a label and valid QR duration.' });
+        const token = crypto.randomBytes(32).toString('base64url');
+        const expires = validFor === 'until_revoked' ? null : new Date(Date.now() + ({ day: 86400000, '7d': 604800000, '30d': 2592000000 }[validFor])).toISOString();
+        const { data, error } = await supabaseAdmin.from('checkin_qr_codes').insert({ label, token_hash: crypto.createHash('sha256').update(`${process.env.CHECKIN_CONFIRM_SECRET || 'fitmetrics'}:${token}`).digest('hex'), expires_at: expires, created_by: req.user.id }).select('id, label, expires_at, created_at').single();
+        if (error) return next(error);
+        await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'attendance_qr_created', entity_type: 'checkin_qr_code', entity_id: data.id, details: { label, valid_for: validFor } });
+        const base = process.env.PUBLIC_APP_URL;
+        if (!base || /^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?$/i.test(base)) {
+          return res.status(503).json({ error: 'Public app URL is not configured for phone check-in QR codes.' });
+        }
+        return res.status(201).json({ ...data, token, url: `${base}/check-in?t=${encodeURIComponent(token)}` });
+      } catch (error) { return next(error); }
+    });
+
+    router.post('/clerk/attendance/qr-codes/:id/revoke', async (req, res, next) => {
+      try {
+        const { data, error } = await supabaseAdmin.from('checkin_qr_codes').update({ revoked_at: new Date().toISOString() }).eq('id', req.params.id).is('revoked_at', null).select('id').single();
+        if (error) return res.status(404).json({ error: 'QR code not found or already revoked.' });
+        await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'attendance_qr_revoked', entity_type: 'checkin_qr_code', entity_id: data.id, details: {} });
+        return res.json({ revoked: true });
+      } catch (error) { return next(error); }
+    });
 router.get('/clerk/attendance/qr', async (_req, res, next) => {
   try {
     const token = createCheckinToken();
@@ -1126,6 +1265,19 @@ router.post('/clerk/members/:id/expiry-reminder', async (req, res, next) => {
     });
     res.json({ queued: Boolean(queued) });
   } catch (error) { next(error); }
+});
+
+router.post('/clerk/members/:memberId/check-in-devices/reset', async (req, res, next) => {
+  try {
+    const { error } = await supabaseAdmin.from('member_check_in_devices')
+      .update({ revoked_at: new Date().toISOString() }).eq('member_id', req.params.memberId).is('revoked_at', null);
+    if (error) return next(error);
+    const { error: auditError } = await supabaseAdmin.from('audit_log').insert({
+      actor_id: req.user.id, action: 'checkin_devices_reset', entity_type: 'member', entity_id: req.params.memberId, details: {},
+    });
+    if (auditError) return next(auditError);
+    return res.json({ ok: true });
+  } catch (error) { return next(error); }
 });
 
 export default router;

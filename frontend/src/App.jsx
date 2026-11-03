@@ -21,6 +21,7 @@ import MemberBilling from "./pages/member/MemberBilling";
 import MemberVideoTutorials from "./pages/member/MemberVideoTutorials";
 import MemberNotifications from "./pages/member/MemberNotifications";
 import MemberCheckIn from "./pages/member/MemberCheckIn";
+import CheckIn from "./pages/CheckIn";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminChurnAnalytics from "./pages/admin/AdminChurnAnalytics";
@@ -66,6 +67,7 @@ export default function App() {
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/check-in" element={<CheckIn />} />
 
                 <Route element={<ProtectedRoute roles={["member"]} />}>
                 <Route path="/member/dashboard" element={<MemberDashboard />} />
