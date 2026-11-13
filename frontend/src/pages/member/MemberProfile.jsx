@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberProfile.module.css";
 import { api } from "../../lib/api";
-import { SkeletonForm } from "../../components/ui/Skeleton";
+import { SkeletonMemberProfile } from "../../components/ui/Skeleton";
 import InlineError from "../../components/ui/InlineError";
 import { useToast } from "../../components/ui/toast/useToast";
 
@@ -46,7 +46,7 @@ export default function MemberProfile() {
     return (
         <MemberLayout>
             {error && <InlineError error={error} />}
-            {!profile || !data || !dashboard ? <SkeletonForm fields={8} cols={2} /> : <>
+            {!profile || !data || !dashboard ? <SkeletonMemberProfile /> : <>
             <div className="mb-4" data-aos="fade-down" data-aos-delay="100">
                 <h1 className={styles.pageTitle}>My Profile</h1>
                 <p className={styles.pageDesc}>

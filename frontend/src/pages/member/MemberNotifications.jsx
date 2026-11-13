@@ -4,7 +4,7 @@ import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberNotifications.module.css";
 import InlineError from "../../components/ui/InlineError";
 import { api } from "../../lib/api";
-import { SkeletonList } from "../../components/ui/Skeleton";
+import { SkeletonNotifications } from "../../components/ui/Skeleton";
 
 export default function MemberNotifications() {
     const [activeTab, setActiveTab] = useState("All");
@@ -124,7 +124,7 @@ export default function MemberNotifications() {
                 </div>
 
                 <div className={styles.notificationList}>
-                    {loading ? <SkeletonList rows={5} /> : filteredNotifications.length > 0 ? (
+                    {loading ? <SkeletonNotifications /> : filteredNotifications.length > 0 ? (
                         filteredNotifications.map((note) => (
                             <div
                                 key={note.id}

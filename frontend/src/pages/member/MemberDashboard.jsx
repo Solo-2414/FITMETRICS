@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout.jsx";
-import { SkeletonKpiCards, SkeletonList } from "../../components/ui/Skeleton";
+import { SkeletonMemberDashboard } from "../../components/ui/Skeleton";
 import styles from "./MemberDashboard.module.css";
 import InlineError from "../../components/ui/InlineError";
 import { api } from "../../lib/api";
@@ -37,7 +37,7 @@ export default function MemberDashboard() {
     return (
         <MemberLayout>
             {error && <InlineError error={error} />}
-            {loading ? <><SkeletonKpiCards count={3} colClass="col-12 col-md-4" /><SkeletonList rows={4} /></> : <>
+            {loading ? <SkeletonMemberDashboard /> : <>
             <div
                 className={`${styles.welcomeBanner} p-4 mb-4`}
                 data-aos="fade-down"

@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import AdminLayout from "../../components/admin/AdminLayout";
 import { api } from "../../lib/api";
 import { VIDEO_CATEGORIES } from "../../lib/videoCategories";
 import styles from "./AdminVideoTutorials.module.css";
-import { SkeletonCards } from "../../components/ui/Skeleton";
+import { SkeletonAdminVideos } from "../../components/ui/Skeleton";
 import InlineError from "../../components/ui/InlineError";
 import { useToast } from "../../components/ui/toast/useToast";
 import { useConfirm } from "../../components/ui/toast/useConfirm";
@@ -76,7 +75,7 @@ export default function AdminVideoTutorials() {
         } catch (err) { toast.error(err.message); }
     };
 
-    return <AdminLayout>
+    return <>
         {error && <InlineError error={error} />}
         <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3">
             <div><h1 className={styles.pageTitle}>Workout Video Tutorials</h1><p className={styles.pageDesc}>Manage YouTube and Vimeo exercise guides for gym members.</p></div>
@@ -89,7 +88,7 @@ export default function AdminVideoTutorials() {
             <input className={styles.formInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tutorials..." />
             <select className={styles.formSelect} value={filter} onChange={(event) => setFilter(event.target.value)}><option value="">All categories</option>{VIDEO_CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select>
         </div>
-        {loading ? <SkeletonCards count={6} /> : videos.length === 0 ? <div className="text-secondary py-5">No video tutorials found.</div> : <div className="row g-4 fm-fade-in">
+        {loading ? <SkeletonAdminVideos /> : videos.length === 0 ? <div className="text-secondary py-5">No video tutorials found.</div> : <div className="row g-4 fm-fade-in">
             {videos.map((video) => <div className="col-12 col-md-6 col-xl-4" key={video.id}><div className={styles.videoCard}>
                 <div className={styles.videoThumbnail} style={video.thumbnailUrl ? { backgroundImage: `linear-gradient(rgba(15, 23, 42, .35), rgba(15, 23, 42, .7)), url(${video.thumbnailUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}><div className={styles.playButtonWrapper}><i className="fa-solid fa-play"></i></div><span className={styles.durationBadge}>{formatDuration(video.duration_seconds)}</span></div>
                 <div className={styles.videoBody}><div className="d-flex justify-content-between align-items-center mb-2"><span className={styles.tagBadge}>{video.category}</span><span className="text-secondary small">{video.visibility}</span></div><h3 className={styles.videoTitle}>{video.title}</h3><small className="text-secondary">{video.difficulty || "Difficulty not set"} · {video.provider}</small></div>
@@ -104,5 +103,5 @@ export default function AdminVideoTutorials() {
             <label className={`${styles.formLabel} mt-3`}>Visibility</label><select className={styles.formSelect} value={form.visibility} onChange={(event) => update("visibility", event.target.value)}><option value="public">Published</option><option value="hidden">Hidden</option></select>
             <div className={styles.modalFooter}><button type="button" className={styles.btnCancel} onClick={() => setShowModal(false)}>Cancel</button><button className={styles.btnPrimaryModal} disabled={saving}>{saving ? "Saving..." : "Save tutorial"}</button></div>
         </form></div></div>}
-    </AdminLayout>;
+    </>;
 }

@@ -20,7 +20,7 @@ export function getFriendlyError(error) {
     return error.message || "Something went wrong. Please try again.";
 }
 
-export async function api(path, { method = "GET", body } = {}) {
+export async function api(path, { method = "GET", body, signal } = {}) {
     const { data: { session } } = await supabase.auth.getSession();
     const isFormData = body instanceof FormData;
     let res;
@@ -32,6 +32,7 @@ export async function api(path, { method = "GET", body } = {}) {
             ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
+        signal,
         });
     } catch (error) {
         window.dispatchEvent(new CustomEvent("fitmetrics:system-error", {
@@ -61,6 +62,20 @@ export async function api(path, { method = "GET", body } = {}) {
         throw error;
     }
     return json;
+}
+
+export async function apiText(path) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${API_URL}${path}`, {
+        headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        const error = new Error(text || `Request failed (${res.status})`);
+        error.status = res.status;
+        throw error;
+    }
+    return res.text();
 }
 
 export async function downloadApi(path, { method = "GET", body } = {}) {

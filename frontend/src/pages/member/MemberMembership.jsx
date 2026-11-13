@@ -3,7 +3,7 @@ import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberMembership.module.css";
 import InlineError from "../../components/ui/InlineError";
 import { api } from "../../lib/api";
-import { SkeletonCards } from "../../components/ui/Skeleton";
+import { SkeletonMemberMembership } from "../../components/ui/Skeleton";
 
 export default function MemberMembership() {
     const [data, setData] = useState(null);
@@ -14,7 +14,7 @@ export default function MemberMembership() {
     return (
         <MemberLayout>
             {error && <InlineError error={error} />}
-            {!data ? <SkeletonCards count={4} /> : <>
+            {!data ? <SkeletonMemberMembership /> : <>
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <div>
                     <h1 className={styles.pageTitle}>Membership & Passes</h1>

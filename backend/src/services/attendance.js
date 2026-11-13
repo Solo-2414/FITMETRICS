@@ -21,7 +21,7 @@ export const checkInMember = async ({
     throw error;
   }
   const { data: openCheckIn, error: openError } = await supabaseAdmin.from('attendance')
-    .select('id').eq('member_id', memberId).is('check_out_at', null).eq('status', 'open').limit(1).maybeSingle();
+    .select('id').eq('member_id', memberId).is('check_out_at', null).eq('status', 'open').gte('check_in_at', `${today()}T00:00:00+08:00`).limit(1).maybeSingle();
   if (openError) throw openError;
   if (openCheckIn) {
     const error = new Error('This member already has an open check-in.');

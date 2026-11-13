@@ -37,6 +37,45 @@
     padding: 20px;
 }
 
+.fm-skel-registration-panel {
+    overflow: hidden;
+    background: var(--secondary-background-color, #0f172a);
+    border: 1px solid var(--card-stroke-color, #334155);
+    border-radius: 12px;
+}
+
+.fm-skel-registration-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 58px;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--card-stroke-color, #334155);
+}
+
+.fm-skel-registration-body {
+    display: grid;
+    gap: 18px;
+    padding: 24px;
+}
+
+.fm-skel-registration-field {
+    display: grid;
+    gap: 8px;
+}
+
+.fm-skel-registration-input {
+    height: 40px;
+}
+
+.fm-skel-registration-plan {
+    min-height: 112px;
+}
+
+.fm-skel-registration-action {
+    min-height: 158px;
+}
+
 .fm-skel-chart {
     position: relative;
     display: flex;
@@ -69,6 +108,17 @@
     align-items: center;
     gap: 14px;
     padding: 12px 0;
+}
+
+/* added for layout routes and skeleton fidelity */
+.fm-skel-stack {
+    display: grid;
+    gap: 1rem;
+}
+
+.fm-skel-stack > .fm-skel-panel,
+.fm-skel-panel + .fm-skel-panel {
+    min-height: 120px;
 }
 
 .fm-skel-sr {

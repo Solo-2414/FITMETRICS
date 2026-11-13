@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberBilling.module.css";
 import { api } from "../../lib/api";
-import { SkeletonTable } from "../../components/ui/Skeleton";
+import { SkeletonMemberBilling } from "../../components/ui/Skeleton";
 import InlineError from "../../components/ui/InlineError";
 
 export default function MemberBilling() {
@@ -45,7 +45,7 @@ export default function MemberBilling() {
     return (
         <MemberLayout>
             {error && <InlineError error={error} />}
-            {!profile || !dashboard || !membership || !data ? <SkeletonTable rows={6} cols={5} /> : <>
+            {!profile || !dashboard || !membership || !data ? <SkeletonMemberBilling /> : <>
             {/* toast-allow: persistent payment verification status */}
             {new URLSearchParams(window.location.search).get("payment") === "success" && <div className="alert alert-info">Payment received for verification. Your membership will activate after PayMongo confirms the payment.</div>}
             {/* toast-allow: persistent pending payment status */}

@@ -5,13 +5,6 @@ import {setSessionPersistence, isSessionPersisted } from "../lib/supabase";
 
 const AuthContext = createContext(null);
 
-export const homePathForRole = (role) =>
-    ({
-        admin: "/admin/dashboard",
-        clerk: "/clerk/dashboard",
-        member: "/member/dashboard",
-    })[role] ?? "/login";
-
 async function fetchProfile(userId) {
     const { data, error } = await supabase
         .from("profiles")

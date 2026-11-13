@@ -16,7 +16,7 @@ import { getMembershipState } from '../services/membershipState.js';
 const router = Router();
 router.use('/admin', requireAuth, requireRole('admin'));
 const backupLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 3, message: { error: 'Export limit reached. Try again later.' } });
-const PAYMENT_MODES = ['cash', 'gcash', 'maya', 'qrph'];
+const PAYMENT_MODES = ['cash', 'qrph'];
 const UUID_PATTERN = /^[0-9a-f-]{36}$/i;
 const TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/;
 const timeValue = (value) => {
@@ -24,6 +24,17 @@ const timeValue = (value) => {
   const [hours, minutes, seconds = 0] = String(value).split(':').map(Number);
   return hours < 24 && minutes < 60 && seconds < 60 ? hours * 60 + minutes : null;
 };
+
+router.get('/admin/walk-ins/export.csv', async (req, res, next) => {
+  try {
+    const { data, error } = await supabaseAdmin.from('walk_in_customers').select('customer_code, full_name, phone_normalized, email_normalized, visit_count, last_visit_at').order('last_visit_at', { ascending: false });
+    if (error) return next(error);
+    const escape = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const csv = ['customer_code,full_name,phone,email,visits,last_visit_at', ...(data || []).map((row) => [row.customer_code, row.full_name, row.phone_normalized, row.email_normalized, row.visit_count, row.last_visit_at].map(escape).join(','))].join('\r\n');
+    await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'walkin_customers_exported', entity_type: 'walk_in_customer', details: { format: 'csv' } });
+    res.type('text/csv').set('Content-Disposition', 'attachment; filename="walk-in-customers.csv"').send(csv);
+  } catch (error) { next(error); }
+});
 
 router.get('/admin/walk-ins', async (req, res, next) => {
   try {
@@ -52,18 +63,8 @@ router.get('/admin/walk-ins/:id', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/admin/walk-ins/export.csv', async (req, res, next) => {
-  try {
-    const { data, error } = await supabaseAdmin.from('walk_in_customers').select('customer_code, full_name, phone_normalized, email_normalized, visit_count, last_visit_at').order('last_visit_at', { ascending: false });
-    if (error) return next(error);
-    const escape = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
-    const csv = ['customer_code,full_name,phone,email,visits,last_visit_at', ...(data || []).map((row) => [row.customer_code, row.full_name, row.phone_normalized, row.email_normalized, row.visit_count, row.last_visit_at].map(escape).join(','))].join('\r\n');
-    await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'walkin_customers_exported', entity_type: 'walk_in_customer', details: { format: 'csv' } });
-    res.type('text/csv').set('Content-Disposition', 'attachment; filename="walk-in-customers.csv"').send(csv);
-  } catch (error) { next(error); }
-});
 const validateSettings = (body, current = {}) => {
-  const allowed = ['gym_name', 'address', 'phone', 'email', 'monday_saturday_open', 'monday_saturday_close', 'sunday_open', 'sunday_close', 'expiry_reminder_days', 'notifications', 'maintenance_enabled', 'maintenance_message', 'payment_modes', 'allow_member_registrations', 'show_live_capacity', 'maintenance_starts_at', 'business_legal_name', 'business_address', 'business_tin', 'vat_status', 'receipt_series_prefix', 'bir_permit_note', 'receipt_footer_note', 'support_email', 'support_phone'];
+  const allowed = ['gym_name', 'address', 'phone', 'email', 'monday_saturday_open', 'monday_saturday_close', 'sunday_open', 'sunday_close', 'expiry_reminder_days', 'notifications', 'maintenance_enabled', 'maintenance_message', 'payment_modes', 'allow_member_registrations', 'show_live_capacity', 'maintenance_starts_at', 'business_legal_name', 'business_address', 'business_tin', 'vat_status', 'receipt_series_prefix', 'bir_permit_note', 'receipt_footer_note', 'support_email', 'support_phone', 'churn_reminder_message'];
   const updates = Object.fromEntries(allowed.filter((key) => Object.hasOwn(body || {}, key)).map((key) => [key, body[key]]));
   if (Object.hasOwn(updates, 'gym_name') && (typeof updates.gym_name !== 'string' || updates.gym_name.trim().length < 1 || updates.gym_name.length > 100)) throw new Error('Gym name must be 1-100 characters.');
   if (Object.hasOwn(updates, 'email') && updates.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) throw new Error('Contact email must be valid or empty.');
@@ -86,6 +87,7 @@ const validateSettings = (body, current = {}) => {
   }
   for (const key of ['maintenance_enabled', 'allow_member_registrations', 'show_live_capacity']) if (Object.hasOwn(updates, key) && typeof updates[key] !== 'boolean') throw new Error(`${key} must be a boolean.`);
   if (Object.hasOwn(updates, 'maintenance_message') && (typeof updates.maintenance_message !== 'string' || updates.maintenance_message.length > 300)) throw new Error('Maintenance message must be at most 300 characters.');
+  if (Object.hasOwn(updates, 'churn_reminder_message') && (typeof updates.churn_reminder_message !== 'string' || updates.churn_reminder_message.trim().length < 1 || updates.churn_reminder_message.length > 500)) throw new Error('Churn reminder message must be 1-500 characters.');
   if (Object.hasOwn(updates, 'maintenance_starts_at') && updates.maintenance_starts_at !== null && Number.isNaN(Date.parse(updates.maintenance_starts_at))) throw new Error('Maintenance start time must be a valid date.');
   return updates;
 };
@@ -366,6 +368,31 @@ router.get('/admin/dashboard', async (req, res, next) => {
       const plan = membership.membership_plans;
       if (plan) planCounts.set(plan.id, { ...plan, count: (planCounts.get(plan.id)?.count || 0) + 1 });
     });
+
+    router.get('/admin/live-count', async (_req, res, next) => {
+      try {
+        const [attendance, settings] = await Promise.all([
+          supabaseAdmin.from('attendance').select('id').is('check_out_at', null).eq('status', 'checked_in'),
+          supabaseAdmin.from('gym_settings').select('floor_capacity').eq('id', true).maybeSingle(),
+        ]);
+        if (attendance.error) return next(attendance.error);
+        if (settings.error) return next(settings.error);
+        res.json({ active: attendance.data?.length || 0, capacity: Number(settings.data?.floor_capacity || 50), updatedAt: new Date().toISOString() });
+      } catch (error) { next(error); }
+    });
+
+    router.get('/admin/notifications/summary', async (req, res, next) => {
+      try {
+        const { data, error } = await supabaseAdmin.from('notifications')
+          .select('id, type, title, message, created_at, read_at, link')
+          .eq('user_id', req.user.id).order('created_at', { ascending: false }).limit(5);
+        if (error) return next(error);
+        const unread = await supabaseAdmin.from('notifications').select('id', { count: 'exact', head: true })
+          .eq('user_id', req.user.id).is('read_at', null);
+        if (unread.error) return next(unread.error);
+        res.json({ unread: unread.count || 0, latest: data || [] });
+      } catch (error) { next(error); }
+    });
     const memberPlans = new Map((activeMemberships.data || []).map((membership) => [membership.member_id, membership.membership_plans?.name]));
     res.json({
       kpis: kpis.data,
@@ -381,6 +408,7 @@ router.get('/admin/dashboard', async (req, res, next) => {
       recentCheckIns: attendance.slice(0, 5).map((row) => ({ ...row, member: profiles.has(row.member_id) ? { ...profiles.get(row.member_id), membership_plan: memberPlans.get(row.member_id) } : null, recordedByName: staff.get(row.recorded_by) || 'Staff' })),
       expiringSoon: (expiringSoon.data || []).map((membership) => ({ ...membership, member: profiles.get(membership.member_id) || null })),
       planDistribution: [...planCounts.values()],
+      updatedAt: new Date().toISOString(),
     });
   } catch (error) { next(error); }
 });
@@ -428,9 +456,11 @@ router.get('/admin/churn', async (_req, res, next) => {
       start.setUTCMonth(start.getUTCMonth() + index);
       const end = new Date(start);
       end.setUTCMonth(end.getUTCMonth() + 1);
+      const monthMembers = new Set((attendanceRows.data || []).filter((row) => new Date(row.check_in_at) >= start && new Date(row.check_in_at) < end).map((row) => row.member_id));
       return {
         label: start.toLocaleDateString('en-US', { month: 'short' }),
         visits: (attendanceRows.data || []).filter((row) => new Date(row.check_in_at) >= start && new Date(row.check_in_at) < end).length,
+        returning_members: monthMembers.size,
       };
     });
     const renewals = await supabaseAdmin.from('memberships').select('member_id, start_date, status').lte('start_date', today());
@@ -448,10 +478,108 @@ router.post('/admin/churn/:memberId/reminder', async (req, res, next) => {
     const { data: member, error } = await supabaseAdmin.from('profiles').select('id, full_name, email').eq('id', req.params.memberId).eq('role', 'member').single();
     if (error) return next(error);
     if (!member.email) return res.status(400).json({ error: 'This member has no email address.' });
+    const settings = await supabaseAdmin.from('gym_settings').select('churn_reminder_message').eq('id', true).maybeSingle();
+    if (settings.error) return next(settings.error);
     const queued = await enqueueEmail({
       emailType: 'expiry_reminder',
       recipient: member.email,
-      payload: { memberName: member.full_name, customMessage: String(req.body?.message || 'We miss you at the gym. Come get your workout in today!').slice(0, 500) },
+      payload: { memberName: member.full_name, customMessage: String(req.body?.message || settings.data?.churn_reminder_message || 'We miss you at the gym. Come get your workout in today!').slice(0, 500) },
+    });
+
+    router.post('/admin/expiry-reminders/send-all', async (req, res, next) => {
+      try {
+        const settings = await supabaseAdmin.from('gym_settings').select('expiry_reminder_days').eq('id', true).maybeSingle();
+        if (settings.error) return next(settings.error);
+        const endDate = new Date(`${today()}T00:00:00+08:00`);
+        endDate.setUTCDate(endDate.getUTCDate() + Number(settings.data?.expiry_reminder_days || 3));
+        const memberships = await supabaseAdmin.from('memberships')
+          .select('id, end_date, membership_plans(name), profiles!memberships_member_id_fkey(full_name, email)')
+          .eq('status', 'active').gte('end_date', today()).lte('end_date', endDate.toISOString().slice(0, 10));
+        if (memberships.error) return next(memberships.error);
+        let sent = 0; let skipped = 0; let noEmail = 0;
+        for (const membership of memberships.data || []) {
+          if (!membership.profiles?.email) { noEmail += 1; continue; }
+          const queued = await enqueueEmail({
+            emailType: 'expiry_reminder',
+            recipient: membership.profiles.email,
+            dedupeKey: `membership:${membership.id}:day:${today()}`,
+            payload: { memberName: membership.profiles.full_name, planName: membership.membership_plans?.name, expiryDate: membership.end_date },
+          });
+          if (queued?.skipped || queued?.deduped) skipped += 1; else sent += 1;
+        }
+        res.status(202).json({ total: (memberships.data || []).length, sent, skipped, noEmail });
+      } catch (error) { next(error); }
+    });
+
+    router.get('/admin/promos', async (_req, res, next) => {
+      try {
+        const { data, error } = await supabaseAdmin.from('promos').select('*').order('created_at', { ascending: false });
+        if (error) return next(error);
+        res.json(data || []);
+      } catch (error) { next(error); }
+    });
+
+    router.post('/admin/promos', async (req, res, next) => {
+      try {
+        const { code, name, discount_type, discount_value, valid_from, valid_until, usage_limit, active = true } = req.body || {};
+        if (!/^[A-Z0-9_-]{2,40}$/i.test(String(code || '')) || !String(name || '').trim()) return res.status(400).json({ error: 'Promo code and name are required.' });
+        if (!['percent', 'fixed'].includes(discount_type) || !Number.isFinite(Number(discount_value)) || Number(discount_value) < 0 || (discount_type === 'percent' && Number(discount_value) > 100)) return res.status(400).json({ error: 'Promo discount is invalid.' });
+        const { data, error } = await supabaseAdmin.from('promos').insert({ code: String(code).trim().toUpperCase(), name: String(name).trim(), discount_type, discount_value: Number(discount_value), valid_from: valid_from || null, valid_until: valid_until || null, usage_limit: usage_limit ? Number(usage_limit) : null, active: Boolean(active), created_by: req.user.id }).select().single();
+        if (error) return res.status(400).json({ error: error.message });
+        res.status(201).json(data);
+      } catch (error) { next(error); }
+    });
+
+    router.patch('/admin/promos/:id', async (req, res, next) => {
+      try {
+        const allowed = ['code', 'name', 'discount_type', 'discount_value', 'valid_from', 'valid_until', 'usage_limit', 'active'];
+        const updates = Object.fromEntries(allowed.filter((key) => Object.hasOwn(req.body || {}, key)).map((key) => [key, req.body[key]]));
+        if (updates.code) updates.code = String(updates.code).trim().toUpperCase();
+        if (updates.discount_value !== undefined) updates.discount_value = Number(updates.discount_value);
+        if (updates.usage_limit !== undefined && updates.usage_limit !== null && updates.usage_limit !== '') updates.usage_limit = Number(updates.usage_limit);
+        const { data, error } = await supabaseAdmin.from('promos').update(updates).eq('id', req.params.id).select().single();
+        if (error) return res.status(400).json({ error: error.message });
+        res.json(data);
+      } catch (error) { next(error); }
+    });
+
+    router.delete('/admin/promos/:id', async (req, res, next) => {
+      try {
+        const { error } = await supabaseAdmin.from('promos').delete().eq('id', req.params.id);
+        if (error) return next(error);
+        res.status(204).end();
+      } catch (error) { next(error); }
+    });
+
+    router.get('/admin/coaches', async (_req, res, next) => {
+      try {
+        const { data, error } = await supabaseAdmin.from('coaches').select('*').order('display_name');
+        if (error) return next(error);
+        res.json(data || []);
+      } catch (error) { next(error); }
+    });
+
+    router.post('/admin/coaches', async (req, res, next) => {
+      try {
+        const { display_name, addon_amount = 0, external_contact_url = '', active = true } = req.body || {};
+        if (!String(display_name || '').trim() || Number(addon_amount) < 0) return res.status(400).json({ error: 'Coach name and a valid add-on amount are required.' });
+        const { data, error } = await supabaseAdmin.from('coaches').insert({ display_name: String(display_name).trim(), addon_amount: Number(addon_amount), external_contact_url: String(external_contact_url || '').trim() || null, active: Boolean(active) }).select().single();
+        if (error) return res.status(400).json({ error: error.message });
+        res.status(201).json(data);
+      } catch (error) { next(error); }
+    });
+
+    router.patch('/admin/coaches/:id', async (req, res, next) => {
+      try {
+        const updates = {};
+        if (req.body?.display_name !== undefined) updates.display_name = String(req.body.display_name).trim();
+        if (req.body?.addon_amount !== undefined) updates.addon_amount = Number(req.body.addon_amount);
+        if (req.body?.external_contact_url !== undefined) updates.external_contact_url = String(req.body.external_contact_url || '').trim() || null;
+        if (req.body?.active !== undefined) updates.active = Boolean(req.body.active);
+        const { data, error } = await supabaseAdmin.from('coaches').update(updates).eq('id', req.params.id).select().single();
+        if (error) return res.status(400).json({ error: error.message });
+        res.json(data);
+      } catch (error) { next(error); }
     });
     res.status(202).json({ queued: true, email: queued });
   } catch (error) { next(error); }
@@ -462,13 +590,14 @@ router.get('/admin/predictive', async (_req, res, next) => {
     const todayDate = new Date();
     const start = new Date(todayDate);
     start.setUTCDate(start.getUTCDate() - 56);
-    const [attendance, payments, memberships, peaks] = await Promise.all([
+    const [attendance, payments, memberships, peaks, settings] = await Promise.all([
       supabaseAdmin.from('attendance').select('check_in_at').gte('check_in_at', start.toISOString()).neq('status', 'cancelled'),
       supabaseAdmin.from('payments').select('amount, created_at').eq('status', 'paid').gte('created_at', start.toISOString()),
       supabaseAdmin.from('memberships').select('member_id, end_date, status, membership_plans(name), profiles!memberships_member_id_fkey(full_name, email)').eq('status', 'active'),
       supabaseAdmin.from('attendance_peak_analysis').select('*'),
+      supabaseAdmin.from('gym_settings').select('churn_reminder_message').eq('id', true).maybeSingle(),
     ]);
-    const failure = [attendance, payments, memberships, peaks].find((result) => result.error);
+    const failure = [attendance, payments, memberships, peaks, settings].find((result) => result.error);
     if (failure) return next(failure.error);
     const rows = attendance.data || [];
     const byWeekday = Array.from({ length: 7 }, (_, weekday) => {
@@ -506,6 +635,9 @@ router.get('/admin/predictive', async (_req, res, next) => {
       forecast: forecastRows,
       peak: { hour: peak.hour ?? null, visits: peak.visits ?? 0 },
       renewals: renewals14.map((membership) => ({ ...membership, full_name: membership.profiles?.full_name, email: membership.profiles?.email })),
+      lowData: new Set(rows.map((row) => row.check_in_at.slice(0, 10))).size < 14,
+      dataWindow: { start: start.toISOString(), end: todayDate.toISOString(), attendanceDays: new Set(rows.map((row) => row.check_in_at.slice(0, 10))).size },
+      reminderMessage: settings.data?.churn_reminder_message || null,
       advisory: { busyEvening: Number(peak.hour) >= 17 && Number(peak.hour) <= 20, staffing: tomorrow >= 30 ? 'Schedule at least 2 staff during peak hours.' : 'Standard desk coverage is sufficient.' },
     });
   } catch (error) { next(error); }

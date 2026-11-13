@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { useAuth, homePathForRole } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext";
+import { homePathForRole } from "../context/homePathForRole";
 import "../App.css";
 import { api } from "../lib/api";
 import { useToast } from "../components/ui/toast/useToast";
@@ -15,7 +16,13 @@ export default function Login() {
     const toast = useToast();
     const [submitting, setSubmitting] = useState(false);
     const [maintenance, setMaintenance] = useState(null);
-    useEffect(() => { api("/public/status").then((status) => setMaintenance(status.maintenance ? status : null)).catch(() => {}); }, []);
+    useEffect(() => {
+        api("/public/status")
+            .then((status) =>
+                setMaintenance(status.maintenance ? status : null),
+            )
+            .catch(() => {});
+    }, []);
 
     // Already logged in? Go straight to your own dashboard.
     if (!loading && session && profile) {
@@ -25,17 +32,28 @@ export default function Login() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
-        const { error: signInError, profile: prof } = await signIn(email, password);
+        const { error: signInError, profile: prof } = await signIn(
+            email,
+            password,
+        );
         setSubmitting(false);
         if (signInError) {
             toast.error(signInError);
             return;
         }
-        const preferredLanding = prof.role === "clerk" && !location.state?.from
-            ? (await api("/clerk/settings/preferences").catch(() => ({}))).defaultLandingPage === "attendance"
-                ? "/clerk/attendance" : "/clerk/dashboard"
-            : null;
-        navigate(location.state?.from?.pathname ? `${location.state.from.pathname}${location.state.from.search || ""}` : preferredLanding || homePathForRole(prof.role), { replace: true });
+        const preferredLanding =
+            prof.role === "clerk" && !location.state?.from
+                ? (await api("/clerk/settings/preferences").catch(() => ({})))
+                      .defaultLandingPage === "attendance"
+                    ? "/clerk/attendance"
+                    : "/clerk/dashboard"
+                : null;
+        navigate(
+            location.state?.from?.pathname
+                ? `${location.state.from.pathname}${location.state.from.search || ""}`
+                : preferredLanding || homePathForRole(prof.role),
+            { replace: true },
+        );
     };
 
     return (
@@ -80,7 +98,7 @@ export default function Login() {
                         className="mb-3"
                     />
                     <h2 className="app-title d-flex align-items-center justify-content-center gap-2">
-                        FITMETRICS <span className="version-badge">v2.4</span>
+                        FITMETRICS
                     </h2>
                     <p className="app-subtitle m-0 mt-1">
                         Analyn's Fitness Gym
@@ -97,11 +115,18 @@ export default function Login() {
                         Log in to your account to continue.
                     </p>
                     {/* toast-allow: persistent maintenance notice */}
-                    {maintenance && <div className="alert alert-warning">{maintenance.message} Staff access remains available.</div>}
+                    {maintenance && (
+                        <div className="alert alert-warning">
+                            {maintenance.message} Staff access remains
+                            available.
+                        </div>
+                    )}
 
                     <form onSubmit={handleSubmit}>
                         <div className="mb-3">
-                            <label className="form-label">Email or Username</label>
+                            <label className="form-label">
+                                Email or Username
+                            </label>
                             <div className="input-group-custom">
                                 <i className="fa-regular fa-envelope icon-left"></i>
                                 <input
@@ -125,7 +150,9 @@ export default function Login() {
                                     className="form-control-custom"
                                     placeholder="Enter your password"
                                     value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                    onChange={(e) =>
+                                        setPassword(e.target.value)
+                                    }
                                     autoComplete="current-password"
                                     required
                                 />

@@ -16,4 +16,6 @@
 .drawer h2 { color:var(--header-text-color); }
 .close { float:right; background:none; border:0; color:var(--text-color); font-size:1.6rem; }
 .visit { border-top:1px solid var(--card-stroke-color); padding:12px 0; display:flex; flex-direction:column; gap:4px; }
+/* added for admin walk-in workflow */
+.drawerBackdrop { position:fixed; inset:0; background:#0008; z-index:19; }
 @media (max-width: 576px) { .toolbar { flex-direction:column; } .panel { padding:12px; } }

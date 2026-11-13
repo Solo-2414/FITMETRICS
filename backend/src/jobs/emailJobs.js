@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { supabaseAdmin } from '../config/supabase.js';
 import { enqueueEmail, processEmailQueue } from '../services/emailQueue.js';
 import { notifyStaff } from '../services/notify.js';
-import { today } from '../utils/time.js';
+import { dayStart, today } from '../utils/time.js';
 import { publishDueAnnouncements } from '../services/announcements.js';
 import { expireRegistrationIntents } from '../services/registration.js';
 import { expirePendingQrPayments } from '../services/membership.js';
@@ -41,6 +41,23 @@ const queueExpiryReminders = async () => {
 };
 
 export const runDailyEmailJobs = async () => {
+  const cutoff = dayStart();
+  const { data: staleAttendance, error: attendanceError } = await supabaseAdmin.from('attendance')
+    .update({ check_out_at: cutoff, status: 'completed', checked_out_via: 'system' })
+    .eq('status', 'open')
+    .is('check_out_at', null)
+    .lt('check_in_at', cutoff)
+    .select('id');
+  if (attendanceError) throw attendanceError;
+  if (staleAttendance?.length) {
+    const { error: auditError } = await supabaseAdmin.from('audit_log').insert({
+      actor_id: null,
+      action: 'attendance_auto_checkout',
+      entity_type: 'attendance',
+      details: { count: staleAttendance.length, checked_out_at: cutoff, reason: 'previous_day_open_checkin' },
+    });
+    if (auditError) throw auditError;
+  }
   const { error } = await supabaseAdmin.rpc('expire_memberships');
   if (error) throw error;
   const { error: walkInError } = await supabaseAdmin.from('walk_in_visits')

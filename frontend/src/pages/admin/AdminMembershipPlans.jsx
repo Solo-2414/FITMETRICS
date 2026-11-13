@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import AdminLayout from "../../components/admin/AdminLayout";
 import { api } from "../../lib/api";
 import { SkeletonCards, SkeletonKpiCards } from "../../components/ui/Skeleton";
 import styles from "./AdminMembershipPlans.module.css";
 import InlineError from "../../components/ui/InlineError";
+import { toastError, useToast } from "../../components/ui/toast/useToast";
+import { useConfirm } from "../../components/ui/toast/useConfirm";
+import useDialogA11y from "../../hooks/useDialogA11y";
 
 const emptyPlan = {
     name: "",
@@ -27,6 +29,18 @@ export default function AdminMembershipPlans() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
+    const [dashboard, setDashboard] = useState(null);
+    const [promos, setPromos] = useState([]);
+    const [coaches, setCoaches] = useState([]);
+    const [promoDraft, setPromoDraft] = useState({ code: "", name: "", discount_type: "percent", discount_value: "", usage_limit: "", active: true });
+    const [coachDraft, setCoachDraft] = useState({ display_name: "", addon_amount: "", external_contact_url: "", active: true });
+    const toast = useToast();
+    const confirm = useConfirm();
+    const dialogRef = useDialogA11y(showEditModal || showAddModal || showPromoModal, () => {
+        setShowEditModal(false);
+        setShowAddModal(false);
+        setShowPromoModal(false);
+    });
 
     const loadPlans = async () => {
         setLoading(true);
@@ -42,7 +56,46 @@ export default function AdminMembershipPlans() {
 
     useEffect(() => {
         Promise.resolve().then(loadPlans);
+        api("/admin/dashboard").then(setDashboard).catch(() => {});
+        api("/admin/promos").then(setPromos).catch(() => {});
+        api("/admin/coaches").then(setCoaches).catch(() => {});
     }, []);
+    const savePromo = async (event) => {
+        event.preventDefault();
+        try {
+            const created = await api("/admin/promos", { method: "POST", body: promoDraft });
+            setPromos((current) => [created, ...current]); setPromoDraft({ code: "", name: "", discount_type: "percent", discount_value: "", usage_limit: "", active: true }); toast.success("Promo created.");
+        } catch (err) { toast.error(toastError(err)); }
+    };
+    const saveCoach = async (event) => {
+        event.preventDefault();
+        try {
+            const created = await api("/admin/coaches", { method: "POST", body: coachDraft });
+            setCoaches((current) => [...current, created]); setCoachDraft({ display_name: "", addon_amount: "", external_contact_url: "", active: true }); toast.success("Coach added.");
+        } catch (err) { toast.error(toastError(err)); }
+    };
+    const togglePromo = async (promo) => {
+        try {
+            const updated = await api(`/admin/promos/${promo.id}`, { method: "PATCH", body: { active: !promo.active } });
+            setPromos((current) => current.map((item) => item.id === updated.id ? updated : item));
+            toast.success("Promo updated.");
+        } catch (err) { toast.error(toastError(err)); }
+    };
+    const deletePromo = async (promo) => {
+        if (!await confirm({ title: "Delete promo?", message: `Delete promo ${promo.code}?`, danger: true })) return;
+        try {
+            await api(`/admin/promos/${promo.id}`, { method: "DELETE" });
+            setPromos((current) => current.filter((item) => item.id !== promo.id));
+            toast.success("Promo deleted.");
+        } catch (err) { toast.error(toastError(err)); }
+    };
+    const toggleCoach = async (coach) => {
+        try {
+            const updated = await api(`/admin/coaches/${coach.id}`, { method: "PATCH", body: { active: !coach.active } });
+            setCoaches((current) => current.map((item) => item.id === updated.id ? updated : item));
+            toast.success("Coach updated.");
+        } catch (err) { toast.error(toastError(err)); }
+    };
 
     const updateDraft = (event) => {
         const { name, value, type, checked } = event.target;
@@ -57,6 +110,10 @@ export default function AdminMembershipPlans() {
 
     const savePlan = async (event, isNew) => {
         event.preventDefault();
+        if (Number(draft.duration_days) < 1 || (draft.student_price !== "" && Number(draft.student_price) > Number(draft.price))) {
+            setError("Duration must be at least 1 day and student rate cannot exceed the standard rate.");
+            return;
+        }
         setSaving(true);
         setError("");
         try {
@@ -68,8 +125,10 @@ export default function AdminMembershipPlans() {
                 : current.map((plan) => plan.id === saved.id ? saved : plan));
             setShowAddModal(false);
             setShowEditModal(false);
+            toast.success(isNew ? "Membership plan created." : "Membership plan updated.");
         } catch (err) {
             setError(err.message);
+            toast.error(toastError(err));
         } finally {
             setSaving(false);
         }
@@ -86,7 +145,7 @@ export default function AdminMembershipPlans() {
     const monthlyPlan = plans.find((plan) => plan.code === "monthly");
 
     return (
-        <AdminLayout>
+        <>
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3" data-aos="fade-down">
                 <div>
                     <h1 className={styles.pageTitle}>Membership Plans</h1>
@@ -104,8 +163,8 @@ export default function AdminMembershipPlans() {
             {loading ? <SkeletonKpiCards count={3} colClass="col-12 col-md-4" /> : <div className="row g-3 mb-5 fm-fade-in" data-aos="fade-up" data-aos-delay="100">
                 {[
                     ["Total Active Passes", activePlans.length, "fa-id-card-clip", styles.iconBoxPrimary],
-                    ["Session Walk-Ins", walkInPlan ? "Configured" : 0, "fa-person-walking", styles.iconBoxSecondary],
-                    ["Monthly Roster", monthlyPlan ? monthlyPlan.name : "Not configured", "fa-users", styles.iconBoxSuccess],
+                    ["Session Walk-Ins", dashboard?.planDistribution?.find((plan) => plan.code === walkInPlan?.code)?.count || 0, "fa-person-walking", styles.iconBoxSecondary],
+                    ["Monthly Roster", dashboard?.planDistribution?.find((plan) => plan.code === monthlyPlan?.code)?.count || 0, "fa-users", styles.iconBoxSuccess],
                 ].map(([label, value, icon, box]) => (
                     <div className="col-12 col-md-4" key={label}>
                         <div className={styles.kpiCard}>
@@ -143,11 +202,15 @@ export default function AdminMembershipPlans() {
                 {!loading && plans.length === 0 && <div className="col-12 text-secondary">No membership plans configured.</div>}
             </div>}
             <div className={styles.policyBanner}><i className="fa-solid fa-shield-halved"></i><div><h5 className="text-white m-0 mb-1" style={{ fontSize: "0.95rem" }}>Direct Gym Access Policy</h5><p className="text-secondary m-0" style={{ fontSize: "0.85rem", lineHeight: "1.5" }}>All rates cover standard admission to gym equipment and the workout area for the designated validity window. Coach services are optional add-ons.</p></div></div>
+            <div className="row g-4 mt-1">
+                <div className="col-12 col-xl-6"><div className={styles.planCard}><h4 className={styles.planName}>Promos</h4><form onSubmit={savePromo} className="d-flex flex-column gap-2"><input className={styles.formInput} placeholder="Code" value={promoDraft.code} onChange={(event) => setPromoDraft({ ...promoDraft, code: event.target.value })} required /><input className={styles.formInput} placeholder="Name" value={promoDraft.name} onChange={(event) => setPromoDraft({ ...promoDraft, name: event.target.value })} required /><div className="d-flex gap-2"><select className={styles.formInput} value={promoDraft.discount_type} onChange={(event) => setPromoDraft({ ...promoDraft, discount_type: event.target.value })}><option value="percent">Percent</option><option value="fixed">Fixed</option></select><input className={styles.formInput} type="number" min="0" placeholder="Value" value={promoDraft.discount_value} onChange={(event) => setPromoDraft({ ...promoDraft, discount_value: event.target.value })} required /></div><button className={styles.btnPrimaryModal}>Add Promo</button></form>{promos.map((promo) => <div className="d-flex justify-content-between align-items-center mt-3 text-secondary" key={promo.id}><span>{promo.code} · {promo.name}</span><span>{promo.discount_type === "percent" ? `${promo.discount_value}%` : `₱${promo.discount_value}`} <button type="button" className={styles.btnAction} onClick={() => togglePromo(promo)}>{promo.active ? "Deactivate" : "Activate"}</button><button type="button" className={styles.btnAction} onClick={() => deletePromo(promo)}>Delete</button></span></div>)}</div></div>
+                <div className="col-12 col-xl-6"><div className={styles.planCard}><h4 className={styles.planName}>Coaches</h4><form onSubmit={saveCoach} className="d-flex flex-column gap-2"><input className={styles.formInput} placeholder="Coach name" value={coachDraft.display_name} onChange={(event) => setCoachDraft({ ...coachDraft, display_name: event.target.value })} required /><input className={styles.formInput} type="number" min="0" placeholder="Add-on amount" value={coachDraft.addon_amount} onChange={(event) => setCoachDraft({ ...coachDraft, addon_amount: event.target.value })} required /><input className={styles.formInput} placeholder="Contact URL (optional)" value={coachDraft.external_contact_url} onChange={(event) => setCoachDraft({ ...coachDraft, external_contact_url: event.target.value })} /><button className={styles.btnPrimaryModal}>Add Coach</button></form>{coaches.map((coach) => <div className="d-flex justify-content-between align-items-center mt-3 text-secondary" key={coach.id}><span>{coach.display_name}</span><span>{coach.active ? "Active" : "Inactive"} <button type="button" className={styles.btnAction} onClick={() => toggleCoach(coach)}>{coach.active ? "Deactivate" : "Activate"}</button></span></div>)}</div></div>
+            </div>
 
             {(showEditModal || showAddModal) && (
                 <div className={styles.modalOverlay}>
-                    <div className={styles.modalContent}>
-                        <div className={styles.modalHeader}><h3>{showAddModal ? "Add New Plan" : "Edit Membership Rates"}</h3><button onClick={() => { setShowAddModal(false); setShowEditModal(false); }}><i className="fa-solid fa-xmark"></i></button></div>
+                    <div className={styles.modalContent} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="membership-plan-modal-title">
+                        <div className={styles.modalHeader}><h3 id="membership-plan-modal-title">{showAddModal ? "Add New Plan" : "Edit Membership Rates"}</h3><button onClick={() => { setShowAddModal(false); setShowEditModal(false); }}><i className="fa-solid fa-xmark"></i></button></div>
                         <form onSubmit={(event) => savePlan(event, showAddModal)} className={styles.modalBody}>
                             <div className="row g-3 mb-3">
                                 <div className="col-12 col-sm-8"><label className={styles.formLabel}>Plan Name</label><input name="name" value={draft.name} onChange={updateDraft} className={styles.formInput} required /></div>
@@ -166,7 +229,7 @@ export default function AdminMembershipPlans() {
                 </div>
             )}
 
-            {showPromoModal && <div className={styles.modalOverlay}><div className={styles.modalContent}><div className={styles.modalHeader}><h3>Promos</h3><button onClick={() => setShowPromoModal(false)}><i className="fa-solid fa-xmark"></i></button></div><div className={styles.modalBody}><p className="text-secondary">No promotions are configured yet. Promotion management will be enabled in the next phase.</p></div></div></div>}
-        </AdminLayout>
+            {showPromoModal && <div className={styles.modalOverlay}><div className={styles.modalContent} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="promos-modal-title"><div className={styles.modalHeader}><h3 id="promos-modal-title">Promos</h3><button onClick={() => setShowPromoModal(false)}><i className="fa-solid fa-xmark"></i></button></div><div className={styles.modalBody}><p className="text-secondary">Use the Promos section below to add, activate, deactivate, or delete promotion codes.</p></div></div></div>}
+        </>
     );
 }

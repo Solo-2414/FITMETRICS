@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminSettings.module.css";
 import { api, downloadApi } from "../../lib/api";
-import { SkeletonForm } from "../../components/ui/Skeleton";
+import { SkeletonAdminSettings } from "../../components/ui/Skeleton";
 import InlineError from "../../components/ui/InlineError";
 import { useToast } from "../../components/ui/toast/useToast";
+import { useConfirm } from "../../components/ui/toast/useConfirm";
 
 export default function AdminSettings() {
     const toast = useToast();
+    const confirm = useConfirm();
     const formRef = useRef(null);
     const [settings, setSettings] = useState(null);
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
     const [systemInfo, setSystemInfo] = useState(null);
     const [backups, setBackups] = useState([]);
+    const [dirty, setDirty] = useState(false);
+    const toManilaInput = (value) => value ? new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Manila", dateStyle: "short", timeStyle: "short" }).format(new Date(value)).replace(" ", "T") : "";
     const focusTimeField = (message) => {
         const field = message.startsWith("Sunday")
             ? formRef.current?.querySelector('[name="sunday_open"]')
@@ -32,11 +35,20 @@ export default function AdminSettings() {
                 if (historyResult.status === "fulfilled") setBackups(historyResult.value);
             });
     }, []);
+    useEffect(() => {
+        const warn = (event) => { if (dirty) { event.preventDefault(); event.returnValue = ""; } };
+        window.addEventListener("beforeunload", warn);
+        return () => window.removeEventListener("beforeunload", warn);
+    }, [dirty]);
     const save = async (event) => {
         event.preventDefault();
         setSaving(true); setError("");
         const form = new FormData(formRef.current);
         const data = Object.fromEntries(form.entries());
+        if (form.has("maintenance_enabled") && !settings.maintenance_enabled && !await confirm({ title: "Enable maintenance mode?", message: "Members will be locked out while maintenance mode is enabled.", danger: true })) {
+            setSaving(false);
+            return;
+        }
         try {
             const result = await api("/admin/settings", { method: "PATCH", body: {
                 ...data,
@@ -45,9 +57,9 @@ export default function AdminSettings() {
                 maintenance_enabled: form.has("maintenance_enabled"),
                 allow_member_registrations: form.has("allow_member_registrations"),
                 show_live_capacity: form.has("show_live_capacity"),
-                maintenance_starts_at: data.maintenance_starts_at || null,
+                maintenance_starts_at: data.maintenance_starts_at ? new Date(`${data.maintenance_starts_at}:00+08:00`).toISOString() : null,
             }});
-            setSettings(result); toast.success("Settings saved.");
+            setSettings(result); setDirty(false); toast.success("Settings saved.");
         } catch (err) {
             setError(err.message);
             focusTimeField(err.message);
@@ -68,7 +80,7 @@ export default function AdminSettings() {
         } catch (err) { setError(err.message); }
     };
     return (
-        <AdminLayout>
+        <>
             {error && <InlineError error={error} />}
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
@@ -82,7 +94,7 @@ export default function AdminSettings() {
                     </p>
                 </div>
                 <div className="d-flex gap-3">
-                    <button type="button" className={styles.btnSecondary} onClick={() => formRef.current?.reset()}>
+                    <button type="button" className={styles.btnSecondary} onClick={() => { formRef.current?.reset(); setDirty(false); }}>
                         <i className="fa-solid fa-rotate-left"></i> Discard
                         Changes
                     </button>
@@ -93,7 +105,7 @@ export default function AdminSettings() {
                 </div>
             </div>
 
-            {!settings ? <SkeletonForm fields={10} cols={1} /> : <form id="settings-form" ref={formRef} onSubmit={save} key={settings.updated_at || "settings-loaded"}>
+            {!settings ? <SkeletonAdminSettings /> : <form id="settings-form" ref={formRef} onChange={() => setDirty(true)} onSubmit={save} key={settings.updated_at || "settings-loaded"}>
                 <div
                     className="row g-4 mb-5"
                     data-aos="fade-up"
@@ -453,7 +465,8 @@ export default function AdminSettings() {
                                             type="datetime-local"
                                             className={styles.formInput}
                                             name="maintenance_starts_at"
-                                            defaultValue={settings?.maintenance_starts_at ? new Date(settings.maintenance_starts_at).toISOString().slice(0, 16) : ""}
+                                            defaultValue={toManilaInput(settings?.maintenance_starts_at)}
+                                            onChange={() => setDirty(true)}
                                         />
                                     </div>
                                 </div>
@@ -648,6 +661,6 @@ export default function AdminSettings() {
                     </span>
                 </div>
             </div>
-        </AdminLayout>
+        </>
     );
 }

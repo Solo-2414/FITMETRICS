@@ -1,6 +1,5 @@
 import { Bar } from "react-chartjs-2";
 import { useEffect, useMemo, useState } from "react";
-import AdminLayout from "../../components/admin/AdminLayout";
 import { api } from "../../lib/api";
 import { buildBarOptions } from "../../lib/chartDefaults";
 import { SkeletonChart, SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
@@ -76,7 +75,7 @@ export default function AdminAttendanceAnalysis() {
     };
 
     return (
-        <AdminLayout>
+        <>
             {error && <InlineError error={error} />}
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <h1 className={styles.pageTitle}>Attendance Analysis</h1>
@@ -165,6 +164,6 @@ export default function AdminAttendanceAnalysis() {
                     </div>
                 </div>
             </div>
-        </AdminLayout>
+        </>
     );
 }

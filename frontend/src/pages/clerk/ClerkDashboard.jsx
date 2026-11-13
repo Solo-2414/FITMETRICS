@@ -1,36 +1,34 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ClerkLayout from "../../components/clerk/ClerkLayout";
 import { api } from "../../lib/api";
 import { SkeletonKpiCards, SkeletonList, SkeletonTable } from "../../components/ui/Skeleton";
 import { attendanceMethodLabel } from "../../lib/attendanceMethod";
 import styles from "./ClerkDashboard.module.css";
 import InlineError from "../../components/ui/InlineError";
-import { useTerminalPreferences } from "../../hooks/useTerminalPreferences";
+import { useClerkData } from "../../context/ClerkDataContext";
 
 export default function ClerkDashboard() {
     const [stats, setStats] = useState(null);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [drawer, setDrawer] = useState(null);
     const [drawerModal, setDrawerModal] = useState("");
     const [drawerForm, setDrawerForm] = useState({ amount: "", counted_cash: "", kind: "correction", reason: "", note: "" });
     const [drawerSaving, setDrawerSaving] = useState(false);
-    const [reminderState, setReminderState] = useState("");
+    const [reminderState, setReminderState] = useState({});
     const navigate = useNavigate();
-    const { preferences } = useTerminalPreferences();
+    const { preferences, dashboard, dashboardError, dashboardRefreshing, reloadDashboard, cashDrawer, reloadCashDrawer } = useClerkData();
     useEffect(() => {
-        api("/clerk/dashboard")
-            .then(setStats)
-            .catch((err) => setError(err.message))
-            .finally(() => setLoading(false));
-    }, []);
+        setStats(dashboard);
+        setError(dashboardError);
+        setLoading(!dashboard && !dashboardError);
+    }, [dashboard, dashboardError]);
     useEffect(() => {
-        api("/clerk/cash-drawer/today").then(setDrawer).catch(() => {});
-    }, []);
+        setDrawer(cashDrawer);
+    }, [cashDrawer]);
     const updateDrawer = () => {
-        setDrawerForm((form) => ({ ...form, amount: String(preferences.openingFloat || ""), counted_cash: drawer?.expectedCash == null ? "" : String(drawer.expectedCash) }));
+        setDrawerForm({ amount: String(preferences.openingFloat || ""), counted_cash: drawer?.expectedCash == null ? "" : String(drawer.expectedCash), kind: "correction", reason: "", note: "" });
         setDrawerModal(drawer?.session ? (drawer.session.status === "open" ? "count" : "") : "open");
     };
     const submitDrawerAction = async (event) => {
@@ -41,21 +39,15 @@ export default function ClerkDashboard() {
             if (drawerModal === "open") result = await api("/clerk/cash-drawer/open", { method: "POST", body: { opening_float: Number(drawerForm.amount) } });
             if (drawerModal === "count") result = await api("/clerk/cash-drawer/close", { method: "POST", body: { counted_cash: Number(drawerForm.counted_cash), note: drawerForm.note } });
             if (drawerModal === "adjust") result = await api("/clerk/cash-drawer/adjust", { method: "POST", body: { kind: drawerForm.kind, amount: Number(drawerForm.amount), reason: drawerForm.reason } });
-            if (result) setDrawer(result);
+            if (result) {
+                setDrawer(result);
+                reloadCashDrawer(true).catch(() => {});
+            }
             setDrawerModal("");
         } catch (err) { setError(err.message); } finally { setDrawerSaving(false); }
     };
-    useEffect(() => {
-        const refresh = () => {
-            if (document.visibilityState !== "visible") return;
-            setRefreshing(true);
-            api("/clerk/dashboard").then(setStats).catch((err) => setError(err.message)).finally(() => setRefreshing(false));
-        };
-        const interval = window.setInterval(refresh, 30000);
-        return () => window.clearInterval(interval);
-    }, []);
     return (
-        <ClerkLayout>
+        <>
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3">
                 <div>
                     <h1 className={styles.pageTitle}>Dashboard</h1>
@@ -70,8 +62,8 @@ export default function ClerkDashboard() {
                 </div>
             </div>
 
-            {error && <InlineError error={error} onRetry={() => { setError(""); setLoading(true); api("/clerk/dashboard").then(setStats).catch((err) => setError(err.message)).finally(() => setLoading(false)); }} />}
-            {refreshing && <span className="text-secondary small d-block mb-2 fm-refreshing">Refreshing dashboard...</span>}
+            {error && <InlineError error={error} onRetry={() => { setError(""); setLoading(true); reloadDashboard().catch(() => {}).finally(() => setLoading(false)); }} />}
+            {dashboardRefreshing && <span className="text-secondary small d-block mb-2 fm-refreshing">Refreshing dashboard...</span>}
             {loading ? <SkeletonKpiCards count={4} /> : <div className="row g-3 mb-4 fm-fade-in">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
@@ -256,247 +248,13 @@ export default function ClerkDashboard() {
                                 <tbody>
                                     {(stats?.recentAttendance || []).map((record) => (
                                         <tr key={record.id}>
-                                            <td><div className="d-flex align-items-center gap-3"><div className={styles.avatar}>{record.display_name.split(" ").map((part) => part[0]).slice(0, 2).join("")}</div><div><strong className="d-block text-white mb-1">{record.display_name}</strong><span className={styles.subText}>Live attendance record</span></div></div></td>
+                                            <td><div className="d-flex align-items-center gap-3"><div className={styles.avatar}>{(record.display_name || "Member").split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div><div><strong className="d-block text-white mb-1">{record.display_name || "Member"}</strong><span className={styles.subText}>Live attendance record</span></div></div></td>
                                             <td><strong className="d-block text-white mb-1">{new Date(record.check_in_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</strong><span className={styles.subText}>Today</span></td>
                                             <td><span className={styles.planBadgeOutline}>{record.plan_name}</span></td>
                                             <td>{(() => { const method = attendanceMethodLabel(record.method); return <span className={styles.subText}><i className={`fa-solid ${method.icon}`}></i> {method.label}</span>; })()}</td>
                                         </tr>
                                     ))}
                                     {!stats?.recentAttendance?.length && <tr><td colSpan="4" className="text-secondary text-center">No check-ins recorded today.</td></tr>}
-                                </tbody>
-                                <tbody style={{ display: "none" }}>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div className={styles.avatar}>
-                                                    CM
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Carlos Mendoza
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.subText
-                                                        }
-                                                    >
-                                                        Regular Lifter
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                10:42 AM
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                18 mins ago
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeOutline
-                                                }
-                                            >
-                                                Monthly Member
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                <i className="fa-solid fa-qrcode"></i>{" "}
-                                                Member QR Code
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSuccess
-                                                    }
-                                                >
-                                                    SS
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Sarah Jen Santos
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.subText
-                                                        }
-                                                    >
-                                                        Evening Cardio Class
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                10:35 AM
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                25 mins ago
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeOutline
-                                                }
-                                            >
-                                                Monthly Member
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                <i className="fa-solid fa-desktop"></i>{" "}
-                                                Clerk Check-in
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarPrimary
-                                                    }
-                                                >
-                                                    PD
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Paolo Gabriel Diaz
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.subText
-                                                        }
-                                                    >
-                                                        Student Pass
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                10:18 AM
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                42 mins ago
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgePrimary
-                                                }
-                                            >
-                                                Weekly Pass
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                <i className="fa-solid fa-qrcode"></i>{" "}
-                                                Member QR Code
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className={
-                                                        styles.avatarSecondary
-                                                    }
-                                                >
-                                                    AT
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Angela Marie Tan
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.subText
-                                                        }
-                                                    >
-                                                        First Time Visitor
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                10:02 AM
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                58 mins ago
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgePrimary
-                                                }
-                                            >
-                                                Walk-in Pass (₱90)
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                <i className="fa-solid fa-desktop"></i>{" "}
-                                                Clerk Check-in
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div className={styles.avatar}>
-                                                    RC
-                                                </div>
-                                                <div>
-                                                    <strong className="d-block text-white mb-1">
-                                                        Raymond Cruz
-                                                    </strong>
-                                                    <span
-                                                        className={
-                                                            styles.subText
-                                                        }
-                                                    >
-                                                        Morning Strength
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <strong className="d-block text-white mb-1">
-                                                09:47 AM
-                                            </strong>
-                                            <span className={styles.subText}>
-                                                1 hr 13 mins ago
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={
-                                                    styles.planBadgeOutline
-                                                }
-                                            >
-                                                Monthly Member
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={styles.subText}>
-                                                <i className="fa-solid fa-qrcode"></i>{" "}
-                                                Member QR Code
-                                            </span>
-                                        </td>
-                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -568,7 +326,7 @@ export default function ClerkDashboard() {
                             >
                                 <span className="text-secondary">
                                     <i className="fa-solid fa-mobile-screen text-primary me-2"></i>{" "}
-                                    GCash / Maya digital
+                                    QR Ph / e-wallet
                                 </span>
                                 <strong className="text-primary">
                                     ₱{stats ? Number(stats.eWalletCollected).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}
@@ -651,7 +409,7 @@ export default function ClerkDashboard() {
                                         <div><h6 className="text-white mb-1" style={{ fontSize: "0.95rem" }}>{member.member_name}</h6><span className="text-secondary d-block mb-1" style={{ fontSize: "0.75rem" }}>{member.membership_plans?.name || "Membership"} · Expires {member.end_date}</span></div>
                                         <span className={member.days_left <= 1 ? styles.badgeDanger : styles.badgeWarning}>{member.days_left === 0 ? "Expires today" : `Expires in ${member.days_left} days`}</span>
                                     </div>
-                                    <div className="d-flex gap-2"><button className={styles.btnActionPrimary} onClick={() => navigate(`/clerk/membership?member=${member.member_id}`)}><i className="fa-solid fa-rotate-right"></i> Renew Membership</button><button className={styles.btnActionOutline} disabled={!member.member_email} onClick={async () => { setReminderState(member.id); try { await api(`/clerk/members/${member.member_id}/expiry-reminder`, { method: "POST", body: { membership_id: member.id } }); setReminderState(`${member.id}:sent`); } catch (err) { setError(err.message); setReminderState(""); } }}><i className="fa-regular fa-envelope"></i> {reminderState === `${member.id}:sent` ? "Reminder Sent" : reminderState === member.id ? "Sending..." : "Send Reminder Email"}</button></div>
+                                    <div className="d-flex gap-2"><button className={styles.btnActionPrimary} onClick={() => navigate(`/clerk/membership?member=${member.member_id}`)}><i className="fa-solid fa-rotate-right"></i> Renew Membership</button><button className={styles.btnActionOutline} disabled={!member.member_email || reminderState[member.id] === "sending"} onClick={async () => { setReminderState((current) => ({ ...current, [member.id]: "sending" })); try { const result = await api(`/clerk/members/${member.member_id}/expiry-reminder`, { method: "POST", body: { membership_id: member.id } }); setReminderState((current) => ({ ...current, [member.id]: result.queued === false ? "already" : "sent" })); } catch (err) { setError(err.message); setReminderState((current) => ({ ...current, [member.id]: "" })); } }}><i className="fa-regular fa-envelope"></i> {reminderState[member.id] === "already" ? "Already sent today" : reminderState[member.id] === "sent" ? "Reminder Sent" : reminderState[member.id] === "sending" ? "Sending..." : "Send Reminder Email"}</button></div>
                                 </div>
                             ))}
                             {!stats?.expiringSoon?.length && <div className="text-secondary text-center">No memberships are expiring soon.</div>}
@@ -693,6 +451,6 @@ export default function ClerkDashboard() {
                     </form>
                 </div>
             </div>}
-        </ClerkLayout>
+        </>
     );
 }

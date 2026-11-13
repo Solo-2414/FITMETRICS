@@ -1,24 +1,26 @@
 import { Bar } from "react-chartjs-2";
 import { useEffect, useMemo, useState } from "react";
-import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminPredictiveAnalytics.module.css";
 import InlineError from "../../components/ui/InlineError";
 import { api } from "../../lib/api";
 import { buildBarOptions } from "../../lib/chartDefaults";
 import { SkeletonChart, SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
+import { toastError, useToast } from "../../components/ui/toast/useToast";
 
 export default function AdminPredictiveAnalytics() {
     const [prediction, setPrediction] = useState(null);
     const [error, setError] = useState("");
     const [sending, setSending] = useState("");
     const [loading, setLoading] = useState(true);
+    const toast = useToast();
     useEffect(() => { api("/admin/predictive").then(setPrediction).catch((err) => setError(err.message)).finally(() => setLoading(false)); }, []);
     const sendReminder = async (memberId) => {
         setSending(memberId);
         try {
             await api(`/admin/churn/${memberId}/reminder`, { method: "POST" });
+            toast.success("Reminder queued.");
         } catch (err) {
-            setError(err.message);
+            toast.error(toastError(err));
         } finally {
             setSending("");
         }
@@ -51,7 +53,7 @@ export default function AdminPredictiveAnalytics() {
     }, []);
 
     return (
-        <AdminLayout>
+        <>
             {error && <InlineError error={error} />}
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <h1 className={styles.pageTitle}>Predictive Analytics</h1>
@@ -59,6 +61,8 @@ export default function AdminPredictiveAnalytics() {
                     Estimated gym attendance and upcoming membership renewals
                 </p>
             </div>
+            {prediction?.lowData && <p className={styles.panelDesc}>Forecasts are statistical estimates based on only {prediction.dataWindow?.attendanceDays || 0} attendance days. At least 14 days of data are recommended.</p>}
+            {prediction?.dataWindow && <p className={styles.panelDesc}>Estimate window: {new Date(prediction.dataWindow.start).toLocaleDateString()}–{new Date(prediction.dataWindow.end).toLocaleDateString()}.</p>}
 
             {loading ? <SkeletonKpiCards count={3} colClass="col-12 col-md-4" /> : <div className="row g-4 mb-4 fm-fade-in">
                 <div className="col-12 col-md-4">
@@ -320,6 +324,6 @@ export default function AdminPredictiveAnalytics() {
                     </div>
                 </div>
             </div>
-        </AdminLayout>
+        </>
     );
 }

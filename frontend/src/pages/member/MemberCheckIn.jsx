@@ -7,17 +7,17 @@ import { useToast } from "../../components/ui/toast/useToast";
 export default function MemberCheckIn() {
     const toast = useToast();
     const [params] = useSearchParams();
-    const [state, setState] = useState({ loading: true, error: "", result: null });
+    const token = params.get("t");
+    const [state, setState] = useState(() => token
+        ? { loading: true, error: "", result: null }
+        : { loading: false, error: "This gym QR code is missing or invalid.", result: null });
     useEffect(() => {
-        const token = params.get("t");
-        if (!token) {
-            setState({ loading: false, error: "This gym QR code is missing or invalid.", result: null });
-            return;
-        }
+        if (!token) return undefined;
         api("/attendance/qr-checkin", { method: "POST", body: { token } })
             .then((result) => { setState({ loading: false, error: "", result }); toast.success("You are checked in."); })
             .catch((error) => { setState({ loading: false, error: error.message, result: null }); toast.error(error.message); });
-    }, [params]);
+        return undefined;
+    }, [token, toast]);
     return (
         <MemberLayout>
             <div className="container py-5">
