@@ -641,28 +641,47 @@ export default function MemberBilling() {
     return (
         <MemberLayout>
             {error && <InlineError error={error} />}
-            {!profile || !dashboard || !membership || !data ? <SkeletonTable rows={6} cols={5} /> : <>
-            {/* toast-allow: persistent payment verification status */}
-            {new URLSearchParams(window.location.search).get("payment") === "success" && <div className="alert alert-info">Payment received for verification. Your membership will activate after PayMongo confirms the payment.</div>}
-            {/* toast-allow: persistent pending payment status */}
-            {pendingPayments.length > 0 && <div className="alert alert-warning">{pendingPayments.length} online payment{pendingPayments.length === 1 ? "" : "s"} pending confirmation.</div>}
-            <div
-                className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
-                data-aos="fade-down"
-                data-aos-delay="100"
-            >
-                <div>
-                    <h1 className={styles.pageTitle}>Billing & Receipts</h1>
-                    <p className={styles.pageDesc}>
-                        Review your payments, upcoming monthly renewals, and
-                        instant copies of gym receipts.
-                    </p>
-                </div>
-                <div className={styles.emailBadge}>
-                    <i className="fa-regular fa-envelope"></i> Official digital
-                    receipts are auto-sent to michael.tanza@example.com
-                </div>
-            </div>
+            {!profile || !dashboard || !membership || !data ? (
+                <SkeletonTable rows={6} cols={5} />
+            ) : (
+                <>
+                    {/* toast-allow: persistent payment verification status */}
+                    {new URLSearchParams(window.location.search).get(
+                        "payment",
+                    ) === "success" && (
+                        <div className="alert alert-info">
+                            Payment received for verification. Your membership
+                            will activate after PayMongo confirms the payment.
+                        </div>
+                    )}
+                    {/* toast-allow: persistent pending payment status */}
+                    {pendingPayments.length > 0 && (
+                        <div className="alert alert-warning">
+                            {pendingPayments.length} online payment
+                            {pendingPayments.length === 1 ? "" : "s"} pending
+                            confirmation.
+                        </div>
+                    )}
+                    <div
+                        className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
+                        data-aos="fade-down"
+                        data-aos-delay="100"
+                    >
+                        <div>
+                            <h1 className={styles.pageTitle}>
+                                Billing & Receipts
+                            </h1>
+                            <p className={styles.pageDesc}>
+                                Review your payments, upcoming monthly renewals,
+                                and instant copies of gym receipts.
+                            </p>
+                        </div>
+                        <div className={styles.emailBadge}>
+                            <i className="fa-regular fa-envelope"></i> Official
+                            digital receipts are auto-sent to
+                            michael.tanza@example.com
+                        </div>
+                    </div>
 
                     {/* KPI Cards */}
                     <div className="row g-4 mb-4">

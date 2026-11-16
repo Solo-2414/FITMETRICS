@@ -44,15 +44,25 @@ export default function MemberMembership() {
     return (
         <MemberLayout>
             {error && <InlineError error={error} />}
-            {!data ? <SkeletonCards count={4} /> : <>
-            <div className="d-flex flex-column mb-4" data-aos="fade-down">
-                <div>
-                    <h1 className={styles.pageTitle}>Membership & Passes</h1>
-                    <p className={styles.pageDesc}>
-                        View your current subscription status, gym pass rates, and personal coaching fees. All transactions are handled directly by our staff.
-                    </p>
-                </div>
-            </div>
+            {!data ? (
+                <SkeletonCards count={4} />
+            ) : (
+                <>
+                    <div
+                        className="d-flex flex-column mb-4"
+                        data-aos="fade-down"
+                    >
+                        <div>
+                            <h1 className={styles.pageTitle}>
+                                Membership & Passes
+                            </h1>
+                            <p className={styles.pageDesc}>
+                                View your current subscription status, gym pass
+                                rates, and personal coaching fees. All
+                                transactions are handled directly by our staff.
+                            </p>
+                        </div>
+                    </div>
 
                     <div
                         className="row mb-5"

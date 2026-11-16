@@ -269,14 +269,21 @@ export default function MemberProfile() {
     return (
         <MemberLayout>
             {error && <InlineError error={error} />}
-            {!profile || !data || !dashboard ? <SkeletonForm fields={8} cols={2} /> : <>
-            <div className="mb-4" data-aos="fade-down" data-aos-delay="100">
-                <h1 className={styles.pageTitle}>My Profile</h1>
-                <p className={styles.pageDesc}>
-                    Update your personal information, membership details, and
-                    training notes for the gym staff.
-                </p>
-            </div>
+            {!profile || !data || !dashboard ? (
+                <SkeletonForm fields={8} cols={2} />
+            ) : (
+                <>
+                    <div
+                        className="mb-4"
+                        data-aos="fade-down"
+                        data-aos-delay="100"
+                    >
+                        <h1 className={styles.pageTitle}>My Profile</h1>
+                        <p className={styles.pageDesc}>
+                            Update your personal information, membership
+                            details, and training notes for the gym staff.
+                        </p>
+                    </div>
 
                     <div
                         className={`${styles.profileBanner} p-4 mb-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-4`}
