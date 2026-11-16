@@ -270,9 +270,34 @@ export default function MemberProfile() {
         <MemberLayout>
             {error && <InlineError error={error} />}
             {!profile || !data || !dashboard ? (
-                <SkeletonForm fields={8} cols={2} />
+                <SkeletonMemberProfile />
             ) : (
                 <>
+                    {saveAlert.message && (
+                        <div
+                            className={`alert alert-${saveAlert.type} d-flex align-items-center justify-content-between mb-4`}
+                            role="alert"
+                        >
+                            <span>
+                                <i
+                                    className={`fa-solid ${
+                                        saveAlert.type === "success"
+                                            ? "fa-circle-check"
+                                            : "fa-circle-info"
+                                    } me-2`}
+                                ></i>
+                                {saveAlert.message}
+                            </span>
+                            <button
+                                type="button"
+                                className="btn-close"
+                                aria-label="Close"
+                                onClick={() =>
+                                    setSaveAlert({ type: "", message: "" })
+                                }
+                            ></button>
+                        </div>
+                    )}
                     <div
                         className="mb-4"
                         data-aos="fade-down"

@@ -1,11 +1,9 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { attendanceMethodLabel } from "../../lib/attendanceMethod";
 import { useToast } from "../../components/ui/toast/useToast";
 import { useConfirm } from "../../components/ui/toast/useConfirm";
 import InlineError from "../../components/ui/InlineError";
-import { SkeletonAttendance } from "../../components/ui/Skeleton";
 import styles from "./ClerkAttendance.module.css";
 import QRCode from "qrcode";
 
@@ -35,15 +33,12 @@ export default function ClerkAttendance() {
     const [qr, setQr] = useState(null);
     const [validFor, setValidFor] = useState("day");
     const [logSearch, setLogSearch] = useState("");
-    const [logPage, setLogPage] = useState(1);
-    const [searchLoading, setSearchLoading] = useState(false);
-    const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [busy, setBusy] = useState(false);
     const inputRef = useRef(null);
 
     const load = useCallback(
-        async (includeLive = date === today()) => {
+        async () => {
             try {
                 const [floor, dayStats, dayLog, codes] = await Promise.all([
                     api("/clerk/attendance/live"),
@@ -236,12 +231,12 @@ export default function ClerkAttendance() {
                 {[
                     [
                         "On floor now",
-                        `${stats.on_floor || live.people.length}/${live.capacity}`,
+                        `${stats?.on_floor || live.people.length}/${live.capacity}`,
                         "fa-users",
                     ],
-                    ["Check-ins today", stats.check_ins || 0, "fa-chart-line"],
-                    ["QR check-ins", stats.qr_check_ins || 0, "fa-qrcode"],
-                    ["Flagged", stats.flagged_count || 0, "fa-flag"],
+                    ["Check-ins today", stats?.check_ins || 0, "fa-chart-line"],
+                    ["QR check-ins", stats?.qr_check_ins || 0, "fa-qrcode"],
+                    ["Flagged", stats?.flagged_count || 0, "fa-flag"],
                 ].map(([label, value, icon]) => (
                     <div className="col-6 col-xl-3" key={label}>
                         <div className={styles.kpiCard}>

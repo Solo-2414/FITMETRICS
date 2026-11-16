@@ -5,6 +5,102 @@ import InlineError from "../../components/ui/InlineError";
 import { api } from "../../lib/api";
 import { SkeletonCards } from "../../components/ui/Skeleton";
 
+const MEMBERSHIP_PLANS = [
+    {
+        name: "Session / Walk-In",
+        matchKeys: ["session", "walk-in", "walk in"],
+        icon: "fa-solid fa-ticket",
+        desc: "1 Day complete gym floor access",
+        price: "₱90",
+        unit: "/ day",
+        subNote: "Student Rate: ₱70",
+        subNoteType: "student",
+        features: [
+            "Full access to gym equipment",
+            "Locker availability (bring your own lock)",
+            "Unlimited duration within operating hours",
+        ],
+    },
+    {
+        name: "Weekly Pass",
+        matchKeys: ["weekly"],
+        icon: "fa-regular fa-calendar",
+        desc: "7 consecutive days unlimited access",
+        price: "₱270",
+        unit: "/ 7 days",
+        subNote: "No lock-in · Start any day",
+        subNoteType: "transparent",
+        features: [
+            "Great for short trips or targeted 1-week programs",
+            "Free locker usage",
+            "Full gym privileges",
+        ],
+    },
+    {
+        name: "Two Weeks Pass",
+        matchKeys: ["two weeks", "2 weeks", "14 days"],
+        icon: "fa-solid fa-calendar-days",
+        desc: "14 consecutive days access",
+        price: "₱540",
+        unit: "/ 14 days",
+        subNote: "Two full weeks of continuous training",
+        subNoteType: "transparent",
+        features: [
+            "Excellent for mid-term habits",
+            "No signup fees",
+            "Free hydration requests",
+        ],
+    },
+    {
+        name: "Monthly Regular",
+        matchKeys: ["monthly"],
+        icon: "fa-solid fa-star",
+        desc: "Full 30-day access",
+        price: "₱990",
+        unit: "/ 30 days",
+        subNote: "Student Rate: ₱750 / month",
+        subNoteType: "highlight",
+        features: [
+            "Full 30-day unrestricted access",
+            "Eligible for dedicated coach programs",
+            "Priority staff support & advice",
+        ],
+    },
+];
+
+const COACHES_LIST = [
+    {
+        initials: "CA",
+        role: "Head Coach & Founder",
+        name: "Coach Analyn",
+        matchKey: "analyn",
+        availability: "Morning & Afternoon Sessions",
+        monthlyPrice: "+₱600",
+        sessionPrice: "₱100",
+        focus: [
+            "Functional Strength",
+            "Form Correction",
+            "Mobility",
+            "Beginner Friendly",
+        ],
+    },
+    {
+        initials: "CM",
+        role: "Strength & Conditioning Coach",
+        name: "Coach Mark",
+        matchKey: "mark",
+        availability: "Afternoon & Evening Sessions",
+        monthlyPrice: "+₱500",
+        sessionPrice: "₱80",
+        focus: [
+            "Barbell Mechanics",
+            "Powerlifting",
+            "Hypertrophy Isolation",
+            "Muscle Building",
+        ],
+    },
+];
+
 export default function MemberMembership() {
     const [data, setData] = useState(null);
     const [error, setError] = useState("");

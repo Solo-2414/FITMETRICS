@@ -473,6 +473,15 @@ export default function MemberBilling() {
         if (!rawReceipt) return;
         const receipt = normalizeReceipt(rawReceipt);
 
+        if (receipt.status?.toLowerCase() === "pending") {
+            setActionAlert({
+                type: "warning",
+                message:
+                    "This receipt cannot be emailed until the payment is confirmed as paid.",
+            });
+            return;
+        }
+
         if (!profile?.email) {
             setActionAlert({
                 type: "danger",
@@ -594,6 +603,14 @@ export default function MemberBilling() {
     const activeReceipt = normalizeReceipt(selectedReceipt);
     const activeLineItems = activeReceipt?.items || [];
 
+    useEffect(() => {
+        if (!actionAlert.message) return undefined;
+        const timeout = window.setTimeout(() => {
+            setActionAlert({ type: "", message: "" });
+        }, 4000);
+        return () => window.clearTimeout(timeout);
+    }, [actionAlert.message]);
+
     const plan = membership?.membership_plans;
 
     // Account Balance Calculation (Pending vs Settled)
@@ -642,7 +659,7 @@ export default function MemberBilling() {
         <MemberLayout>
             {error && <InlineError error={error} />}
             {!profile || !dashboard || !membership || !data ? (
-                <SkeletonTable rows={6} cols={5} />
+                <SkeletonMemberBilling />
             ) : (
                 <>
                     {/* toast-allow: persistent payment verification status */}
@@ -662,6 +679,11 @@ export default function MemberBilling() {
                             confirmation.
                         </div>
                     )}
+                    {actionAlert.message && (
+                        <div className={`alert alert-${actionAlert.type}`} role="alert">
+                            {actionAlert.message}
+                        </div>
+                    )}
                     <div
                         className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                         data-aos="fade-down"
@@ -679,7 +701,7 @@ export default function MemberBilling() {
                         <div className={styles.emailBadge}>
                             <i className="fa-regular fa-envelope"></i> Official
                             digital receipts are auto-sent to
-                            michael.tanza@example.com
+                            {profile?.email || "your registered email address"}
                         </div>
                     </div>
 
@@ -1403,6 +1425,12 @@ export default function MemberBilling() {
                                         type="button"
                                         className={styles.btnEmail}
                                         disabled={isSendingEmail}
+                                        title={
+                                            activeReceipt?.status?.toLowerCase() ===
+                                            "pending"
+                                                ? "Pending payments cannot be emailed."
+                                                : undefined
+                                        }
                                         onClick={() =>
                                             sendReceiptEmail(activeReceipt)
                                         }

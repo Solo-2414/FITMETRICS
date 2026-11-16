@@ -10,13 +10,12 @@ export default function MemberLayout({ children }) {
     const navigate = useNavigate();
     const { signOut, profile: authProfile } = useAuth();
 
-    // 1. Declare liveProfile BEFORE using it anywhere
     const [liveProfile, setLiveProfile] = useState(() => {
         const cachedAvatar = sessionStorage.getItem("cached_avatar_url");
         if (cachedAvatar !== null) {
-            return { ...authProfile, avatar_url: cachedAvatar || null };
+            return { avatar_url: cachedAvatar || null };
         }
-        return authProfile;
+        return null;
     });
 
     const [activeInGym, setActiveInGym] = useState(null);
@@ -27,22 +26,7 @@ export default function MemberLayout({ children }) {
         ),
     );
 
-    // 2. Single effect to sync with AuthContext while respecting sessionStorage
-    useEffect(() => {
-        if (authProfile) {
-            const cachedAvatar = sessionStorage.getItem("cached_avatar_url");
-            setLiveProfile((prev) => ({
-                ...prev,
-                ...authProfile,
-                avatar_url:
-                    cachedAvatar !== null
-                        ? cachedAvatar || null
-                        : (authProfile.avatar_url ?? prev?.avatar_url),
-            }));
-        }
-    }, [authProfile]);
-
-    // 3. Listen for immediate saves/deletes from MemberProfile
+    // Listen for immediate saves/deletes from MemberProfile.
     useEffect(() => {
         const handleProfileUpdate = (event) => {
             if (event.detail) {
@@ -63,7 +47,9 @@ export default function MemberLayout({ children }) {
             );
     }, [date]);
 
-    const profile = liveProfile || authProfile;
+    const profile = authProfile
+        ? { ...authProfile, ...liveProfile }
+        : liveProfile;
 
     const headerAvatarUrl =
         profile?.avatar_url === null
