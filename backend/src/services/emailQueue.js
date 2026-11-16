@@ -20,7 +20,7 @@ export const enqueueEmail = async ({ emailType, recipient, payload, dedupeKey = 
   if (dedupeKey) {
     const existing = await supabaseAdmin.from('email_log').select('id, status').eq('email_type', emailType).eq('recipient', recipient).contains('payload', { dedupe_key: dedupeKey }).in('status', ['queued', 'sent']).limit(1);
     if (existing.error) throw existing.error;
-    if (existing.data?.length) return existing.data[0];
+    if (existing.data?.length) return { ...existing.data[0], deduped: true };
   }
 
   const now = new Date().toISOString();

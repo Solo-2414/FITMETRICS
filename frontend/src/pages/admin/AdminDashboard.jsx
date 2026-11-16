@@ -1,14 +1,31 @@
 import { Bar } from "react-chartjs-2";
-import { useMemo } from "react";
-import AdminLayout from "../../components/admin/AdminLayout";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import InlineError from "../../components/ui/InlineError";
 import { useApiData } from "../../hooks/useApiData";
+import { api } from "../../lib/api";
+import { useToast, toastError } from "../../components/ui/toast/useToast";
+import { useConfirm } from "../../components/ui/toast/useConfirm";
 import { SkeletonChart, SkeletonKpiCards, SkeletonList, SkeletonTable } from "../../components/ui/Skeleton";
 import { buildBarOptions } from "../../lib/chartDefaults";
 import styles from "./AdminDashboard.module.css";
 
 export default function AdminDashboard() {
     const { data: dashboard, error, showSkeleton, reload } = useApiData("/admin/dashboard");
+    const toast = useToast();
+    const confirm = useConfirm();
+    const [sendingReminders, setSendingReminders] = useState(false);
+    const [settings, setSettings] = useState(null);
+    useEffect(() => {
+        let timer;
+        const refresh = () => {
+            if (document.visibilityState !== "visible") return;
+            api("/admin/settings").then(setSettings).catch((err) => toast.error(toastError(err)));
+        };
+        refresh();
+        timer = window.setInterval(refresh, 60000);
+        return () => window.clearInterval(timer);
+    }, [toast]);
     const kpis = dashboard?.kpis || {};
     const peak = dashboard?.today?.hourlyVisits;
     const recentCheckIns = dashboard?.recentCheckIns || [];
@@ -35,9 +52,25 @@ export default function AdminDashboard() {
             },
         };
     }, []);
+    const sendAllReminders = async () => {
+        if (!await confirm({ title: "Send expiry reminders?", message: `Send expiry reminders to ${expiringSoon.length} members?` })) return;
+        setSendingReminders(true);
+        try {
+            const result = await api("/admin/expiry-reminders/send-all", { method: "POST" });
+            toast.success(`Sent ${result.sent}, skipped ${result.skipped}, no email ${result.noEmail}.`);
+        } catch (err) {
+            toast.error(toastError(err));
+        } finally { setSendingReminders(false); }
+    };
+    const sendReminder = async (memberId, name) => {
+        try {
+            await api(`/admin/churn/${memberId}/reminder`, { method: "POST" });
+            toast.success(`Reminder queued for ${name}.`);
+        } catch (err) { toast.error(toastError(err)); }
+    };
 
     return (
-        <AdminLayout>
+        <>
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3">
                 <div>
                     <h1 className={styles.pageTitle}>Dashboard</h1>
@@ -47,9 +80,9 @@ export default function AdminDashboard() {
                 </div>
                 {error && <InlineError error={error} onRetry={reload} />}
                 <div className={styles.timeBadge}>
-                    <i className="fa-regular fa-calendar"></i> Today: Friday,
-                    October 24{" "}
-                    <span className={styles.shiftText}>{new Date().toLocaleTimeString([], { hour: "numeric" })}</span>
+                    <i className="fa-regular fa-calendar"></i>{" "}
+                    {new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "full" }).format(new Date())}{" "}
+                    <span className={styles.shiftText}>{new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" }).format(new Date())}</span>
                 </div>
             </div>
 
@@ -123,7 +156,7 @@ export default function AdminDashboard() {
                         </div>
                         <h3 className={styles.kpiValue}>{dashboard ? (dashboard.today?.expiringCount ?? 0) : "..."} Members</h3>
                         <div className="d-flex justify-content-between align-items-center mt-2">
-                            <span className={styles.kpiSub}>Next 3 days</span>
+                            <span className={styles.kpiSub}>Next {settings?.expiry_reminder_days ?? "..."} days</span>
                             <span className={styles.kpiWarning}>
                                 <i className="fa-solid fa-triangle-exclamation"></i>{" "}
                                 Needs action
@@ -143,7 +176,7 @@ export default function AdminDashboard() {
                                 </h4>
                                 <p className={styles.panelDesc}>
                                     Real-time check-in density across
-                                    operational hours (6:00 AM – 9:00 PM)
+                                    operational hours ({settings?.monday_saturday_open || "..."} – {settings?.monday_saturday_close || "..."})
                                 </p>
                             </div>
                             <div className="d-flex align-items-center gap-3">
@@ -157,8 +190,8 @@ export default function AdminDashboard() {
                         <div className={styles.capacityNotice}>
                             <i className="fa-regular fa-circle-check text-success"></i>
                             <span>
-                                Gym capacity comfortable{" "}
-                                <strong>(live capacity)</strong> ·
+                                {settings?.floor_capacity && dashboard?.today?.openVisits >= settings.floor_capacity ? "Gym capacity is full" : "Gym capacity comfortable"}{" "}
+                                <strong>({dashboard?.today?.openVisits ?? 0}/{settings?.floor_capacity ?? "..."} active)</strong> ·
                                 Live attendance flow from today's recorded check-ins
                             </span>
                         </div>
@@ -195,7 +228,7 @@ export default function AdminDashboard() {
                                 <div className="d-flex align-items-center gap-2 mt-1">
                                     <span className={styles.liveBadge}>
                                         <span className={styles.liveDot}></span>{" "}
-                                        Live desk log · 2m ago
+                                        Live desk log · {dashboard?.updatedAt ? new Date(dashboard.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "..."}
                                     </span>
                                     <span className={styles.panelDesc}>
                                         Real-time counter entries logged by
@@ -203,10 +236,10 @@ export default function AdminDashboard() {
                                     </span>
                                 </div>
                             </div>
-                            <button className={styles.btnLink}>
+                            <Link className={styles.btnLink} to="/admin/attendance-analysis">
                                 View all {dashboard?.today?.checkIns ?? 0} visits today{" "}
                                 <i className="fa-solid fa-arrow-right"></i>
-                            </button>
+                            </Link>
                         </div>
 
                         {showSkeleton ? <SkeletonTable rows={5} cols={4} /> : <div className="table-responsive fm-fade-in">
@@ -235,7 +268,7 @@ export default function AdminDashboard() {
                             <i className="fa-regular fa-bell-slash text-warning fs-5"></i>
                             <h4 className={styles.panelTitle}>Expiring Soon</h4>
                             <span className={styles.warningBadge}>
-                                {expiringSoon.length} in 3 Days
+                                {expiringSoon.length} in {settings?.expiry_reminder_days ?? "..."} Days
                             </span>
                         </div>
                         <p
@@ -245,11 +278,11 @@ export default function AdminDashboard() {
                             Polite email notifications ready to send to members
                         </p>
 
-                        {showSkeleton ? <SkeletonList rows={3} /> : <div className="d-flex flex-column gap-3 mb-4 fm-fade-in">{expiringSoon.slice(0, 3).map((membership) => { const days = Math.max(0, Math.ceil((new Date(membership.end_date) - new Date()) / 86400000)); return <div className={styles.expiringCard} key={membership.id}><div><h6 className="text-white mb-1">{membership.member?.full_name || "Member"}</h6><div className={days <= 1 ? "text-danger" : "text-warning"} style={{ fontSize: "0.75rem", fontWeight: "600", marginBottom: "4px" }}><i className="fa-regular fa-clock"></i>{" "}Expires {days === 0 ? "today" : `in ${days} day${days === 1 ? "" : "s"}`}</div><span className="text-secondary" style={{ fontSize: "0.75rem" }}>{membership.membership_plans?.name || "Membership"}</span></div><button className={styles.btnActionOutline}><i className="fa-regular fa-envelope"></i>{" "}Send Email</button></div>; })}{dashboard && !expiringSoon.length && <div className="text-secondary py-3">No memberships expire within the next 3 days.</div>}</div>}
+                        {showSkeleton ? <SkeletonList rows={3} /> : <div className="d-flex flex-column gap-3 mb-4 fm-fade-in">{expiringSoon.slice(0, 3).map((membership) => { const days = Math.max(0, Math.ceil((new Date(membership.end_date) - new Date()) / 86400000)); return <div className={styles.expiringCard} key={membership.id}><div><h6 className="text-white mb-1">{membership.member?.full_name || "Member"}</h6><div className={days <= 1 ? "text-danger" : "text-warning"} style={{ fontSize: "0.75rem", fontWeight: "600", marginBottom: "4px" }}><i className="fa-regular fa-clock"></i>{" "}Expires {days === 0 ? "today" : `in ${days} day${days === 1 ? "" : "s"}`}</div><span className="text-secondary" style={{ fontSize: "0.75rem" }}>{membership.membership_plans?.name || "Membership"}</span></div><button className={styles.btnActionOutline} disabled={!membership.member?.email} onClick={() => sendReminder(membership.member_id, membership.member?.full_name || "member")}><i className="fa-regular fa-envelope"></i>{" "}{membership.member?.email ? "Send Email" : "No email"}</button></div>; })}{dashboard && !expiringSoon.length && <div className="text-secondary py-3">No memberships expire within the next {settings?.expiry_reminder_days ?? "..."} days.</div>}</div>}
 
-                        <button className={styles.btnPrimaryFull}>
+                        <button className={styles.btnPrimaryFull} onClick={sendAllReminders} disabled={sendingReminders}>
                             <i className="fa-solid fa-paper-plane"></i> Send
-                            Email Reminder to All {expiringSoon.length} Members
+                            {sendingReminders ? "ing..." : ` Email Reminder to All ${expiringSoon.length} Members`}
                         </button>
                     </div>
                 </div>
@@ -288,6 +321,7 @@ export default function AdminDashboard() {
                         return <div className="col-6 col-md-3" key={plan.id}><div className={styles.distBox}><div className="d-flex align-items-center gap-2 mb-2"><span className={[styles.dotPrimary, styles.dotWhite, styles.dotGreen, styles.dotWarning][index % 4]}></span><span className={styles.distLabel}>{plan.name}</span></div><div className="d-flex align-items-baseline gap-2 mb-1"><h4 className="text-white m-0" style={{ fontFamily: "var(--heading-font)", fontWeight: "700" }}>{plan.count}</h4><span className="text-secondary" style={{ fontSize: "0.75rem" }}>({percentage}%)</span></div><span className={styles.distPrice}>₱{Number(plan.price || 0).toLocaleString()}</span></div></div>;
                     })}
                     {dashboard && !planDistribution.length && <div className="col-12 text-secondary">No active membership plans.</div>}
-                </div>            </div>\n        </AdminLayout>
+                </div>            </div>
+        </>
     );
 }

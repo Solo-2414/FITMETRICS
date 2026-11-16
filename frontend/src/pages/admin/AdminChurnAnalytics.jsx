@@ -1,11 +1,11 @@
 import { Bar } from "react-chartjs-2";
 import { useEffect, useMemo, useState } from "react";
-import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminChurnAnalytics.module.css";
 import InlineError from "../../components/ui/InlineError";
 import { api } from "../../lib/api";
 import { buildBarOptions } from "../../lib/chartDefaults";
 import { SkeletonChart, SkeletonKpiCards, SkeletonTable } from "../../components/ui/Skeleton";
+import { toastError, useToast } from "../../components/ui/toast/useToast";
 
 export default function AdminChurnAnalytics() {
     const [promptText, setPromptText] = useState(
@@ -18,15 +18,17 @@ export default function AdminChurnAnalytics() {
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState("");
     const [error, setError] = useState("");
+    const [page, setPage] = useState(1);
+    const toast = useToast();
     useEffect(() => {
-        api("/admin/churn").then((result) => { setMembers(result.members || []); setStats(result.stats); setTrend(result.trend || []); }).catch((err) => setError(err.message)).finally(() => setLoading(false));
+        api("/admin/churn").then((result) => { setMembers(result.members || []); setStats(result.stats); setTrend(result.trend || []); if (result.reminderMessage) setPromptText(result.reminderMessage); }).catch((err) => setError(err.message)).finally(() => setLoading(false));
     }, []);
     const chartData = useMemo(() => ({
         labels: (trend || []).map((item) => item.label),
         datasets: [
             {
                 label: "Returning Members",
-                data: (trend || []).map((item) => item.visits),
+                data: (trend || []).map((item) => item.returning_members ?? 0),
                 backgroundColor: "#10b981",
                 borderRadius: 4,
                 barPercentage: 0.6,
@@ -55,7 +57,7 @@ export default function AdminChurnAnalytics() {
     }, []);
 
     return (
-        <AdminLayout>
+        <>
             {error && <InlineError error={error} />}
             <div className="d-flex flex-column mb-4" data-aos="fade-down">
                 <h1 className={styles.pageTitle}>Churn Analytics</h1>
@@ -233,9 +235,13 @@ export default function AdminChurnAnalytics() {
                                         />
                                         <button
                                             className={styles.btnSavePrompt}
-                                            onClick={() =>
-                                                setIsEditingPrompt(false)
-                                            }
+                                            onClick={async () => {
+                                                try {
+                                                    await api("/admin/settings", { method: "PATCH", body: { churn_reminder_message: promptText } });
+                                                    setIsEditingPrompt(false);
+                                                    toast.success("Reminder prompt saved.");
+                                                } catch (err) { toast.error(toastError(err)); }
+                                            }}
                                         >
                                             Save
                                         </button>
@@ -274,14 +280,14 @@ export default function AdminChurnAnalytics() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {members.filter((member) => member.days_inactive >= 14).slice(0, 5).map((member, index) => (
+                                    {members.filter((member) => member.days_inactive >= 14).slice((page - 1) * 10, page * 10).map((member, index) => (
                                         <tr key={member.member_id}>
                                             <td><div className="d-flex align-items-center gap-3"><div className={index % 2 ? styles.avatarSecondary : styles.avatar}>{(member.full_name || "Member").split(" ").map((part) => part[0]).join("").slice(0, 2)}</div><div><strong className="d-block text-white mb-1">{member.full_name || "Member"}</strong><span className={styles.memberSince}>Active member</span></div></div></td>
                                             <td><span className={styles.planBadgeOutline}>{member.plan_name || "Membership"}</span></td>
                                             <td>{member.last_visit_date ? new Date(member.last_visit_date).toLocaleDateString() : "No visit recorded"}</td>
                                             <td><span className={member.days_inactive >= 30 ? styles.badgeDanger : styles.badgeWarning}>{member.days_inactive >= 999 ? "No visits" : `${member.days_inactive} days ago`}</span></td>
                                             <td>{member.email || member.phone || "No contact"}</td>
-                                            <td><button className={styles.btnActionOutline} disabled={sending === member.member_id} onClick={async () => { setSending(member.member_id); try { await api(`/admin/churn/${member.member_id}/reminder`, { method: "POST", body: { message: promptText } }); } catch (err) { setError(err.message); } finally { setSending(""); } }}><i className="fa-regular fa-paper-plane"></i>{" "}{sending === member.member_id ? "Sending..." : "Send Friendly Email"}</button></td>
+                                            <td><button className={styles.btnActionOutline} disabled={sending === member.member_id || !member.email} onClick={async () => { setSending(member.member_id); try { await api(`/admin/churn/${member.member_id}/reminder`, { method: "POST", body: { message: promptText } }); toast.success(`Reminder queued for ${member.full_name}`); } catch (err) { toast.error(toastError(err)); } finally { setSending(""); } }}><i className="fa-regular fa-paper-plane"></i>{" "}{sending === member.member_id ? "Sending..." : member.email ? "Send Friendly Email" : "No email"}</button></td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -293,16 +299,16 @@ export default function AdminChurnAnalytics() {
                                 className="text-secondary"
                                 style={{ fontSize: "0.85rem" }}
                             >
-                                Showing {Math.min(5, members.filter((member) => member.days_inactive >= 14).length)} of {members.filter((member) => member.days_inactive >= 14).length} inactive members
+                                Showing {Math.min(10, members.filter((member) => member.days_inactive >= 14).length - (page - 1) * 10)} of {members.filter((member) => member.days_inactive >= 14).length} inactive members
                             </span>
                             <div className="d-flex gap-2 mt-3 mt-sm-0">
-                                <button className={styles.pageBtnText} disabled>
+                                <button className={styles.pageBtnText} disabled={page === 1} onClick={() => setPage((value) => value - 1)}>
                                     Previous
                                 </button>
                                 <button className={styles.pageBtnText}>
-                                    Page 1
+                                    Page {page}
                                 </button>
-                                <button className={styles.pageBtnTextActive}>
+                                <button className={styles.pageBtnTextActive} disabled={page * 10 >= members.filter((member) => member.days_inactive >= 14).length} onClick={() => setPage((value) => value + 1)}>
                                     Next
                                 </button>
                             </div>
@@ -310,6 +316,6 @@ export default function AdminChurnAnalytics() {
                     </div>
                 </div>
             </div>
-        </AdminLayout>
+        </>
     );
 }

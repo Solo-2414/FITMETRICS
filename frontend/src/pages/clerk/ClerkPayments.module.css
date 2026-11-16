@@ -6,3 +6,19 @@
 .reviewDetails div{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;color:var(--text-color);font-size:.82rem}
 .reviewDetails strong{color:var(--header-text-color);text-align:right;max-width:70%;overflow-wrap:anywhere}
 .reviewActions{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:18px}
+/* added for clerk payment statuses */
+.statuscancelled,.statusexpired,.statusfailed,.statusneeds_review{background:rgba(148,163,184,.12);color:#cbd5e1}
+.statusfailed{background:rgba(239,68,68,.14);color:#fca5a5}
+.statusneeds_review{background:rgba(245,158,11,.16);color:#fcd34d}
+.promoControls{display:flex;align-items:center;gap:8px}
+.promoControls .input{flex:1}
+.promoSuccess{display:block;color:var(--green-color);font-size:.72rem;margin-top:6px}
+.fieldError{display:block;color:#fca5a5;font-size:.72rem;margin-top:6px}
+.receiptActions{display:flex;gap:8px}
+.printReceipt{background:#fff;color:#111827;border-radius:8px;padding:18px;overflow:auto}
+@media print {
+    body *{visibility:hidden}
+    .receiptDrawer,.receiptDrawer *{visibility:visible}
+    .receiptDrawer{position:absolute;left:0;top:0;width:100%;border:0;background:#fff;color:#111827}
+    .receiptActions{display:none}
+}

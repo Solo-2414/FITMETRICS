@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { useAuth, homePathForRole } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext";
+import { homePathForRole } from "../context/homePathForRole";
 import "../App.css";
 import { api } from "../lib/api";
 import { useToast } from "../components/ui/toast/useToast";

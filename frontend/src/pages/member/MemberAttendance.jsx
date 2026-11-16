@@ -4,7 +4,7 @@ import { api, getFriendlyError } from "../../lib/api";
 import { attendanceMethodLabel } from "../../lib/attendanceMethod";
 import { useToast } from "../../components/ui/toast/useToast";
 import styles from "./MemberAttendance.module.css";
-import { SkeletonKpiCards, SkeletonList } from "../../components/ui/Skeleton";
+import { SkeletonMemberAttendance } from "../../components/ui/Skeleton";
 import InlineError from "../../components/ui/InlineError";
 
 export default function MemberAttendance() {
@@ -194,7 +194,7 @@ export default function MemberAttendance() {
     return (
         <MemberLayout>
             {error && <InlineError error={error} />}
-            {loading ? <><SkeletonKpiCards count={2} colClass="col-12 col-md-6" /><SkeletonList rows={5} /></> : <>
+            {loading ? <SkeletonMemberAttendance /> : <>
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3"
                 data-aos="fade-down"

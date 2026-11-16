@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { useAuth, homePathForRole } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext";
+import { homePathForRole } from "../context/homePathForRole";
 import { api } from "../lib/api";
 import MaintenanceScreen from "./MaintenanceScreen";
 import { SkeletonPage } from "./ui/Skeleton";

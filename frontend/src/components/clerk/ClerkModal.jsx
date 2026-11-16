@@ -3,14 +3,16 @@ import styles from "../../pages/clerk/ClerkMemberRegistration.module.css";
 
 export default function ClerkModal({ title, icon, children, footer, onClose, labelledBy }) {
     const panelRef = useRef(null);
+    const onCloseRef = useRef(onClose);
     const returnFocusRef = useRef(document.activeElement);
+    useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
     useEffect(() => {
         const previousOverflow = document.body.style.overflow;
         const returnFocus = returnFocusRef.current;
         document.body.style.overflow = "hidden";
         panelRef.current?.focus();
         const onKeyDown = (event) => {
-            if (event.key === "Escape") onClose();
+            if (event.key === "Escape") onCloseRef.current();
             if (event.key !== "Tab" || !panelRef.current) return;
             const focusable = panelRef.current.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
             if (!focusable.length) return;
@@ -21,7 +23,7 @@ export default function ClerkModal({ title, icon, children, footer, onClose, lab
         };
         document.addEventListener("keydown", onKeyDown);
         return () => { document.body.style.overflow = previousOverflow; document.removeEventListener("keydown", onKeyDown); returnFocus?.focus?.(); };
-    }, [onClose]);
+    }, []);
     return <div className={`modal d-block ${styles.registrationModalOverlay}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy} onClick={onClose}>
         <div className="modal-dialog modal-dialog-centered" onClick={(event) => event.stopPropagation()}>
             <div className={`modal-content ${styles.registrationModalPanel}`} ref={panelRef} tabIndex={-1}>

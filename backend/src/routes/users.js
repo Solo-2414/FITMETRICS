@@ -113,6 +113,18 @@ router.get('/users', requireAuth, requireAdmin, async (req, res) => {
   res.json(data);
 });
 
+router.get('/users/summary', requireAuth, requireAdmin, async (_req, res) => {
+  const { data, error } = await supabaseAdmin.from('profiles').select('role, status');
+  if (error) return res.status(500).json({ error: error.message });
+  const rows = data || [];
+  res.json({
+    admins: rows.filter((row) => row.role === 'admin').length,
+    clerks: rows.filter((row) => row.role === 'clerk').length,
+    members: rows.filter((row) => row.role === 'member').length,
+    active_members: rows.filter((row) => row.role === 'member' && row.status === 'active').length,
+  });
+});
+
 router.get('/users/:id/details', requireAuth, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const [profileResult, detailsResult, membershipsResult, membershipState] = await Promise.all([
@@ -192,7 +204,7 @@ router.post('/users', requireAuth, requireRole('admin', 'clerk'), async (req, re
 // PATCH /api/users/:id   (admin: change role / status)
 router.patch('/users/:id', requireAuth, requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { role, status } = req.body || {};
+  const { role, status, full_name, phone } = req.body || {};
   const updates = {};
 
   if (role !== undefined) {
@@ -203,9 +215,17 @@ router.patch('/users/:id', requireAuth, requireAdmin, async (req, res) => {
     if (!STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
     updates.status = status;
   }
+  if (full_name !== undefined) {
+    if (typeof full_name !== 'string' || !full_name.trim() || full_name.length > 100) return res.status(400).json({ error: 'Full name must be 1-100 characters.' });
+    updates.full_name = full_name.trim();
+  }
+  if (phone !== undefined) {
+    if (typeof phone !== 'string' || phone.length > 30) return res.status(400).json({ error: 'Phone must be at most 30 characters.' });
+    updates.phone = phone.trim();
+  }
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'Nothing to update.' });
 
-  if (id === req.user.id && (updates.role || (updates.status && updates.status !== 'active'))) {
+  if (id === req.user.id && (updates.role || (updates.status && updates.status !== 'active') || updates.full_name || updates.phone)) {
     return res.status(400).json({ error: "You can't change your own role or deactivate yourself." });
   }
 
@@ -281,6 +301,17 @@ router.post('/users/:id/password', requireAuth, requireAdmin, async (req, res) =
   const { error } = await supabaseAdmin.auth.admin.updateUserById(req.params.id, { password });
   if (error) return res.status(400).json({ error: error.message });
   res.json({ ok: true });
+});
+
+router.post('/users/:id/password-reset', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    if (req.params.id === req.user.id) return res.status(400).json({ error: 'Use the self-service password reset flow for your own account.' });
+    const { data: target, error: targetError } = await supabaseAdmin.from('profiles').select('email').eq('id', req.params.id).single();
+    if (targetError || !target?.email) return res.status(404).json({ error: 'User email not found.' });
+    const { error } = await supabaseAdmin.auth.admin.generateLink({ type: 'recovery', email: target.email });
+    if (error) return next(error);
+    res.json({ ok: true });
+  } catch (error) { next(error); }
 });
 
 export default router;

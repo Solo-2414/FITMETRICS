@@ -19,6 +19,7 @@ const readCache = () => preferenceKeys.reduce((result, key) => {
     if (raw === null) return result;
     try { result[key] = typeof DEFAULT_TERMINAL_PREFERENCES[key] === "number" ? Number(raw) : JSON.parse(raw); }
     catch { result[key] = raw; }
+    if (key === "defaultPaymentMethod" && ["gcash", "maya"].includes(result[key])) result[key] = "cash";
     return result;
 }, {});
 
@@ -53,10 +54,13 @@ export function useTerminalPreferences() {
     return { preferences, loading, updatePreference, resetPreferences };
 }
 
+let audioContext;
+
 export function playTerminalAlert(enabled) {
     if (!enabled) return;
     try {
-        const context = new window.AudioContext();
+        audioContext ||= new window.AudioContext();
+        const context = audioContext;
         const oscillator = context.createOscillator();
         const gain = context.createGain();
         oscillator.frequency.value = 880;

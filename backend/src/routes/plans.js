@@ -29,6 +29,7 @@ const planPayload = (body = {}, partial = false) => {
   if (payload.price !== undefined) payload.price = Number(payload.price);
   if (payload.student_price === '' || payload.student_price === null) payload.student_price = null;
   else if (payload.student_price !== undefined) payload.student_price = Number(payload.student_price);
+  if (payload.student_price !== undefined && payload.student_price !== null && payload.student_price > payload.price) throw new Error('Student rate cannot exceed the standard rate.');
   if (payload.code) payload.code = payload.code.trim().toLowerCase();
   if (payload.name) payload.name = payload.name.trim();
   return payload;
@@ -63,6 +64,11 @@ router.patch(['/plans/:id', '/membership-plans/:id'], requireAuth, requireRole('
   try {
     const payload = planPayload(req.body, true);
     if (!Object.keys(payload).length) return res.status(400).json({ error: 'Nothing to update.' });
+    if (payload.active === false) {
+      const active = await supabaseAdmin.from('memberships').select('id', { count: 'exact', head: true }).eq('plan_id', req.params.id).eq('status', 'active');
+      if (active.error) return next(active.error);
+      if ((active.count || 0) > 0) return res.status(409).json({ error: `Cannot deactivate this plan while ${active.count} active memberships use it.` });
+    }
     const { data, error } = await supabaseAdmin
       .from('membership_plans')
       .update(payload)

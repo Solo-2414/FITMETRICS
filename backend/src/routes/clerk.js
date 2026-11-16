@@ -55,6 +55,7 @@ const normalizePhone = (value) => {
   if (digits.startsWith('63') && digits.length === 12) return `0${digits.slice(2)}`;
   return digits;
 };
+const escapePostgrestValue = (value) => String(value).replace(/([\\%_(),])/g, '\\$1');
 const memberSummary = (profile, details) => ({
   id: profile.id, full_name: profile.full_name, member_code: details?.member_code || null, status: profile.status,
 });
@@ -63,7 +64,7 @@ const findExistingMember = async ({ email, phone, username }) => {
   const normalizedPhone = normalizePhone(phone);
   const profileResult = await supabaseAdmin.from('profiles')
     .select('id, full_name, email, phone, status, member_details(member_code)')
-    .or(`email.eq.${normalizedEmail},phone.eq.${phone || ''}`)
+    .or(`email.eq.${escapePostgrestValue(normalizedEmail)},phone.eq.${escapePostgrestValue(normalizedPhone)}`)
     .limit(20);
   if (profileResult.error) throw profileResult.error;
   const found = (profileResult.data || []).find((profile) =>
@@ -273,6 +274,18 @@ router.post('/clerk/payments/quote', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.post('/clerk/promos/validate', async (req, res, next) => {
+  try {
+    const { code, plan_code, is_student = false } = req.body || {};
+    if (!String(code || '').trim() || !plan_code) return res.status(422).json({ error: 'Promo code and plan are required.' });
+    const plan = await getPlan(plan_code);
+    const promo = await getPromo(code, plan.id);
+    if (!promo) return res.status(422).json({ error: 'This promo code is invalid or expired.' });
+    const pricing = priceFor(plan, Boolean(is_student), promo);
+    res.json({ code: promo.code, discount: pricing.discount, total: pricing.amount });
+  } catch (error) { next(error); }
+});
+
 router.get('/clerk/coaches', async (_req, res, next) => {
   try {
     const { data, error } = await supabaseAdmin.from('coaches').select('*').eq('active', true).order('display_name');
@@ -295,9 +308,13 @@ router.get('/clerk/notifications/summary', async (req, res, next) => {
       ...item,
       link: item.link || (item.type === 'payment' ? '/clerk/payments'
         : item.type === 'membership_expiry' && item.related_member_id ? `/clerk/membership?member=${item.related_member_id}`
-          : item.type === 'registration' ? '/clerk/members' : '/clerk/notification'),
+          : item.type === 'registration' ? '/clerk/member-information' : '/clerk/notification'),
     }));
-    res.json({ unread: unreadResult.count || 0, latest });
+    const unreadByType = (data || []).reduce((counts, item) => {
+      if (!item.read_at) counts[item.type] = (counts[item.type] || 0) + 1;
+      return counts;
+    }, {});
+    res.json({ unread: unreadResult.count || 0, unread_by_type: unreadByType, latest });
   } catch (error) { next(error); }
 });
 
@@ -319,8 +336,10 @@ router.get('/clerk/notifications', async (req, res, next) => {
       .select('type, read_at').eq('user_id', req.user.id);
     if (countError) return next(countError);
     const counts = { all: countRows.length, unread: countRows.filter((item) => !item.read_at).length };
+    const unreadByType = {};
     for (const item of countRows) counts[item.type] = (counts[item.type] || 0) + 1;
-    res.json({ rows: data || [], total: count || 0, page, limit, hasMore: (count || 0) > page * limit, counts });
+    for (const item of countRows) if (!item.read_at) unreadByType[item.type] = (unreadByType[item.type] || 0) + 1;
+    res.json({ rows: data || [], total: count || 0, page, limit, hasMore: (count || 0) > page * limit, counts, unread_by_type: unreadByType });
   } catch (error) { next(error); }
 });
 
@@ -359,7 +378,7 @@ router.patch('/clerk/settings/preferences', async (req, res, next) => {
     const validators = {
       audioAlerts: (value) => typeof value === 'boolean',
       paymentPrompt: (value) => typeof value === 'boolean',
-      defaultPaymentMethod: (value) => ['cash', 'gcash', 'maya'].includes(value),
+      defaultPaymentMethod: (value) => ['cash', 'qrph'].includes(value),
       defaultLandingPage: (value) => ['dashboard', 'attendance'].includes(value),
       fastCheckinAutoFocus: (value) => typeof value === 'boolean',
       autoClearCheckinSearch: (value) => typeof value === 'boolean',
@@ -794,7 +813,7 @@ router.post('/clerk/register/cash', async (req, res, next) => {
 router.post('/clerk/register/qrph', async (req, res, next) => {
   let intent;
   try {
-    const paymentModes = (await getGymSettings()).payment_modes || ['cash', 'gcash', 'maya'];
+    const paymentModes = (await getGymSettings()).payment_modes || ['cash', 'qrph'];
     const paymentError = paymentMethodError(paymentModes, 'qrph');
     if (paymentError) return res.status(400).json({ error: paymentError });
     const body = req.body || {};
@@ -877,7 +896,7 @@ router.post('/clerk/register/qrph/:id/simulate-paid', requireRole('admin', 'cler
 router.post('/clerk/memberships', async (req, res, next) => {
   try {
     const { member_id, plan_code, coach_id, payment_method = 'cash', promo_code = null, cash_tendered = null } = req.body || {};
-    const paymentError = paymentMethodError((await getGymSettings()).payment_modes || ['cash', 'gcash', 'maya'], payment_method);
+    const paymentError = paymentMethodError((await getGymSettings()).payment_modes || ['cash', 'qrph'], payment_method);
     if (paymentError) return res.status(400).json({ error: paymentError });
     if (!member_id || !plan_code) return res.status(400).json({ error: 'Member and plan are required.' });
     if (!['cash', 'qrph'].includes(payment_method)) return res.status(400).json({ error: 'Renewals support Cash or QR Ph.' });
@@ -957,13 +976,29 @@ router.post('/clerk/attendance', async (req, res, next) => {
         if (query.length < 2) return res.json([]);
         const digits = query.replace(/\D/g, '');
         const normalized = digits.startsWith('63') && digits.length === 12 ? `0${digits.slice(2)}` : digits;
-        const { data: members, error } = await supabaseAdmin.from('profiles')
+        const escapedQuery = escapePostgrestValue(query);
+        const profileFilters = [`full_name.ilike.%${escapedQuery}%`, `email.ilike.%${escapedQuery}%`];
+        if (normalized.length >= 3) profileFilters.push(`phone_normalized.ilike.%${escapePostgrestValue(normalized)}%`);
+        const profileResult = await supabaseAdmin.from('profiles')
           .select('id, full_name, email, phone, phone_normalized, status, member_details(member_code)')
           .eq('role', 'member')
-          .or(`full_name.ilike.%${query}%,email.ilike.%${query}%,phone_normalized.ilike.%${normalized}%`)
+          .or(profileFilters.join(','))
           .limit(8);
-        if (error) return next(error);
-        const ids = (members || []).map((member) => member.id);
+        if (profileResult.error) return next(profileResult.error);
+        const codeResult = await supabaseAdmin.from('member_details')
+          .select('member_id, member_code')
+          .ilike('member_code', `%${escapedQuery}%`)
+          .limit(8);
+        if (codeResult.error) return next(codeResult.error);
+        const codeIds = (codeResult.data || []).map((row) => row.member_id);
+        const extraMembers = codeIds.length
+          ? await supabaseAdmin.from('profiles').select('id, full_name, email, phone, phone_normalized, status, member_details(member_code)').eq('role', 'member').in('id', codeIds)
+          : { data: [], error: null };
+        if (extraMembers.error) return next(extraMembers.error);
+        const members = [...(profileResult.data || []), ...(extraMembers.data || [])]
+          .filter((member, index, rows) => rows.findIndex((item) => item.id === member.id) === index)
+          .slice(0, 8);
+        const ids = members.map((member) => member.id);
         const states = await getMembershipState(ids);
         return res.json((members || []).map((member) => {
           const state = states.get(member.id) || { current: null, queued: [], last_expired: null };
@@ -984,12 +1019,12 @@ router.post('/clerk/attendance', async (req, res, next) => {
       try {
         const { data, error } = await supabaseAdmin.from('attendance')
           .select('id, member_id, walk_in_visit_id, check_in_at, method, flagged, profiles:member_id(full_name, member_details(member_code)), memberships(membership_plans(name)), walk_in_visits(guest_name, membership_plans(name))')
-          .eq('status', 'open').is('check_out_at', null).order('check_in_at', { ascending: true });
+          .eq('status', 'open').is('check_out_at', null).gte('check_in_at', dayStart()).order('check_in_at', { ascending: true });
         if (error) return next(error);
-        const settings = await supabaseAdmin.from('gym_settings').select('capacity').eq('id', true).maybeSingle();
+        const settings = await supabaseAdmin.from('gym_settings').select('floor_capacity').eq('id', true).maybeSingle();
         if (settings.error) return next(settings.error);
         return res.json({
-          capacity: settings.data?.capacity || 100,
+          capacity: Number(settings.data?.floor_capacity || 50),
           people: (data || []).map((row) => ({
             id: row.id, name: row.profiles?.full_name || row.walk_in_visits?.guest_name || 'Walk-in Guest',
             code: row.profiles?.member_details?.member_code || null, plan: row.memberships?.membership_plans?.name || row.walk_in_visits?.membership_plans?.name || 'Day pass',
@@ -1007,28 +1042,30 @@ router.post('/clerk/attendance', async (req, res, next) => {
         const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
         const end = new Date(`${value}T00:00:00+08:00`);
         end.setDate(end.getDate() + 1);
-        const { data, error, count } = await supabaseAdmin.from('attendance')
+        let query = supabaseAdmin.from('attendance')
           .select('id, check_in_at, check_out_at, method, status, flagged, recorded_by, member_id, profiles:member_id(full_name, member_details(member_code)), memberships(membership_plans(name))', { count: 'exact' })
-          .gte('check_in_at', `${value}T00:00:00+08:00`).lt('check_in_at', end.toISOString())
-          .order('check_in_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
+          .gte('check_in_at', `${value}T00:00:00+08:00`).lt('check_in_at', end.toISOString());
+        if (req.query.state === 'in') query = query.is('check_out_at', null);
+        if (req.query.state === 'out') query = query.not('check_out_at', 'is', null);
+        const search = String(req.query.search || '').trim();
+        if (search) {
+          const escaped = escapePostgrestValue(search);
+          query = query.or(`full_name.ilike.%${escaped}%,member_details.member_code.ilike.%${escaped}%`, { foreignTable: 'profiles' });
+        }
+        const { data, error, count } = await query.order('check_in_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
         if (error) return next(error);
-        const filtered = data || [];
-        if (req.query.state === 'in') filtered.splice(0, filtered.length, ...filtered.filter((row) => !row.check_out_at));
-        if (req.query.state === 'out') filtered.splice(0, filtered.length, ...filtered.filter((row) => row.check_out_at));
-        const search = String(req.query.search || '').toLowerCase();
-        const rows = filtered.filter((row) => !search || `${row.profiles?.full_name || ''} ${row.profiles?.member_details?.member_code || ''}`.toLowerCase().includes(search));
-        return res.json({ rows: rows.map((row) => ({ ...row, member_name: row.profiles?.full_name || 'Walk-in Guest', plan_name: row.memberships?.membership_plans?.name || 'Day pass', duration_minutes: row.check_out_at ? Math.round((new Date(row.check_out_at) - new Date(row.check_in_at)) / 60000) : null })), total: count || 0, page, limit });
+        return res.json({ rows: (data || []).map((row) => ({ ...row, member_name: row.profiles?.full_name || 'Walk-in Guest', plan_name: row.memberships?.membership_plans?.name || 'Day pass', duration_minutes: row.check_out_at ? Math.round((new Date(row.check_out_at) - new Date(row.check_in_at)) / 60000) : null })), total: count || 0, page, limit });
       } catch (error) { return next(error); }
     });
 
     router.get('/clerk/attendance/stats', async (req, res, next) => {
       try {
         const value = String(req.query.date || today());
-        const { data, error } = await supabaseAdmin.from('attendance').select('check_in_at, check_out_at, method, flagged')
+        const { data, error } = await supabaseAdmin.from('attendance').select('check_in_at, check_out_at, method, flagged, status')
           .gte('check_in_at', `${value}T00:00:00+08:00`).lt('check_in_at', `${value}T23:59:59+08:00`);
         if (error) return next(error);
-        const rows = data || [];
-        const open = rows.filter((row) => !row.check_out_at);
+        const rows = (data || []).filter((row) => row.status === 'open' || row.check_out_at);
+        const open = rows.filter((row) => row.status === 'open' && !row.check_out_at);
         const hours = rows.map((row) => Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', hour12: false }).format(new Date(row.check_in_at))));
         const peak = hours.length ? Object.entries(hours.reduce((all, hour) => ({ ...all, [hour]: (all[hour] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1])[0][0] : null;
         return res.json({ on_floor: open.length, check_ins: rows.length, qr_check_ins: rows.filter((row) => ['qr', 'qr_phone'].includes(row.method)).length, desk_check_ins: rows.filter((row) => row.method === 'manual').length, peak_hour: peak, flagged_count: rows.filter((row) => row.flagged).length });
@@ -1048,7 +1085,7 @@ router.post('/clerk/attendance', async (req, res, next) => {
     router.post('/clerk/attendance/check-out-all', async (req, res, next) => {
       try {
         const { data, error } = await supabaseAdmin.from('attendance').update({ check_out_at: new Date().toISOString(), status: 'completed', checked_out_via: 'clerk' })
-          .eq('status', 'open').is('check_out_at', null).select('id');
+          .eq('status', 'open').is('check_out_at', null).gte('check_in_at', dayStart()).select('id');
         if (error) return next(error);
         await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'attendance_manual_checkout_all', entity_type: 'attendance', details: { count: data?.length || 0 } });
         return res.json({ count: data?.length || 0 });
@@ -1068,15 +1105,17 @@ router.post('/clerk/attendance', async (req, res, next) => {
         const label = String(req.body?.label || '').trim();
         const validFor = String(req.body?.valid_for || 'until_revoked');
         if (!label || label.length > 80 || !['day', '7d', '30d', 'until_revoked'].includes(validFor)) return res.status(422).json({ error: 'Enter a label and valid QR duration.' });
-        const token = crypto.randomBytes(32).toString('base64url');
-        const expires = validFor === 'until_revoked' ? null : new Date(Date.now() + ({ day: 86400000, '7d': 604800000, '30d': 2592000000 }[validFor])).toISOString();
-        const { data, error } = await supabaseAdmin.from('checkin_qr_codes').insert({ label, token_hash: crypto.createHash('sha256').update(`${process.env.CHECKIN_CONFIRM_SECRET || 'fitmetrics'}:${token}`).digest('hex'), expires_at: expires, created_by: req.user.id }).select('id, label, expires_at, created_at').single();
-        if (error) return next(error);
-        await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'attendance_qr_created', entity_type: 'checkin_qr_code', entity_id: data.id, details: { label, valid_for: validFor } });
         const base = process.env.PUBLIC_APP_URL;
         if (!base || /^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?$/i.test(base)) {
           return res.status(503).json({ error: 'Public app URL is not configured for phone check-in QR codes.' });
         }
+        const secret = process.env.CHECKIN_CONFIRM_SECRET;
+        if (!secret) return res.status(503).json({ error: 'Check-in QR security is not configured.' });
+        const token = crypto.randomBytes(32).toString('base64url');
+        const expires = validFor === 'until_revoked' ? null : new Date(Date.now() + ({ day: 86400000, '7d': 604800000, '30d': 2592000000 }[validFor])).toISOString();
+        const { data, error } = await supabaseAdmin.from('checkin_qr_codes').insert({ label, token_hash: crypto.createHash('sha256').update(`${secret}:${token}`).digest('hex'), expires_at: expires, created_by: req.user.id }).select('id, label, expires_at, created_at').single();
+        if (error) return next(error);
+        await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'attendance_qr_created', entity_type: 'checkin_qr_code', entity_id: data.id, details: { label, valid_for: validFor } });
         return res.status(201).json({ ...data, token, url: `${base}/check-in?t=${encodeURIComponent(token)}` });
       } catch (error) { return next(error); }
     });
@@ -1184,16 +1223,13 @@ router.post('/clerk/cash-drawer/close', async (req, res, next) => {
 
 router.get('/clerk/dashboard', async (_req, res, next) => {
   try {
-    const date = today();
-    const [attendance, payments, members, registrations, settings, walkIns] = await Promise.all([
-      supabaseAdmin.from('attendance').select('id, member_id, check_in_at, check_out_at').gte('check_in_at', dayStart()).lt('check_in_at', nextDayStart()),
+    const [attendance, payments, registrations, settings] = await Promise.all([
+      supabaseAdmin.from('attendance').select('id, member_id, check_in_at, check_out_at, status').eq('status', 'open').is('check_out_at', null).gte('check_in_at', dayStart()).lt('check_in_at', nextDayStart()),
       supabaseAdmin.from('payments').select('amount, method').eq('status', 'paid').gte('paid_at', dayStart()).lt('paid_at', nextDayStart()),
-      supabaseAdmin.from('attendance').select('member_id').gte('check_in_at', dayStart()).lt('check_in_at', nextDayStart()).is('check_out_at', null),
       supabaseAdmin.from('profiles').select('id').eq('role', 'member').gte('created_at', dayStart()).lt('created_at', nextDayStart()),
       supabaseAdmin.from('gym_settings').select('floor_capacity').eq('id', true).maybeSingle(),
-      supabaseAdmin.from('walk_in_visits').select('id').eq('status', 'active').gte('created_at', dayStart()).lt('created_at', nextDayStart()),
     ]);
-    const failure = [attendance, payments, members, registrations, settings, walkIns].find((result) => result.error);
+    const failure = [attendance, payments, registrations, settings].find((result) => result.error);
     if (failure) return next(failure.error);
     const total = payments.data.reduce((sum, payment) => sum + Number(payment.amount), 0);
     const cash = payments.data.filter((payment) => payment.method === 'cash').reduce((sum, payment) => sum + Number(payment.amount), 0);
@@ -1247,7 +1283,7 @@ router.get('/clerk/dashboard', async (_req, res, next) => {
       days_left: Math.max(0, Math.ceil((new Date(`${membership.end_date}T00:00:00+08:00`) - new Date()) / 86400000)),
     }));
     const qrph = payments.data.filter((payment) => payment.method === 'qrph').reduce((sum, payment) => sum + Number(payment.amount), 0);
-    res.json({ checkIns: attendance.data.length, activeOnFloor: new Set(members.data.map((row) => row.member_id)).size + walkIns.data.length, openSessions: members.data.length + walkIns.data.length, registrations: registrations.data.length, capacity: Number(settings.data?.floor_capacity || 50), totalCollected: total, cashCollected: cash, gcashCollected: gcash, mayaCollected: maya, qrphCollected: qrph, eWalletCollected: gcash + maya + qrph, cashTransactions: payments.data.filter((payment) => payment.method === 'cash').length, eWalletTransactions: payments.data.filter((payment) => ['gcash', 'maya', 'qrph'].includes(payment.method)).length, transactionCount: payments.data.length, recentPayments, recentAttendance, expiringSoon, updatedAt: new Date().toISOString() });
+    res.json({ checkIns: attendance.data.length, activeOnFloor: attendance.data.length, openSessions: attendance.data.length, registrations: registrations.data.length, capacity: Number(settings.data?.floor_capacity || 50), totalCollected: total, cashCollected: cash, gcashCollected: gcash, mayaCollected: maya, qrphCollected: qrph, eWalletCollected: gcash + maya + qrph, cashTransactions: payments.data.filter((payment) => payment.method === 'cash').length, eWalletTransactions: payments.data.filter((payment) => ['gcash', 'maya', 'qrph'].includes(payment.method)).length, transactionCount: payments.data.length, recentPayments, recentAttendance, expiringSoon, updatedAt: new Date().toISOString() });
   } catch (error) { next(error); }
 });
 

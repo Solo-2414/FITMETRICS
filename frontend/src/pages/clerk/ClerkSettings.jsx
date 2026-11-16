@@ -1,54 +1,67 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState } from "react";
-import ClerkLayout from "../../components/clerk/ClerkLayout";
 import styles from "./ClerkSettings.module.css";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
-import { SkeletonForm } from "../../components/ui/Skeleton";
-import { useTerminalPreferences } from "../../hooks/useTerminalPreferences";
+import { SkeletonSettings } from "../../components/ui/Skeleton";
+import { useClerkData } from "../../context/ClerkDataContext";
 import { useToast } from "../../components/ui/toast/useToast";
+import { useConfirm } from "../../components/ui/toast/useConfirm";
 
 export default function ClerkSettings() {
     const toast = useToast();
+    const confirm = useConfirm();
     const { profile, refreshProfile } = useAuth();
     const [loading, setLoading] = useState(true);
     const [phone, setPhone] = useState("");
     const [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" });
-    const { preferences, updatePreference, resetPreferences } = useTerminalPreferences();
+    const [saving, setSaving] = useState(false);
+    const [showPasswords, setShowPasswords] = useState(false);
+    const { preferences: preferenceState } = useClerkData();
+    const { preferences, updatePreference, resetPreferences } = preferenceState;
     const fileInput = useRef(null);
     useEffect(() => {
         api("/clerk/settings").catch((err) => toast.error(err.message)).finally(() => setLoading(false));
-    }, []);
+    }, [toast]);
     useEffect(() => { setPhone(profile?.phone || ""); }, [profile?.phone]);
     const names = (profile?.full_name || "").trim().split(/\s+/);
     const firstName = names.shift() || "";
     const lastName = names.join(" ");
     const initials = (profile?.full_name || "Clerk").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
     const savePhone = async () => {
-        try { await api("/me", { method: "PATCH", body: { phone } }); await refreshProfile(); toast.success("Profile updated."); } catch (err) { toast.error(err.message); }
+        const value = phone.trim();
+        if (!/^(09|\+639)\d{9}$/.test(value.replace(/\s+/g, ""))) { toast.error("Enter a valid Philippine mobile number."); return; }
+        setSaving(true);
+        try { await api("/me", { method: "PATCH", body: { phone: value } }); await refreshProfile(); toast.success("Profile updated."); } catch (err) { toast.error(err.message); } finally { setSaving(false); }
     };
     const updatePassword = async () => {
+        if (passwords.next.length < 8) { toast.error("New password must be at least 8 characters."); return; }
+        if (passwords.next === passwords.current) { toast.error("New password must differ from the current password."); return; }
         if (passwords.next !== passwords.confirm) { toast.error("New passwords do not match."); return; }
-        try { await api("/me/password", { method: "POST", body: { current_password: passwords.current, new_password: passwords.next } }); setPasswords({ current: "", next: "", confirm: "" }); toast.success("Password updated."); } catch (err) { toast.error(err.message); }
+        setSaving(true);
+        try { await api("/me/password", { method: "POST", body: { current_password: passwords.current, new_password: passwords.next } }); setPasswords({ current: "", next: "", confirm: "" }); toast.success("Password updated."); } catch (err) { toast.error(err.message); } finally { setSaving(false); }
     };
     const uploadAvatar = async (event) => {
         const file = event.target.files?.[0];
         if (!file) return;
         if (!["image/jpeg", "image/png"].includes(file.type) || file.size > 5 * 1024 * 1024) { toast.error("Choose a JPG or PNG image under 5MB."); return; }
         const body = new FormData(); body.append("avatar", file);
-        try { await api("/me/avatar", { method: "POST", body }); await refreshProfile(); toast.success("Profile photo updated."); } catch (err) { toast.error(err.message); }
+        try { await api("/me/avatar", { method: "POST", body }); await refreshProfile(); toast.success("Profile photo updated."); } catch (err) { toast.error(err.message); } finally { event.target.value = ""; }
     };
     const removeAvatar = async () => {
+        if (!await confirm({ title: "Remove profile photo?", message: "Your avatar will be removed.", danger: true })) return;
         try { await api("/me/avatar", { method: "DELETE" }); await refreshProfile(); toast.success("Profile photo removed."); } catch (err) { toast.error(err.message); }
     };
     if (loading) {
-        return <ClerkLayout>
+        return <>
             <h1 className={styles.pageTitle}>Account Settings</h1>
             <p className={styles.pageDesc}>Manage your staff profile, security credentials, and terminal preferences</p>
-            <SkeletonForm fields={6} />
-        </ClerkLayout>;
+            <SkeletonSettings />
+        </>;
     }
     return (
-        <ClerkLayout>
+        <>
+        <>
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                 data-aos="fade-down"
@@ -169,7 +182,7 @@ export default function ClerkSettings() {
                                         Current Password
                                     </label>
                                     <input
-                                        type="password"
+                                        type={showPasswords ? "text" : "password"}
                                         className={styles.formInput}
                                         placeholder="Enter current password"
                                         value={passwords.current}
@@ -182,7 +195,7 @@ export default function ClerkSettings() {
                                             New Password
                                         </label>
                                         <input
-                                            type="password"
+                                            type={showPasswords ? "text" : "password"}
                                             className={styles.formInput}
                                             placeholder="Enter new password"
                                             value={passwords.next}
@@ -194,7 +207,7 @@ export default function ClerkSettings() {
                                             Confirm New Password
                                         </label>
                                         <input
-                                            type="password"
+                                            type={showPasswords ? "text" : "password"}
                                             className={styles.formInput}
                                             placeholder="Confirm new password"
                                             value={passwords.confirm}
@@ -202,10 +215,12 @@ export default function ClerkSettings() {
                                         />
                                     </div>
                                 </div>
+                                <button type="button" className={styles.btnCancel} onClick={() => setShowPasswords((visible) => !visible)}>{showPasswords ? "Hide passwords" : "Show passwords"}</button>
                                 <button
                                     type="button"
                                     className={styles.btnOutlineWarning}
                                     onClick={updatePassword}
+                                    disabled={saving}
                                 >
                                     <i className="fa-solid fa-shield-halved"></i>{" "}
                                     Update Password
@@ -350,7 +365,7 @@ export default function ClerkSettings() {
                                 <div className="mb-4">
                                     <label className={styles.formLabel}>Default payment method</label>
                                     <select className={styles.formInput} value={preferences.defaultPaymentMethod} onChange={(event) => updatePreference("defaultPaymentMethod", event.target.value)}>
-                                        <option value="cash">Cash</option><option value="gcash">GCash</option><option value="maya">Maya</option>
+                                        <option value="cash">Cash</option><option value="qrph">QR Ph</option>
                                     </select>
                                     <span className={styles.helperText}>Preselect this method at the payment terminal.</span>
                                 </div>
@@ -401,15 +416,16 @@ export default function ClerkSettings() {
                     data-aos="fade-up"
                     data-aos-delay="200"
                 >
-                    <button type="button" className={styles.btnCancel}>
+                    <button type="button" className={styles.btnCancel} onClick={() => { setPhone(profile?.phone || ""); setPasswords({ current: "", next: "", confirm: "" }); }}>
                         Cancel
                     </button>
-                    <button type="button" className={styles.btnSave} onClick={savePhone}>
+                    <button type="button" className={styles.btnSave} onClick={savePhone} disabled={saving}>
                         <i className="fa-regular fa-circle-check"></i> Save
                         Changes
                     </button>
                 </div>
             </form>
-        </ClerkLayout>
+        </>
+        </>
     );
 }

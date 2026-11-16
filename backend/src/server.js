@@ -56,7 +56,10 @@ app.use((err, _req, res, _next) => {
   console.error(err);
   const mapped = mapDatabaseError(err);
   const status = err.statusCode || 500;
-  const response = { error: err.publicMessage || mapped.message, code: mapped.code };
+  const response = {
+    error: status >= 400 && status < 500 ? err.message : mapped.message,
+    code: mapped.code,
+  };
   if (process.env.NODE_ENV !== 'production' && err.message) response.debug = err.message;
   res.status(status).json(response);
 });

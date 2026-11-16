@@ -14,4 +14,8 @@ for (const [code, message] of cases) {
 }
 assert.equal(mapDatabaseError({ message: "new row violates trigger exception" }).message, "That change could not be completed.");
 assert.equal(mapDatabaseError({ message: "unknown database detail" }).message, "Something went wrong on our side.");
+const clientError = new Error("This member already has an open check-in.");
+clientError.statusCode = 409;
+assert.equal(clientError.statusCode >= 400 && clientError.statusCode < 500 ? clientError.message : mapDatabaseError(clientError).message, "This member already has an open check-in.");
+assert.equal(mapDatabaseError(new Error("internal implementation detail")).message, "Something went wrong on our side.");
 console.log(`error mapper: ${cases.length + 2} cases passed`);

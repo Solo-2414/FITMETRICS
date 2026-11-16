@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import ClerkLayout from "../../components/clerk/ClerkLayout";
+import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import { normalizeQrPayment } from "../../lib/qrPayment";
-import { SkeletonCards } from "../../components/ui/Skeleton";
+import { SkeletonRegistration } from "../../components/ui/Skeleton";
 import PaymentWaitPanel from "../../components/clerk/PaymentWaitPanel";
 import { isCurrentDuplicateValue, normalizeRegistration, registrationIssueList, validateRegistration } from "../../lib/registrationRules";
 import ClerkModal from "../../components/clerk/ClerkModal";
@@ -37,11 +37,11 @@ export default function ClerkMemberRegistration() {
     const latestFormRef = useRef(form);
     const [plans, setPlans] = useState([]);
     const [coaches, setCoaches] = useState([]);
-    const [selectedPlan, setSelectedPlan] = useState("");
+    const [selectedPlan, setSelectedPlan] = useState(savedDraft.selectedPlan || "");
     const [coachId, setCoachId] = useState(savedDraft.coachId || "");
     const [addCoach, setAddCoach] = useState(savedDraft.addCoach === true);
     const [isStudent, setIsStudent] = useState(savedDraft.isStudent === true);
-    const [paymentMethod, setPaymentMethod] = useState(savedDraft.paymentMethod || "cash");
+    const [paymentMethod, setPaymentMethod] = useState(["cash", "qrph"].includes(savedDraft.paymentMethod) ? savedDraft.paymentMethod : "cash");
     const [cashTendered, setCashTendered] = useState("");
     const [sendReceipt, setSendReceipt] = useState(true);
     const [existing, setExisting] = useState(null);
@@ -58,6 +58,8 @@ export default function ClerkMemberRegistration() {
     const [requiredIssues, setRequiredIssues] = useState([]);
     const [simulationEnabled, setSimulationEnabled] = useState(false);
     const duplicateValues = useRef({});
+    const pollFailures = useRef(0);
+    const successRef = useRef(null);
     latestFormRef.current = form;
 
     useEffect(() => {
@@ -77,6 +79,7 @@ export default function ClerkMemberRegistration() {
             addCoach,
             isStudent,
             paymentMethod,
+            selectedPlan,
         }));
     }, [form, selectedPlan, coachId, addCoach, isStudent, paymentMethod]);
 
@@ -86,12 +89,12 @@ export default function ClerkMemberRegistration() {
         }
         api("/clerk/payments/quote", {
             method: "POST",
-            body: { plan_code: selectedPlan, is_student: isStudent, coach_id: addCoach ? coachId : null },
+            body: { plan_code: selectedPlan, is_student: isStudent, coach_id: addCoach && coachId ? coachId : null },
         }).then((result) => setQuote({
             ...result,
             plan_code: selectedPlan,
             is_student: isStudent,
-            coach_id: addCoach ? coachId : null,
+            coach_id: addCoach && coachId ? coachId : null,
         })).catch((err) => setError(err.message));
         return undefined;
     }, [selectedPlan, isStudent, addCoach, coachId]);
@@ -128,10 +131,12 @@ export default function ClerkMemberRegistration() {
     }, [form.email, form.phone]);
 
     useEffect(() => {
-        if (!payment?.intent_id || ["paid", "needs_review", "failed"].includes(payment.status)) return undefined;
+        if (!payment?.intent_id || ["paid", "needs_review", "failed", "cancelled", "expired"].includes(payment.status)) return undefined;
+        pollFailures.current = 0;
         const poll = setInterval(() => {
             api(`/clerk/register/qrph/${payment.intent_id}/status`)
                 .then((result) => {
+                    pollFailures.current = 0;
                     setPayment((current) => ({ ...current, ...result }));
                     if (result.status === "paid") {
                         setSuccess({ message: `Payment received. Receipt ${result.payment?.receipt_number || ""}`.trim(), memberId: result.member?.id });
@@ -139,7 +144,13 @@ export default function ClerkMemberRegistration() {
                         setPayment(null);
                     }
                 })
-                .catch((err) => setError(err.message));
+                .catch(() => {
+                    pollFailures.current += 1;
+                    if (pollFailures.current >= 3) {
+                        clearInterval(poll);
+                        setError("We could not check the QR payment. Cancel it or try again.");
+                    }
+                });
         }, 3000);
         return () => clearInterval(poll);
     }, [payment]);
@@ -151,6 +162,12 @@ export default function ClerkMemberRegistration() {
         const timer = setInterval(update, 1000);
         return () => clearInterval(timer);
     }, [payment]);
+
+    useEffect(() => {
+        if (!success) return;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        window.setTimeout(() => successRef.current?.focus(), 0);
+    }, [success]);
 
     const plan = plans.find((item) => item.code === selectedPlan);
     const coach = coaches.find((item) => item.id === coachId);
@@ -199,6 +216,17 @@ export default function ClerkMemberRegistration() {
         }
     }
 
+    const generateNewQr = async () => {
+        if (!payment?.intent_id) return;
+        try {
+            await api(`/clerk/register/qrph/${payment.intent_id}/cancel`, { method: "POST" });
+            setPayment(null);
+            setCountdown(null);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
     const cancelPayment = async () => {
         if (!payment?.intent_id) return clearDraft();
         const intentId = payment.intent_id;
@@ -212,6 +240,7 @@ export default function ClerkMemberRegistration() {
 
     const submit = async (event) => {
         event.preventDefault();
+        if (payment || saving) return;
         const nextErrors = validateRegistration({ ...form, plan_code: selectedPlan });
         const issues = registrationIssueList({ ...form, plan_code: selectedPlan }, { paymentMethod, cashTendered, totalDue, addCoach, coachId });
         setFieldErrors(nextErrors);
@@ -228,11 +257,11 @@ export default function ClerkMemberRegistration() {
         try {
             await api("/clerk/register/validate", {
                 method: "POST",
-                body: { ...normalizeRegistration(form), plan_code: selectedPlan, is_student: isStudent, coach_id: addCoach ? coachId : null },
+                body: { ...normalizeRegistration(form), plan_code: selectedPlan, is_student: isStudent, coach_id: addCoach && coachId ? coachId : null },
             });
             const result = await api(paymentMethod === "cash" ? "/clerk/register/cash" : "/clerk/register/qrph", {
                 method: "POST",
-                body: { ...normalizeRegistration(form), plan_code: selectedPlan, is_student: isStudent, coach_id: addCoach ? coachId : null, payment_method: paymentMethod, cash_tendered: paymentMethod === "cash" ? Number(cashTendered) : null, send_receipt: sendReceipt },
+                body: { ...normalizeRegistration(form), plan_code: selectedPlan, is_student: isStudent, coach_id: addCoach && coachId ? coachId : null, payment_method: paymentMethod, cash_tendered: paymentMethod === "cash" ? Number(cashTendered) : null, send_receipt: sendReceipt },
             });
             if (paymentMethod === "qrph") {
                 try {
@@ -256,13 +285,17 @@ export default function ClerkMemberRegistration() {
         }
     };
 
-    if (loading) return <ClerkLayout>
-        <h1 className={styles.pageTitle}>Member Registration</h1>
-        <p className={styles.pageDesc}>Register a new gym member and set up their member account</p>
-        <SkeletonCards count={4} colClass="col-12 col-sm-6" height={120} />
-    </ClerkLayout>;
-
-    return <ClerkLayout>
+    if (loading) return <>
+        <div className="d-flex align-items-center gap-2 mb-3 text-secondary" style={{ fontSize: "0.8rem" }}>
+            <span>Desk Console</span><i className="fa-solid fa-chevron-right" style={{ fontSize: "0.6rem" }}></i><span className="text-white fw-bold">Register Member</span>
+        </div>
+        <div className="d-flex justify-content-between align-items-start mb-4">
+            <div><h1 className={styles.pageTitle}>Member Registration</h1><p className={styles.pageDesc}>Register a new gym member and set up their member account</p></div>
+            <button type="button" className="btn btn-sm btn-outline-secondary" disabled><i className="fa-solid fa-rotate-left me-2"></i>Clear form</button>
+        </div>
+        <SkeletonRegistration />
+    </>;
+    return <>
         <div className="d-flex align-items-center gap-2 mb-3 text-secondary" style={{ fontSize: "0.8rem" }} data-aos="fade-down">
             <span>Desk Console</span><i className="fa-solid fa-chevron-right" style={{ fontSize: "0.6rem" }}></i><span className="text-white fw-bold">Register Member</span>
         </div>
@@ -270,7 +303,7 @@ export default function ClerkMemberRegistration() {
             <div><h1 className={styles.pageTitle}>Member Registration</h1><p className={styles.pageDesc}>Register a new gym member and set up their member account</p></div>
         </div>
         {error && <InlineError error={error} />}
-        {success && <div className={styles.successAlert}><i className="fa-solid fa-circle-check"></i><span>{success.message}</span><a className="btn btn-sm btn-outline-primary ms-auto" href={`/clerk/members?search=${encodeURIComponent(success.memberId || "")}`}>View member</a><button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => clearDraft()}>Register another member</button><button type="button" className={styles.alertClose} aria-label="Dismiss" onClick={() => setSuccess(null)}><i className="fa-solid fa-xmark"></i></button></div>}
+        {success && <div ref={successRef} tabIndex="-1" className={styles.successAlert}><i className="fa-solid fa-circle-check"></i><span>{success.message}</span><Link className="btn btn-sm btn-outline-primary ms-auto" to={`/clerk/member-information?search=${encodeURIComponent(success.memberId || "")}`}>View member</Link><button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => clearDraft()}>Register another member</button><button type="button" className={styles.alertClose} aria-label="Dismiss" onClick={() => setSuccess(null)}><i className="fa-solid fa-xmark"></i></button></div>}
         <form ref={formRef} onSubmit={submit} noValidate>
             <div className="d-flex justify-content-end mb-3">
                 <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => clearDraft()} title="Clear the saved registration draft"><i className="fa-solid fa-rotate-left me-2"></i>Clear form</button>
@@ -297,7 +330,7 @@ export default function ClerkMemberRegistration() {
                         <div className={styles.panelBody}>
                             {/* toast-allow: field validation remains inline */}
                             {!selectedPlan && fieldErrors.plan_code && <div className="alert alert-danger" role="alert"><i className="fa-solid fa-circle-exclamation me-2"></i>{fieldErrors.plan_code}</div>}
-                            <div className="row g-3 mb-4">{plans.map((item) => <div className="col-12 col-sm-6" key={item.code}><div role="button" tabIndex={0} className={`${styles.planCard} ${selectedPlan === item.code ? styles.planCardActive : ""} ${!selectedPlan && fieldErrors.plan_code ? styles.planCardError : ""}`} onClick={() => { setSelectedPlan(item.code); setFieldErrors((current) => ({ ...current, plan_code: undefined })); setCashTendered(""); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setSelectedPlan(item.code); }}><div className="d-flex justify-content-between align-items-start mb-2"><div><span className={styles.planName}>{item.name}{item.popular && <span className={styles.popularBadge}>Popular</span>}</span><span className={styles.planDuration}>{item.duration_days} Days Valid</span></div><span className={`${styles.radioCircle} ${selectedPlan === item.code ? styles.radioCircleActive : ""}`}>{selectedPlan === item.code && <span className={styles.radioInner}></span>}</span></div><h3 className={styles.planPrice}>{money(item.price)}{item.student_price != null && <span className={styles.planPriceSub}> (Student: {money(item.student_price)})</span>}</h3></div></div>)}{!plans.length && <div className="col-12 text-secondary">No membership passes configured.</div>}</div>
+                            <div className="row g-3 mb-4">{plans.map((item) => <div className="col-12 col-sm-6" key={item.code}><div role="button" tabIndex={0} className={`${styles.planCard} ${selectedPlan === item.code ? styles.planCardActive : ""} ${!selectedPlan && fieldErrors.plan_code ? styles.planCardError : ""}`} onClick={() => { setSelectedPlan(item.code); setFieldErrors((current) => ({ ...current, plan_code: undefined })); setCashTendered(""); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedPlan(item.code); setFieldErrors((current) => ({ ...current, plan_code: undefined })); setCashTendered(""); } }}><div className="d-flex justify-content-between align-items-start mb-2"><div><span className={styles.planName}>{item.name}{item.popular && <span className={styles.popularBadge}>Popular</span>}</span><span className={styles.planDuration}>{item.duration_days} Days Valid</span></div><span className={`${styles.radioCircle} ${selectedPlan === item.code ? styles.radioCircleActive : ""}`}>{selectedPlan === item.code && <span className={styles.radioInner}></span>}</span></div><h3 className={styles.planPrice}>{money(item.price)}{item.student_price != null && <span className={styles.planPriceSub}> (Student: {money(item.student_price)})</span>}</h3></div></div>)}{!plans.length && <div className="col-12 text-secondary">No membership passes configured.</div>}</div>
                             {plan?.student_price != null && <label className={`${styles.infoAlert} ${styles.studentRateToggle}`}><input type="checkbox" className={styles.customCheckbox} checked={isStudent} onChange={(event) => { setIsStudent(event.target.checked); setCashTendered(""); }} /><i className="fa-regular fa-circle-check"></i><span>Apply student rate for this member<small className="d-block mt-1">This uses {money(plan.student_price)} instead of {money(plan.price)}.</small></span></label>}
                         </div>
                     </div>
@@ -316,10 +349,10 @@ export default function ClerkMemberRegistration() {
                             {!payment && <><div className="mb-4"><span className={styles.formLabel}>Payment Method</span><div className="d-flex gap-2"><button type="button" className={`${styles.btnPaymentMethod} ${paymentMethod === "cash" ? styles.btnPaymentMethodActive : ""}`} onClick={() => { setPaymentMethod("cash"); setCashTendered(""); }}><i className="fa-solid fa-money-bill"></i>Cash</button><button type="button" className={`${styles.btnPaymentMethod} ${paymentMethod === "qrph" ? styles.btnPaymentMethodActive : ""}`} onClick={() => { setPaymentMethod("qrph"); setCashTendered(""); }}><i className="fa-solid fa-qrcode"></i>QR Ph</button></div></div>
                             {paymentMethod === "cash" && <div className="row g-3 mb-4"><div className="col-6"><label className={styles.formLabel}>Cash Tendered</label><div className={styles.inputGroupPrefix}><span>₱</span><input type="number" min="0" step="0.01" inputMode="decimal" className={styles.formInput} placeholder="1000" value={cashTendered} onChange={(event) => setCashTendered(event.target.value.replace(/[eE+-]/g, ""))} /></div><div className="d-flex gap-1 mt-2"><button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setCashTendered(String(totalDue))}>Exact</button><button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setCashTendered("500")}>₱500</button><button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setCashTendered("1000")}>₱1,000</button></div></div><div className="col-6"><label className={styles.formLabel}>Change</label><div className={styles.changeDisplay}>{shortBy ? `Short by ${money(shortBy)}` : money(change)}</div></div></div>}
                             <label className={styles.checkboxLabelFull}><input type="checkbox" className={styles.customCheckbox} checked={sendReceipt} onChange={(event) => setSendReceipt(event.target.checked)} /><div><span className="d-block text-white fw-bold mb-1" style={{ fontSize: "0.85rem" }}>Send receipt and welcome email</span><span className="text-secondary" style={{ fontSize: "0.75rem", lineHeight: "1.4" }}>Sends the payment receipt and a welcome email.</span></div></label></>}
-                            {payment && <PaymentWaitPanel payment={{ ...payment, qrClassName: styles.qrImage }} countdown={countdown == null ? 0 : countdown} simulationEnabled={simulationEnabled} onSimulate={() => api(`/clerk/register/qrph/${payment.intent_id}/simulate-paid`, { method: "POST" }).then((result) => { if (result.status === "paid") { setSuccess({ message: `Payment received. Receipt ${result.payment?.receipt_number || ""}`.trim(), memberId: result.member?.id }); clearDraft({ clearMessages: false }); } else setPayment((current) => ({ ...current, ...result })); }).catch((err) => setError(err.message))} onCancel={cancelPayment} onGenerate={() => { setPayment(null); setCountdown(null); }} />}
+                            {payment && <PaymentWaitPanel payment={{ ...payment, qrClassName: styles.qrImage }} countdown={countdown == null ? 0 : countdown} simulationEnabled={simulationEnabled} onSimulate={() => api(`/clerk/register/qrph/${payment.intent_id}/simulate-paid`, { method: "POST" }).then((result) => { if (result.status === "paid") { setSuccess({ message: `Payment received. Receipt ${result.payment?.receipt_number || ""}`.trim(), memberId: result.member?.id }); clearDraft({ clearMessages: false }); } else setPayment((current) => ({ ...current, ...result })); }).catch((err) => setError(err.message))} onCancel={cancelPayment} onGenerate={generateNewQr} />}
                         </div>
                     </div>
-                    <div className={styles.actionPanel} data-aos="fade-left" data-aos-delay="300"><button type="submit" aria-disabled={saving || invalid || Boolean(existing) || Boolean(payment) ? "true" : "false"} className={`${styles.btnSubmit} ${saving || invalid || existing || payment ? styles.btnSubmitGated : ""}`}><i className="fa-regular fa-paper-plane"></i>{saving ? "Saving..." : paymentMethod === "qrph" ? "Generate QR Ph & Register" : "Complete Registration & Send Email"}</button><p className="text-center text-secondary mt-3 mb-0" style={{ fontSize: "0.75rem", lineHeight: "1.5" }}>An account will be created automatically. The member can log in using their email and password.</p></div>
+                    <div className={styles.actionPanel} data-aos="fade-left" data-aos-delay="300"><button type="submit" disabled={saving || Boolean(payment)} aria-disabled={saving || invalid || Boolean(existing) || Boolean(payment) ? "true" : "false"} className={`${styles.btnSubmit} ${saving || invalid || existing || payment ? styles.btnSubmitGated : ""}`}><i className="fa-regular fa-paper-plane"></i>{saving ? "Saving..." : paymentMethod === "qrph" ? "Generate QR Ph & Register" : "Complete Registration & Send Email"}</button><p className="text-center text-secondary mt-3 mb-0" style={{ fontSize: "0.75rem", lineHeight: "1.5" }}>An account will be created automatically. The member can log in using their email and password.</p></div>
                 </div>
             </div>
         </form>
@@ -327,9 +360,9 @@ export default function ClerkMemberRegistration() {
             <p className="text-secondary">Review these items before completing the registration.</p>
             <div className={styles.issueList}>{requiredIssues.map((issue) => <button type="button" className={styles.issueRow} key={issue.field} onClick={() => { setShowValidationModal(false); const target = document.querySelector(`[name="${issue.field}"]`); target?.focus(); if (issue.field === "plan_code") document.querySelector(`.${styles.planCard}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); }}><i className="fa-solid fa-triangle-exclamation"></i><span><strong>{issue.label}</strong><small>{issue.message}</small></span></button>)}</div>
         </ClerkModal>}
-        {existing && <ClerkModal title={existing.code === "REGISTRATION_PENDING" ? "Registration waiting for payment" : "Member already registered"} icon="fa-user-check" labelledBy="member-exists-title" onClose={() => setExisting(null)} footer={<div className={styles.modalButtons}>{existing.member && <a className={styles.btnSubmit} href={`/clerk/members?search=${encodeURIComponent(existing.member.member_code || existing.member.id)}`}>View member</a>}<button type="button" className={styles.btnCancelFull} onClick={() => { setExisting(null); document.querySelector(`[name="${existing.field || "email"}"]`)?.focus(); }}>Edit details</button></div>}>
+        {existing && <ClerkModal title={existing.code === "REGISTRATION_PENDING" ? "Registration waiting for payment" : "Member already registered"} icon="fa-user-check" labelledBy="member-exists-title" onClose={() => setExisting(null)} footer={<div className={styles.modalButtons}>{existing.member && <Link className={styles.btnSubmit} to={`/clerk/member-information?search=${encodeURIComponent(existing.member.member_code || existing.member.id)}`}>View member</Link>}<button type="button" className={styles.btnCancelFull} onClick={() => { setExisting(null); document.querySelector(`[name="${existing.field || "email"}"]`)?.focus(); }}>Edit details</button></div>}>
             {(existing.matches || [existing]).map((match) => <p key={`${match.field}-${match.code}`}>{match.staff ? `This ${match.field} is used by a staff account and cannot be used for a member.` : match.code === "REGISTRATION_PENDING" ? "A registration for this person is waiting for payment." : `This ${match.field === "phone" ? "mobile number" : "email"} is already registered.`}</p>)}
             {existing.member && <div className={styles.existingDetails}><span>{existing.member.full_name}</span>{existing.member.member_code && <span>{existing.member.member_code}</span>}<span className={styles.statusBadge}>{existing.member.status || "active"}</span></div>}
         </ClerkModal>}
-    </ClerkLayout>;
+    </>
 }

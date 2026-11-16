@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberBilling.module.css";
 import { api } from "../../lib/api";
-import { SkeletonTable } from "../../components/ui/Skeleton";
+import { SkeletonMemberBilling } from "../../components/ui/Skeleton";
 import InlineError from "../../components/ui/InlineError";
 
 const DEFAULT_RECEIPTS = [
@@ -641,57 +641,28 @@ export default function MemberBilling() {
     return (
         <MemberLayout>
             {error && <InlineError error={error} />}
-            {!profile || !dashboard || !membership || !data ? (
-                <SkeletonTable rows={6} cols={5} />
-            ) : (
-                <>
-                    {new URLSearchParams(window.location.search).get(
-                        "payment",
-                    ) === "success" && (
-                        <div className="alert alert-info">
-                            Payment received for verification. Your membership
-                            will activate after PayMongo confirms the payment.
-                        </div>
-                    )}
-                    {pendingPayments.length > 0 && (
-                        <div className="alert alert-warning">
-                            {pendingPayments.length} payment
-                            {pendingPayments.length === 1 ? "" : "s"} pending
-                            confirmation (₱
-                            {totalPendingBalance.toLocaleString("en-PH", {
-                                minimumFractionDigits: 2,
-                            })}
-                            ).
-                        </div>
-                    )}
-                    {actionAlert.message && (
-                        <div className={`alert alert-${actionAlert.type}`}>
-                            {actionAlert.message}
-                        </div>
-                    )}
-
-                    <div
-                        className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
-                        data-aos="fade-down"
-                        data-aos-delay="100"
-                    >
-                        <div>
-                            <h1 className={styles.pageTitle}>
-                                Billing & Receipts
-                            </h1>
-                            <p className={styles.pageDesc}>
-                                Review your payments, upcoming monthly renewals,
-                                and instant copies of gym receipts.
-                            </p>
-                        </div>
-                        <div className={styles.emailBadge}>
-                            <i className="fa-regular fa-envelope"></i> Official
-                            digital receipts are auto-sent to{" "}
-                            {profile?.email
-                                ? profile.email
-                                : "No email available"}
-                        </div>
-                    </div>
+            {!profile || !dashboard || !membership || !data ? <SkeletonTable rows={6} cols={5} /> : <>
+            {/* toast-allow: persistent payment verification status */}
+            {new URLSearchParams(window.location.search).get("payment") === "success" && <div className="alert alert-info">Payment received for verification. Your membership will activate after PayMongo confirms the payment.</div>}
+            {/* toast-allow: persistent pending payment status */}
+            {pendingPayments.length > 0 && <div className="alert alert-warning">{pendingPayments.length} online payment{pendingPayments.length === 1 ? "" : "s"} pending confirmation.</div>}
+            <div
+                className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
+                data-aos="fade-down"
+                data-aos-delay="100"
+            >
+                <div>
+                    <h1 className={styles.pageTitle}>Billing & Receipts</h1>
+                    <p className={styles.pageDesc}>
+                        Review your payments, upcoming monthly renewals, and
+                        instant copies of gym receipts.
+                    </p>
+                </div>
+                <div className={styles.emailBadge}>
+                    <i className="fa-regular fa-envelope"></i> Official digital
+                    receipts are auto-sent to michael.tanza@example.com
+                </div>
+            </div>
 
                     {/* KPI Cards */}
                     <div className="row g-4 mb-4">

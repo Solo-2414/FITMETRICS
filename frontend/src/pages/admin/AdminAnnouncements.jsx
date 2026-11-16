@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import AdminLayout from "../../components/admin/AdminLayout";
 import styles from "./AdminAnnouncements.module.css";
 import { api } from "../../lib/api";
 import { SkeletonKpiCards, SkeletonList } from "../../components/ui/Skeleton";
@@ -91,7 +90,7 @@ export default function AdminAnnouncements() {
     };
 
     return (
-        <AdminLayout>
+        <>
             {error && <InlineError error={error} onRetry={load} />}
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3" data-aos="fade-down">
                 <div><h1 className={styles.pageTitle}>Announcements</h1><p className={styles.pageDesc}>Post updates, holiday schedules, and gym notices for members and staff</p></div>
@@ -140,6 +139,6 @@ export default function AdminAnnouncements() {
                     </div>
                 </div>
             </div>
-        </AdminLayout>
+        </>
     );
 }

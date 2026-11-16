@@ -1,11 +1,12 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
 import { Skeleton } from "../ui/Skeleton";
-import { playTerminalAlert, useTerminalPreferences } from "../../hooks/useTerminalPreferences";
+import { useClerkData } from "../../context/ClerkDataContext";
 import { useToast } from "../ui/toast/useToast";
+import ClerkModal from "./ClerkModal";
 import styles from "./ClerkLayout.module.css";
 
 export default function ClerkLayout({ children }) {
@@ -13,30 +14,11 @@ export default function ClerkLayout({ children }) {
     const navigate = useNavigate();
     const { signOut, profile } = useAuth();
     const toast = useToast();
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [notificationSummary, setNotificationSummary] = useState(null);
+    const { preferences, notificationSummary, notificationError, dashboard, reloadDashboard, reloadNotifications } = useClerkData();
+    const unreadCount = notificationSummary?.unread || 0;
     const [notificationOpen, setNotificationOpen] = useState(false);
     const notificationRef = useRef(null);
-    const previousUnread = useRef(0);
-    const { preferences } = useTerminalPreferences();
     const [avatarFailed, setAvatarFailed] = useState(false);
-    const loadNotificationSummary = useCallback(() => api("/clerk/notifications/summary?limit=5").then((summary) => {
-        if (summary.unread > previousUnread.current) playTerminalAlert(preferences.audioAlerts);
-        previousUnread.current = summary.unread;
-        setUnreadCount(summary.unread);
-        setNotificationSummary(summary);
-    }).catch(() => {}), [preferences.audioAlerts]);
-    useEffect(() => {
-        loadNotificationSummary();
-        const interval = window.setInterval(() => {
-            if (document.visibilityState === "visible") loadNotificationSummary();
-        }, 30000);
-        const onFocus = () => loadNotificationSummary();
-        const onChanged = () => loadNotificationSummary();
-        window.addEventListener("focus", onFocus);
-        window.addEventListener("fitmetrics:notifications-changed", onChanged);
-        return () => { window.clearInterval(interval); window.removeEventListener("focus", onFocus); window.removeEventListener("fitmetrics:notifications-changed", onChanged); };
-    }, [location.pathname, loadNotificationSummary]);
     useEffect(() => {
         const close = (event) => { if (!notificationRef.current?.contains(event.target)) setNotificationOpen(false); };
         const escape = (event) => { if (event.key === "Escape") setNotificationOpen(false); };
@@ -51,58 +33,92 @@ export default function ClerkLayout({ children }) {
         await signOut();
         navigate("/login", { replace: true });
     };
-    const [activeInGym, setActiveInGym] = useState(null);
-    const [floorCapacity, setFloorCapacity] = useState(50);
-    const [floorLoadError, setFloorLoadError] = useState(false);
-    const [date] = useState(() => 
-        new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())
-    );
+    const activeInGym = dashboard?.activeOnFloor ?? null;
+    const floorCapacity = dashboard?.capacity || 50;
+    const floorLoadError = !dashboard;
 
-    const loadFloorCount = useCallback(() => {
-        setFloorLoadError(false);
-        api("/clerk/dashboard")
-            .then((data) => { setActiveInGym(data?.activeOnFloor ?? 0); setFloorCapacity(data?.capacity || 50); })
-            .catch((err) => { console.error("Error fetching live gym count:", err); setActiveInGym(null); setFloorLoadError(true); });
-    }, []);
-
-    useEffect(() => {
-        loadFloorCount();
-    }, [date, loadFloorCount]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showFastCheckInModal, setShowFastCheckInModal] = useState(false);
     const [checkInSearch, setCheckInSearch] = useState("");
     const [checkInMember, setCheckInMember] = useState(null);
-    const [scannerBuffer, setScannerBuffer] = useState("");
+    const [checkInMatches, setCheckInMatches] = useState([]);
+    const [checkInLoading, setCheckInLoading] = useState(false);
+    const [checkInSaving, setCheckInSaving] = useState(false);
+    const scannerBufferRef = useRef("");
+    const scannerLastKeyRef = useRef(0);
+    const scannerTimerRef = useRef(null);
+    const lookupRequestRef = useRef(0);
 
     const closeSidebar = () => setIsSidebarOpen(false);
 
-    const handleCheckInSubmit = (e) => {
+    const handleCheckInSubmit = async (e) => {
         e.preventDefault();
-        if (!checkInMember) return;
-        api("/clerk/attendance", { method: "POST", body: { member_id: checkInMember.id, method: "member_id" } })
-            .then(() => { toast.success("Check-in recorded."); setShowFastCheckInModal(false); })
-            .catch((error) => toast.error(error.message));
+        if (!checkInMember || checkInSaving) return;
+        setCheckInSaving(true);
+        try {
+            await api("/clerk/attendance", { method: "POST", body: { member_id: checkInMember.id, method: "manual" } });
+            toast.success("Check-in recorded.");
+            setShowFastCheckInModal(false);
+            window.dispatchEvent(new Event("fitmetrics:attendance-changed"));
+            if (preferences.autoClearCheckinSearch) {
+                setCheckInSearch("");
+                setCheckInMatches([]);
+                setCheckInMember(null);
+            }
+        } catch (error) { toast.error(error.message); } finally { setCheckInSaving(false); }
     };
     useEffect(() => {
+        if (!showFastCheckInModal || checkInSearch.trim().length < 2) {
+            setCheckInMatches([]);
+            setCheckInLoading(false);
+            return undefined;
+        }
+        const requestId = ++lookupRequestRef.current;
+        const timer = window.setTimeout(async () => {
+            setCheckInLoading(true);
+            try {
+                const matches = await api(`/clerk/members/lookup?q=${encodeURIComponent(checkInSearch.trim())}`);
+                if (requestId === lookupRequestRef.current) setCheckInMatches(matches.slice(0, 8));
+            } catch (error) {
+                if (requestId === lookupRequestRef.current) toast.error(error.message);
+            } finally {
+                if (requestId === lookupRequestRef.current) setCheckInLoading(false);
+            }
+        }, 250);
+        return () => window.clearTimeout(timer);
+    }, [checkInSearch, showFastCheckInModal, toast]);
+    useEffect(() => {
         const onKeyDown = async (event) => {
+            const target = event.target;
+            if (["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName) || target?.isContentEditable
+                || event.ctrlKey || event.metaKey || event.altKey) return;
+            if (!showFastCheckInModal && document.activeElement !== document.body) return;
+            const now = performance.now();
             if (event.key === "Enter") {
-                const code = scannerBuffer.trim();
-                setScannerBuffer("");
-                if (code.length < 3) return;
+                const code = scannerBufferRef.current.trim();
+                scannerBufferRef.current = "";
+                if (code.length < 3 || now - scannerLastKeyRef.current > 100) return;
                 try {
-                    const rows = await api(`/clerk/members?search=${encodeURIComponent(code)}`);
-                    const member = rows.find((row) => row.member_details?.member_code === code || row.id === code);
+                    const rows = await api(`/clerk/members/lookup?q=${encodeURIComponent(code)}`);
+                    const member = rows.find((row) => row.member_code === code);
                     if (!member) throw new Error("No member matches this scan.");
-                    await api("/clerk/attendance", { method: "POST", body: { member_id: member.id, method: "qr" } });
+                    await api("/clerk/attendance", { method: "POST", body: { member_id: member.id, method: "manual" } });
                     toast.success(`${member.full_name || "Member"} checked in.`);
+                    window.dispatchEvent(new Event("fitmetrics:attendance-changed"));
                 } catch (error) { toast.error(error.message); }
                 return;
             }
-            if (event.key.length === 1) setScannerBuffer((value) => `${value}${event.key}`.slice(-64));
+            if (event.key.length === 1) {
+                if (now - scannerLastKeyRef.current > 35) scannerBufferRef.current = "";
+                scannerBufferRef.current = `${scannerBufferRef.current}${event.key}`.slice(-64);
+                scannerLastKeyRef.current = now;
+                window.clearTimeout(scannerTimerRef.current);
+                scannerTimerRef.current = window.setTimeout(() => { scannerBufferRef.current = ""; }, 100);
+            }
         };
         window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, [scannerBuffer]);
+        return () => { window.removeEventListener("keydown", onKeyDown); window.clearTimeout(scannerTimerRef.current); };
+    }, [showFastCheckInModal, toast]);
 
     return (
         <div className={styles.layoutWrapper}>
@@ -225,7 +241,7 @@ export default function ClerkLayout({ children }) {
                             <div className={styles.gymStatus}>
                                 <span className={styles.statusDot}></span>{" "}
                                 Floor: {activeInGym !== null ? activeInGym : "-"} Active Members
-                                {floorLoadError && <button type="button" className={styles.retryFloor} onClick={loadFloorCount}>Retry</button>}
+                                {floorLoadError && <button type="button" className={styles.retryFloor} onClick={() => reloadDashboard()}>Retry</button>}
                             </div>
                             <span className={styles.branchInfo}>
                                 {activeInGym !== null && activeInGym / floorCapacity >= 0.75 ? "Busy" : activeInGym !== null && activeInGym / floorCapacity >= 0.4 ? "Comfortable" : "Quiet"} floor density ({floorCapacity} cap)
@@ -247,11 +263,12 @@ export default function ClerkLayout({ children }) {
                         {notificationOpen && <div className={styles.notificationPanel} role="dialog" aria-label="Notifications">
                             <div className={styles.notificationPanelHeader}><strong>Notifications</strong><span>{unreadCount} unread</span></div>
                             {!notificationSummary && <div className={styles.notificationLoading}>Loading notifications...</div>}
+                            {notificationError && <div className={styles.notificationLoading}>Could not load notifications. <button type="button" onClick={() => reloadNotifications()}>Retry</button></div>}
                             {notificationSummary?.latest?.map((item) => <button className={styles.notificationItem} key={item.id} onClick={async () => { if (!item.read_at) await api(`/clerk/notifications/${item.id}`, { method: "PATCH" }); window.dispatchEvent(new Event("fitmetrics:notifications-changed")); setNotificationOpen(false); navigate(item.link || "/clerk/notification"); }}>
                                 <i className={`fa-solid ${item.type === "payment" ? "fa-money-bill" : item.type === "announcement" ? "fa-bullhorn" : item.type === "registration" ? "fa-user-plus" : "fa-bell"}`}></i><span><strong>{item.title}</strong><small>{item.message}</small></span>{!item.read_at && <b aria-label="Unread"></b>}
                             </button>)}
                             {notificationSummary?.latest?.length === 0 && <div className={styles.notificationEmpty}>You're all caught up</div>}
-                            <button className={styles.markAllButton} onClick={async () => { await api("/clerk/notifications", { method: "PATCH" }); window.dispatchEvent(new Event("fitmetrics:notifications-changed")); loadNotificationSummary(); }}>Mark all as read</button>
+                            <button className={styles.markAllButton} onClick={async () => { await api("/clerk/notifications", { method: "PATCH" }); window.dispatchEvent(new Event("fitmetrics:notifications-changed")); reloadNotifications(); }}>Mark all as read</button>
                             <Link className={styles.viewAllLink} to="/clerk/notification" onClick={() => setNotificationOpen(false)}>View all notifications</Link>
                         </div>}
                         </div>
@@ -269,17 +286,16 @@ export default function ClerkLayout({ children }) {
             </div>
 
             {showFastCheckInModal && (
-                <div className={styles.modalOverlay}>
-                    <div className={styles.modalContent}>
-                        <div className={styles.modalHeader}>
-                            <h3>Fast Check-In</h3>
-                            <button
-                                onClick={() => setShowFastCheckInModal(false)}
-                            >
-                                <i className="fa-solid fa-xmark"></i>
-                            </button>
-                        </div>
+                <ClerkModal title="Fast Check-In" icon="fa-user-check" labelledBy="fast-check-in-title" onClose={() => setShowFastCheckInModal(false)} footer={
+                    <div className={styles.modalFooter}>
+                        <button type="button" className={styles.btnCancel} onClick={() => setShowFastCheckInModal(false)}>Cancel</button>
+                        <button type="submit" form="fast-check-in-form" className={styles.btnPrimaryModal} disabled={!checkInMember || !["active", "expiring"].includes(checkInMember?.status) || checkInSaving}>
+                            {checkInSaving ? "Checking in..." : "Log Check-In"}
+                        </button>
+                    </div>
+                }>
                         <form
+                            id="fast-check-in-form"
                             onSubmit={handleCheckInSubmit}
                             className={styles.modalBody}
                         >
@@ -292,22 +308,21 @@ export default function ClerkLayout({ children }) {
                                         type="text"
                                         className={styles.formInput}
                                         placeholder="e.g. #FM-1042 or Juan dela Cruz"
-                                        autoFocus
+                                        autoFocus={preferences.fastCheckinAutoFocus}
                                         required
                                         value={checkInSearch}
-                                        onChange={async (event) => {
-                                            const value = event.target.value;
-                                            setCheckInSearch(value);
+                                        onChange={(event) => {
+                                            setCheckInSearch(event.target.value);
                                             setCheckInMember(null);
-                                            if (value.trim().length >= 2) {
-                                                const rows = await api(`/clerk/members?search=${encodeURIComponent(value)}`);
-                                                setCheckInMember(rows[0] || null);
-                                            }
                                         }}
                                     />
                                     <i className="fa-solid fa-magnifying-glass"></i>
                                 </div>
+                                {checkInLoading && <p className="text-secondary mt-2 mb-0">Searching...</p>}
+                                {!checkInLoading && checkInSearch.trim().length >= 2 && !checkInMatches.length && <p className="text-secondary mt-2 mb-0">No members found</p>}
+                                {!checkInMember && checkInMatches.length > 0 && <div className="d-flex flex-column gap-2 mt-2">{checkInMatches.map((member) => <button type="button" className="btn btn-outline-secondary text-start" key={member.id} onClick={() => setCheckInMember(member)}><strong>{member.full_name}</strong><small className="d-block text-secondary">{member.member_code || member.email || "No member code"} · {member.status}</small></button>)}</div>}
                                 {checkInMember && <p className="text-success">Selected: {checkInMember.full_name || checkInMember.email}</p>}
+                                {checkInMember && !["active", "expiring"].includes(checkInMember.status) && <p className="text-danger mb-0">{checkInMember.status === "suspended" ? "This member is suspended." : checkInMember.status === "expired" ? "This member's membership has expired." : "This member does not have a current active membership."}</p>}
                             </div>
 
                             <div
@@ -327,27 +342,8 @@ export default function ClerkLayout({ children }) {
                                 </div>
                             </div>
 
-                            <div className={styles.modalFooter}>
-                                <button
-                                    type="button"
-                                    className={styles.btnCancel}
-                                    onClick={() =>
-                                        setShowFastCheckInModal(false)
-                                    }
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className={styles.btnPrimaryModal}
-                                    disabled={!checkInMember}
-                                >
-                                    Log Check-In
-                                </button>
-                            </div>
                         </form>
-                    </div>
-                </div>
+                </ClerkModal>
             )}
         </div>
     );

@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import React, { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 
 import "./App.css";
 import { initMotion, refreshMotion } from "./lib/motion";
@@ -11,6 +11,9 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ToastProvider from "./components/ui/toast/ToastProvider";
 import ConfirmProvider from "./components/ui/toast/ConfirmProvider";
+import AdminLayout from "./components/admin/AdminLayout";
+import ClerkLayout from "./components/clerk/ClerkLayout";
+import { ClerkDataProvider } from "./context/ClerkDataContext";
 
 import MemberDashboard from "./pages/member/MemberDashboard";
 import MemberProfile from "./pages/member/MemberProfile";
@@ -50,6 +53,43 @@ function AOSRefresh() {
         refreshMotion();
     }, [location]);
     return null;
+}
+
+class RouteErrorBoundary extends React.Component {
+    state = { hasError: false };
+
+    static getDerivedStateFromError() {
+        return { hasError: true };
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return <div className="p-5 text-center"><h2>Something went wrong.</h2><button className="btn btn-primary" onClick={() => window.location.reload()}>Reload page</button></div>;
+        }
+        return this.props.children;
+    }
+}
+
+function Shell({ children }) {
+    const location = useLocation();
+    useEffect(() => {
+        window.scrollTo({ top: 0, behavior: "auto" });
+        window.requestAnimationFrame(() => {
+            const heading = document.querySelector("main h1");
+            if (!heading) return;
+            heading.tabIndex = -1;
+            heading.focus();
+        });
+    }, [location.pathname]);
+    return children;
+}
+
+function AdminShell() {
+    return <Shell><AdminLayout><RouteErrorBoundary><Outlet /></RouteErrorBoundary></AdminLayout></Shell>;
+}
+
+function ClerkShell() {
+    return <Shell><ClerkDataProvider><ClerkLayout><RouteErrorBoundary><Outlet /></RouteErrorBoundary></ClerkLayout></ClerkDataProvider></Shell>;
 }
 
 export default function App() {
@@ -98,6 +138,7 @@ export default function App() {
                 </Route>
 
                 <Route element={<ProtectedRoute roles={["admin"]} />}>
+                <Route element={<AdminShell />}>
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
                 <Route
                     path="/admin/churn-analytics"
@@ -132,8 +173,10 @@ export default function App() {
                 <Route path="/admin/settings" element={<AdminSettings />} />
 
                 </Route>
+                </Route>
 
                 <Route element={<ProtectedRoute roles={["clerk"]} />}>
+                <Route element={<ClerkShell />}>
                 <Route path="/clerk/dashboard" element={<ClerkDashboard />} />
                 <Route
                     path="/clerk/member-registration"
@@ -151,6 +194,7 @@ export default function App() {
                     element={<ClerkNotifications />}
                 />
                 <Route path="/clerk/settings" element={<ClerkSettings />} />
+                </Route>
                 </Route>
 
                 <Route path="*" element={<Navigate to="/" replace />} />
