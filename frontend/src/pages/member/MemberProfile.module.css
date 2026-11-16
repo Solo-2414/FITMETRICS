@@ -433,3 +433,26 @@
     transform: translateY(-2px);
     box-shadow: 0 0 15px var(--glow-primary);
 }
+
+.largeAvatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    color: var(--background-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 3rem;
+    box-shadow: 0 0 20px var(--glow-primary);
+    border: 4px solid var(--card-bg-dark);
+    overflow: hidden;
+}
+
+.avatarImage {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}

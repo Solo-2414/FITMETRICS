@@ -636,3 +636,106 @@
 .supportInner strong {
     color: var(--header-text-color);
 }
+
+/* Filter Dropdown */
+.filterDropdownWrapper {
+    position: relative;
+}
+
+.filterDropdownMenu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 165px;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 6px;
+    z-index: 20;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.filterOption {
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    text-align: left;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition:
+        background-color 0.15s,
+        color 0.15s;
+}
+
+.filterOption:hover {
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--header-text-color);
+}
+
+.filterOptionActive {
+    background-color: rgba(56, 189, 248, 0.15);
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+/* Scrollable Table Container */
+.scrollableTableWrapper {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.scrollableTableWrapper thead th {
+    position: sticky;
+    top: 0;
+    background-color: var(--secondary-background-color) !important;
+    z-index: 2;
+}
+
+.scrollableTableWrapper::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.scrollableTableWrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.scrollableTableWrapper::-webkit-scrollbar-thumb {
+    background-color: var(--card-stroke-color);
+    border-radius: 999px;
+}
+
+/* Pending Balance Status */
+.statusPending {
+    color: #f59e0b;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background-color: rgba(245, 158, 11, 0.12);
+    padding: 4px 10px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.dotPending {
+    width: 6px;
+    height: 6px;
+    background-color: #f59e0b;
+    border-radius: 50%;
+}
+
+.statusPendingBadge {
+    background-color: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}

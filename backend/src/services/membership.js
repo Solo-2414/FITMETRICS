@@ -25,7 +25,7 @@ const incrementPromo = async (promo) => {
   if (data) await supabaseAdmin.from('promos').update({ usage_count: Number(data.usage_count || 0) + 1 }).eq('id', promo.id);
 };
 
-export const queueReceiptEmail = async ({ memberId, plan, payment }) => {
+export const queueReceiptEmail = async ({ memberId, plan, payment, dedupeKey = null }) => {
   const { data: profile, error } = await supabaseAdmin.from('profiles').select('full_name, email, phone, member_details(member_code)').eq('id', memberId).single();
   if (error) throw error;
   if (!profile?.email) return;
@@ -50,7 +50,7 @@ export const queueReceiptEmail = async ({ memberId, plan, payment }) => {
   await enqueueEmail({
     emailType: 'receipt',
     recipient: profile.email,
-    dedupeKey: payment.id ? `payment:${payment.id}:receipt` : null,
+    dedupeKey: dedupeKey || (payment.id ? `payment:${payment.id}:receipt` : null),
     payload: {
       memberName: profile.full_name, receiptNumber: payment.receipt_number, planName: plan.name,
       memberCode: profile.member_details?.member_code, memberEmail: profile.email,

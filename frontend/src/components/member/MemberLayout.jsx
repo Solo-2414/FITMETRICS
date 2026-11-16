@@ -6,25 +6,87 @@ import { Skeleton } from "../ui/Skeleton";
 import styles from "./MemberLayout.module.css";
 
 export default function MemberLayout({ children }) {
+    const location = useLocation();
+    const navigate = useNavigate();
+    const { signOut, profile: authProfile } = useAuth();
+
+    // 1. Declare liveProfile BEFORE using it anywhere
+    const [liveProfile, setLiveProfile] = useState(() => {
+        const cachedAvatar = sessionStorage.getItem("cached_avatar_url");
+        if (cachedAvatar !== null) {
+            return { ...authProfile, avatar_url: cachedAvatar || null };
+        }
+        return authProfile;
+    });
+
     const [activeInGym, setActiveInGym] = useState(null);
-    const [date] = useState(() => 
-        new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [date] = useState(() =>
+        new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(
+            new Date(),
+        ),
     );
+
+    // 2. Single effect to sync with AuthContext while respecting sessionStorage
+    useEffect(() => {
+        if (authProfile) {
+            const cachedAvatar = sessionStorage.getItem("cached_avatar_url");
+            setLiveProfile((prev) => ({
+                ...prev,
+                ...authProfile,
+                avatar_url:
+                    cachedAvatar !== null
+                        ? cachedAvatar || null
+                        : (authProfile.avatar_url ?? prev?.avatar_url),
+            }));
+        }
+    }, [authProfile]);
+
+    // 3. Listen for immediate saves/deletes from MemberProfile
+    useEffect(() => {
+        const handleProfileUpdate = (event) => {
+            if (event.detail) {
+                setLiveProfile((prev) => ({ ...prev, ...event.detail }));
+            }
+        };
+
+        window.addEventListener("profile-updated", handleProfileUpdate);
+        return () =>
+            window.removeEventListener("profile-updated", handleProfileUpdate);
+    }, []);
+
     useEffect(() => {
         api(`/attendance/analysis?date=${date}`)
             .then((data) => setActiveInGym(data?.activeInGym ?? 0))
-            .catch((err) => console.error("Error fetching live gym count:", err));
+            .catch((err) =>
+                console.error("Error fetching live gym count:", err),
+            );
     }, [date]);
-    const location = useLocation();
-    const navigate = useNavigate();
-    const { signOut, profile } = useAuth();
+
+    const profile = liveProfile || authProfile;
+
+    const headerAvatarUrl =
+        profile?.avatar_url === null
+            ? null
+            : profile?.avatar_url ||
+              profile?.photo_url ||
+              profile?.profile_photo;
+
+    const initials = profile?.full_name
+        ? profile.full_name
+              .trim()
+              .split(" ")
+              .map((n) => n[0])
+              .join("")
+              .toUpperCase()
+        : "M";
 
     const handleLogout = async (e) => {
         e.preventDefault();
+        sessionStorage.removeItem("cached_avatar_url");
         await signOut();
         navigate("/login", { replace: true });
     };
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     const closeSidebar = () => setIsSidebarOpen(false);
 
@@ -118,7 +180,11 @@ export default function MemberLayout({ children }) {
                 </nav>
 
                 <div className={styles.logoutWrapper}>
-                    <Link to="/login" className={styles.logoutBtn} onClick={handleLogout}>
+                    <Link
+                        to="/login"
+                        className={styles.logoutBtn}
+                        onClick={handleLogout}
+                    >
                         <i className="fa-solid fa-arrow-right-from-bracket"></i>
                         Log Out
                     </Link>
@@ -137,15 +203,45 @@ export default function MemberLayout({ children }) {
                         </button>
                         <div className={styles.gymStatus}>
                             <span className={styles.statusDot}></span>
-                            <span>Floor: {activeInGym !== null ? activeInGym : "..."} Active Members</span>
+                            <span>
+                                Floor:{" "}
+                                {activeInGym !== null ? activeInGym : "..."}{" "}
+                                Active Members
+                            </span>
                         </div>
                     </div>
                     <div className={styles.topbarRight}>
                         <div className={styles.userInfo}>
-                            {profile ? <h4>{profile.full_name}</h4> : <Skeleton w={120} h={14} />}
-                            {profile ? <p>Regular Member</p> : <Skeleton w={90} h={10} />}
+                            {profile ? (
+                                <h4>{profile.full_name}</h4>
+                            ) : (
+                                <Skeleton w={120} h={14} />
+                            )}
+                            {profile ? (
+                                <p>Regular Member</p>
+                            ) : (
+                                <Skeleton w={90} h={10} />
+                            )}
                         </div>
-                        <div className={styles.avatarCircle}>{profile?.full_name ? profile?.full_name.trim().split(" ").map((n) => n[0]).join("").toUpperCase() : "M"}</div>
+                        <div
+                            className={styles.avatarCircle}
+                            style={{ overflow: "hidden" }}
+                        >
+                            {headerAvatarUrl ? (
+                                <img
+                                    src={headerAvatarUrl}
+                                    alt={profile?.full_name || "Profile"}
+                                    style={{
+                                        width: "100%",
+                                        height: "100%",
+                                        objectFit: "cover",
+                                        borderRadius: "50%",
+                                    }}
+                                />
+                            ) : (
+                                initials
+                            )}
+                        </div>
                     </div>
                 </header>
 

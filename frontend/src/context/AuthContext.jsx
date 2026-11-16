@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { api, getFriendlyError } from "../lib/api";
-import {setSessionPersistence, isSessionPersisted } from "../lib/supabase";
+import { setSessionPersistence, isSessionPersisted } from "../lib/supabase";
 
 const AuthContext = createContext(null);
 
@@ -25,7 +25,10 @@ export function AuthProvider({ children }) {
     const [session, setSession] = useState(null);
     const [initializing, setInitializing] = useState(true);
     // { id, data } so we always know which user the profile belongs to
-    const [profileResult, setProfileResult] = useState({ id: null, data: null });
+    const [profileResult, setProfileResult] = useState({
+        id: null,
+        data: null,
+    });
 
     // 1. Restore the saved session and listen for login / logout / token refresh
     useEffect(() => {
@@ -62,9 +65,15 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         if (!loading && session && (!profile || profile.status !== "active")) {
             supabase.auth.signOut();
-        } else if (!loading && session && profile && profile.role !== "member" && isSessionPersisted()) {
-        supabase.auth.signOut();
-    }
+        } else if (
+            !loading &&
+            session &&
+            profile &&
+            profile.role !== "member" &&
+            isSessionPersisted()
+        ) {
+            supabase.auth.signOut();
+        }
     }, [loading, session, profile]);
 
     const signIn = async (identifier, password) => {
@@ -76,7 +85,9 @@ export function AuthProvider({ children }) {
             setSessionPersistence(result.profile.role === "member");
             const { error } = await supabase.auth.setSession(result.session);
             if (error) {
-                return { error: "Unable to establish a session. Please try again." };
+                return {
+                    error: "Unable to establish a session. Please try again.",
+                };
             }
             setProfileResult({ id: result.user.id, data: result.profile });
             return { profile: result.profile };
