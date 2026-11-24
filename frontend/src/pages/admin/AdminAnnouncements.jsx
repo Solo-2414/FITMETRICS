@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./AdminAnnouncements.module.css";
 import { api } from "../../lib/api";
-import { SkeletonKpiCards, SkeletonList } from "../../components/ui/Skeleton";
+import { Skeleton, SkeletonKpiCards, SkeletonRegion } from "../../components/ui/Skeleton";
 import InlineError from "../../components/ui/InlineError";
 import { useToast } from "../../components/ui/toast/useToast";
 import { useConfirm } from "../../components/ui/toast/useConfirm";
@@ -97,7 +97,7 @@ export default function AdminAnnouncements() {
                 <button className={styles.btnPrimary} onClick={() => document.getElementById("create-announcement")?.scrollIntoView({ behavior: "smooth" })}><i className="fa-solid fa-plus"></i> Create Announcement</button>
             </div>
 
-            {loading ? <SkeletonKpiCards count={3} colClass="col-12 col-md-4" /> : <div className="row g-3 mb-5 fm-fade-in" data-aos="fade-up">
+            {loading ? <SkeletonKpiCards count={3} colClass="col-12 col-md-4" labels={["Published announcements", "In-app deliveries", "Read rate"]} icons={["fa-bullhorn", "fa-users", "fa-chart-line"]} /> : <div className="row g-3 mb-5 fm-fade-in" data-aos="fade-up">
                 {[
                     ["Published announcements", summary.active ?? announcements.filter((item) => item.status === "published").length, "fa-bullhorn", styles.iconBoxPrimary],
                     ["In-app deliveries", summary.delivered ?? 0, "fa-users", styles.iconBoxSecondary],
@@ -108,7 +108,7 @@ export default function AdminAnnouncements() {
             <div className="row g-4">
                 <div className="col-12 col-xl-8" data-aos="fade-right">
                     <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mb-4 gap-3"><div className="d-flex align-items-center gap-3"><h4 className={styles.sectionTitle}>Announcements</h4><span className={styles.countBadge}>{announcements.length} Total</span></div></div>
-                    {loading ? <SkeletonList rows={4} avatar={false} /> : announcements.length === 0 ? <div className="text-secondary py-5">No announcements yet.</div> : <div className="d-flex flex-column gap-3 fm-fade-in">
+                    {loading ? <SkeletonRegion label="Loading announcements" className="d-flex flex-column gap-3">{Array.from({ length: 4 }, (_, index) => <div className={styles.announcementCard} key={index} aria-hidden="true"><div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2"><Skeleton w={82} h={20} r={999} /><Skeleton w={52} h={18} r={999} /></div><div className={styles.metaText}><Skeleton w="82%" h={11} /></div><Skeleton w="64%" h={18} className="mb-2" /><Skeleton w="96%" h={12} className="mb-2" /><Skeleton w="78%" h={12} /><div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mt-4 gap-3"><div className={styles.cardMetrics}><Skeleton w={86} h={11} /><span className={styles.metricSeparator}>•</span><Skeleton w={52} h={11} /><span className={styles.metricSeparator}>•</span><Skeleton w={96} h={11} /></div><div className="d-flex gap-2 flex-wrap"><Skeleton w={70} h={30} r={6} /><Skeleton w={58} h={30} r={6} /><Skeleton w={32} h={30} r={6} /></div></div></div>)}</SkeletonRegion> : announcements.length === 0 ? <div className="text-secondary py-5">No announcements yet.</div> : <div className="d-flex flex-column gap-3 fm-fade-in">
                         {announcements.map((item) => <div className={item.status === "expired" || item.status === "archived" ? styles.announcementCardInactive : styles.announcementCard} key={item.id}>
                             <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2"><span className={item.status === "published" ? styles.statusPublished : styles.statusCompleted}><span className={item.status === "published" ? styles.dotGreen : styles.dotGray}></span> {item.status}</span>{item.pinned && <span className={styles.statusPinned}><i className="fa-solid fa-thumbtack"></i> Pinned</span>}</div>
                             <div className={styles.metaText}><i className="fa-regular fa-clock"></i> {audienceLabel(item.audience)} · Published {formatDate(item.publish_at)} · Expires {formatDate(item.expires_at)}</div>

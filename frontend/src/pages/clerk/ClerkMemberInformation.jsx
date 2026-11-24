@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import ClerkModal from "../../components/clerk/ClerkModal";
 import { api, getFriendlyError } from "../../lib/api";
 import { useToast } from "../../components/ui/toast/useToast";
-import { SkeletonMemberTable } from "../../components/ui/Skeleton";
+import { Skeleton, SkeletonRegion } from "../../components/ui/Skeleton";
 import styles from "./ClerkMemberInformation.module.css";
 
 const initialFilters = { search: "", status: "", plan: "", coach: "", student: "", joined_from: "", joined_to: "", sort: "name", order: "asc", page: 1, limit: 10 };
@@ -99,6 +99,30 @@ function MemberContent({ member, onSend, sending, onRenew }) {
     return <><div className={styles.memberCell}><span className={`${styles.avatar} ${styles[`avatar${name.charCodeAt(0) % 4}`]}`}>{getInitials(name)}</span><span><strong>{name}</strong><small className={!member.email ? styles.warningText : ""}>{member.email || "No email"}</small></span></div><div className={styles.contactCell}><span>{formatPhone(member.phone)}</span>{member.member_details?.member_code && <small>{member.member_details.member_code}</small>}</div><div><strong>{plan || <span className={styles.mutedPill}>No plan</span>}</strong>{coach ? <small className={styles.coach}><i className="fa-solid fa-user"></i>{coach}</small> : <small className={styles.muted}>No coach</small>}</div><div title={member.joined_date || ""}>{formatDate(member.joined_date)}</div><div><Expiry value={member.membership?.end_date} status={member.status_label} /></div><div><StatusBadge status={member.status_label} /></div><div className={styles.actions}><button type="button" title={member.email ? "Send info email" : "No email on file"} aria-label={member.email ? "Send info email" : "No email on file"} disabled={!member.email || sending === member.id} onClick={() => onSend(member)}><i className={`fa-solid ${sending === member.id ? "fa-spinner fa-spin" : "fa-envelope"}`}></i></button><button type="button" title="Renew membership" aria-label="Renew membership" onClick={() => onRenew(member)}><i className="fa-solid fa-arrows-rotate"></i></button></div></>;
 }
 function MembersTable({ rows, onSend, sending, onRenew }) { return <><div className={styles.desktopTable}><div className={styles.tableHeader}>{["Member", "Contact", "Plan & coach", "Joined", "Expiration", "Status", "Actions"].map((heading) => <span key={heading}>{heading}</span>)}</div>{rows.map((member) => <div className={styles.tableRow} key={member.id}><MemberContent member={member} onSend={onSend} sending={sending} onRenew={onRenew} /></div>)}</div><div className={styles.mobileCards}>{rows.map((member) => <article key={member.id}><div className={styles.cardTop}><MemberContent member={member} onSend={onSend} sending={sending} onRenew={onRenew} /></div></article>)}</div></>; }
+function MembersLoading() {
+    const rows = Array.from({ length: 4 }, (_, index) => index);
+    const rowContent = (index) => <>
+        <div className={styles.memberCell}>
+            <Skeleton w={38} h={38} r={999} />
+            <span><Skeleton w={index % 2 ? 104 : 132} h={12} /><Skeleton w={index % 2 ? 86 : 100} h={10} className="mt-1" /></span>
+        </div>
+        <div className={styles.contactCell}><Skeleton w="78%" h={11} /><Skeleton w="52%" h={10} className="mt-1" /></div>
+        <div><Skeleton w="68%" h={11} /><Skeleton w="52%" h={10} className="mt-1" /></div>
+        <div><Skeleton w={78} h={11} /></div>
+        <div><Skeleton w={80} h={11} /><Skeleton w={54} h={10} className="mt-1" /></div>
+        <div><Skeleton w={76} h={22} r={999} /></div>
+        <div className={styles.actions}><Skeleton w={32} h={32} r={7} /><Skeleton w={32} h={32} r={7} /></div>
+    </>;
+    return <SkeletonRegion label="Loading members">
+        <div className={styles.desktopTable}>
+            <div className={styles.tableHeader}>{["Member", "Contact", "Plan & coach", "Joined", "Expiration", "Status", "Actions"].map((heading) => <span key={heading}>{heading}</span>)}</div>
+            {rows.map((index) => <div className={styles.tableRow} key={index}>{rowContent(index)}</div>)}
+        </div>
+        <div className={styles.mobileCards}>
+            {rows.slice(0, 3).map((index) => <article key={index}><div className={styles.cardTop}>{rowContent(index)}</div></article>)}
+        </div>
+    </SkeletonRegion>;
+}
 function Pagination({ result, filters, update }) { const pages = Math.ceil(result.total / result.limit); const visible = Array.from({ length: pages }, (_, index) => index + 1).filter((page) => page === 1 || page === pages || Math.abs(page - result.page) <= 1); let previous = 0; const items = visible.flatMap((page) => { const output = previous && page - previous > 1 ? ["…", page] : [page]; previous = page; return output; }); return <footer className={styles.footer}><span aria-live="polite">Showing {result.total ? (result.page - 1) * result.limit + 1 : 0}-{Math.min(result.page * result.limit, result.total)} of {result.total} members</span><div className={styles.footerControls}><label>Rows<select value={filters.limit} onChange={(event) => update("limit", Number(event.target.value))}><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></label><button type="button" disabled={result.page <= 1} onClick={() => update("page", result.page - 1)}>Previous</button>{items.map((item, index) => item === "…" ? <span key={`${item}-${index}`}>…</span> : <button type="button" className={item === result.page ? styles.currentPage : ""} key={item} onClick={() => update("page", item)}>{item}</button>)}<button type="button" disabled={result.page >= pages} onClick={() => update("page", result.page + 1)}>Next</button></div></footer>; }
 
 export default function ClerkMemberInformation() {
@@ -114,7 +138,7 @@ export default function ClerkMemberInformation() {
         <section className={styles.toolbar}><div className={styles.toolbarRow}><div className={styles.searchBox}><i className={`fa-solid ${loading && filters.search ? "fa-spinner fa-spin" : "fa-magnifying-glass"}`}></i><input id="member-search" value={filters.search} onChange={(event) => update("search", event.target.value)} onKeyDown={(event) => event.key === "Escape" && update("search", "")} placeholder="Search by name, email, phone or member code" aria-label="Search members" />{filters.search && <button type="button" onClick={() => update("search", "")} aria-label="Clear search">×</button>}</div><label className={styles.sortControl}>Sort by<select value={`${filters.sort}:${filters.order}`} onChange={(event) => { const [sort, order] = event.target.value.split(":"); setFilters((current) => ({ ...current, sort, order, page: 1 })); }}><option value="name:asc">Name A-Z</option><option value="joined:desc">Newest joined</option><option value="expiry:asc">Soonest expiry</option><option value="status:asc">Status</option></select></label><button type="button" className={styles.filterButton} onClick={() => setShowFilters((value) => !value)}><i className="fa-solid fa-sliders"></i> Filters {activeFilterCount > 0 && <b>{activeFilterCount}</b>}</button><FiltersPanel open={showFilters} plans={plans} coaches={coaches} filters={filters} onChange={update} onReset={clear} onClose={() => setShowFilters(false)} /></div><StatusTabs counts={result.counts} active={filters.status} onChange={update} /></section>
         <ActiveChips filters={filters} plans={plans} coaches={coaches} onChange={update} onClear={clear} />
         {error && <div className={styles.errorState}><i className="fa-solid fa-circle-exclamation"></i><span>{error}</span><button type="button" onClick={retry}>Try again</button></div>}
-        <div className={`${styles.tableCard} ${refreshing ? "fm-refreshing" : ""}`}>{loading ? <SkeletonMemberTable /> : result.rows.length ? <MembersTable rows={result.rows} onSend={setModalMember} sending={sending} onRenew={(member) => navigate(`/clerk/membership?member=${member.id}`)} /> : <div className={styles.emptyState}><i className="fa-solid fa-users-slash"></i><strong>No members match these filters</strong><span>Try adjusting your search or filters.</span><button type="button" onClick={clear}>Clear filters</button></div>}</div>
+        <div className={`${styles.tableCard} ${refreshing ? "fm-refreshing" : ""}`}>{loading ? <MembersLoading /> : result.rows.length ? <MembersTable rows={result.rows} onSend={setModalMember} sending={sending} onRenew={(member) => navigate(`/clerk/membership?member=${member.id}`)} /> : <div className={styles.emptyState}><i className="fa-solid fa-users-slash"></i><strong>No members match these filters</strong><span>Try adjusting your search or filters.</span><button type="button" onClick={clear}>Clear filters</button></div>}</div>
         <Pagination result={result} filters={filters} update={update} />
         {modalMember && <ClerkModal title="Send member information?" icon="fa-envelope" labelledBy="member-email-title" onClose={() => setModalMember(null)} footer={<><button type="button" className={styles.secondaryButton} onClick={() => setModalMember(null)}>Cancel</button><button type="button" className={styles.primaryButton} onClick={sendInfo}>Send email</button></>}><p>Send the latest information to <strong>{modalMember.full_name}</strong>?</p><p className={styles.muted}>{modalMember.email}</p></ClerkModal>}
     </>;

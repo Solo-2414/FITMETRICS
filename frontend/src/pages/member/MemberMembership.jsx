@@ -3,7 +3,7 @@ import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberMembership.module.css";
 import InlineError from "../../components/ui/InlineError";
 import { api } from "../../lib/api";
-import { SkeletonCards } from "../../components/ui/Skeleton";
+import { SkeletonMemberMembership } from "../../components/ui/Skeleton";
 
 const MEMBERSHIP_PLANS = [
     {
@@ -141,7 +141,7 @@ export default function MemberMembership() {
         <MemberLayout>
             {error && <InlineError error={error} />}
             {!data ? (
-                <SkeletonCards count={4} />
+                <SkeletonMemberMembership />
             ) : (
                 <>
                     <div

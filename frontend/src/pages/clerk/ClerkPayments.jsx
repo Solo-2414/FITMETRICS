@@ -352,7 +352,16 @@ export default function ClerkPayments() {
         } catch (err) { toast.error(err.message); }
     };
 
-    if (loading) return <><div className={styles.loadingHeader}><h1 className={styles.pageTitle}>Payments</h1><p className={styles.pageDesc}>Record payments and manage the daily cash drawer.</p></div><SkeletonPayments /></>;
+    if (loading) return <>
+        <header className={styles.pageHeader}>
+            <div><h1 className={styles.pageTitle}>Payments</h1><p className={styles.pageDesc}>Record payments and manage the daily cash drawer.</p></div>
+            <div className={styles.headerActions}>
+                <span className={styles.timeBadge}><i className="fa-regular fa-calendar"></i>{new Date().toLocaleDateString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" })}</span>
+                <div className={styles.segmented} role="group" aria-label="Payment type"><button className={mode === "walkin" ? styles.segmentActive : ""} type="button" disabled>Walk-in session</button><button className={mode === "member" ? styles.segmentActive : ""} type="button" disabled>Member payment</button></div>
+            </div>
+        </header>
+        <SkeletonPayments />
+    </>;
     return <>
         <header className={styles.pageHeader}>
             <div><h1 className={styles.pageTitle}>Payments</h1><p className={styles.pageDesc}>Record payments and manage the daily cash drawer.</p></div>

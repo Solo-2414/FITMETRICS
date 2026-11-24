@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { SkeletonCards, SkeletonKpiCards } from "../../components/ui/Skeleton";
+import { Skeleton, SkeletonKpiCards } from "../../components/ui/Skeleton";
 import styles from "./AdminMembershipPlans.module.css";
 import InlineError from "../../components/ui/InlineError";
 import { toastError, useToast } from "../../components/ui/toast/useToast";
@@ -160,7 +160,7 @@ export default function AdminMembershipPlans() {
 
             {error && <InlineError error={error} />}
 
-            {loading ? <SkeletonKpiCards count={3} colClass="col-12 col-md-4" /> : <div className="row g-3 mb-5 fm-fade-in" data-aos="fade-up" data-aos-delay="100">
+            {loading ? <SkeletonKpiCards count={3} colClass="col-12 col-md-4" labels={["Total Active Passes", "Session Walk-Ins", "Monthly Roster"]} icons={["fa-id-card-clip", "fa-person-walking", "fa-users"]} /> : <div className="row g-3 mb-5 fm-fade-in" data-aos="fade-up" data-aos-delay="100">
                 {[
                     ["Total Active Passes", activePlans.length, "fa-id-card-clip", styles.iconBoxPrimary],
                     ["Session Walk-Ins", dashboard?.planDistribution?.find((plan) => plan.code === walkInPlan?.code)?.count || 0, "fa-person-walking", styles.iconBoxSecondary],
@@ -180,7 +180,7 @@ export default function AdminMembershipPlans() {
                 <span className={styles.sectionSubtitle}>Strict pure admission rates · Direct entry</span>
             </div>
 
-            {loading ? <SkeletonCards count={4} colClass="col-12 col-md-6 col-xl-3" /> : <div className="row g-4 mb-5 fm-fade-in" data-aos="fade-up" data-aos-delay="300">
+            {loading ? <div className="row g-4 mb-5" aria-label="Loading membership plans">{Array.from({ length: 4 }, (_, index) => <div className="col-12 col-md-6 col-xl-3" key={index}><div className={styles.planCard} aria-hidden="true"><div className="d-flex justify-content-between align-items-center mb-3"><Skeleton w={92} h={20} r={999} /><i className="fa-regular fa-calendar text-secondary"></i></div><Skeleton w="72%" h={20} className="mb-3" /><div className="d-flex align-items-baseline gap-2 mb-3"><Skeleton w={112} h={30} /><Skeleton w={64} h={12} /></div><Skeleton w="96%" h={11} className="mb-2" /><Skeleton w="74%" h={11} className="mb-4" /><div className={styles.studentRateBox}><div className="d-flex justify-content-between align-items-center mb-1"><span className={styles.studentLabel}>Student Rate</span><Skeleton w={64} h={13} /></div><Skeleton w="82%" h={10} /></div><div className={styles.planFooter}><Skeleton w={56} h={13} /><Skeleton w={52} h={30} r={6} /></div></div></div>)}</div> : <div className="row g-4 mb-5 fm-fade-in" data-aos="fade-up" data-aos-delay="300">
                 {plans.map((plan) => (
                     <div className="col-12 col-md-6 col-xl-3" key={plan.id}>
                         <div className={styles.planCard}>

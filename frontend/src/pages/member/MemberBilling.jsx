@@ -584,6 +584,29 @@ export default function MemberBilling() {
     const pendingPayments = billing.filter(
         (item) => item.status?.toLowerCase() === "pending",
     );
+    const pendingPaymentNotice =
+        pendingPayments.length > 0
+            ? `${pendingPayments.length} online payment${pendingPayments.length === 1 ? "" : "s"} pending confirmation.`
+            : "";
+    const paymentSuccess =
+        new URLSearchParams(window.location.search).get("payment") ===
+        "success";
+
+    useEffect(() => {
+        if (!paymentSuccess) return undefined;
+        const toastId = toast.info(
+            "Payment received for verification. Your membership will activate after PayMongo confirms the payment.",
+            { duration: 0 },
+        );
+        return () => toast.dismiss(toastId);
+    }, [paymentSuccess, toast]);
+
+    useEffect(() => {
+        if (!pendingPaymentNotice) return undefined;
+        const toastId = toast.warning(pendingPaymentNotice, { duration: 0 });
+        return () => toast.dismiss(toastId);
+    }, [pendingPaymentNotice, toast]);
+
     const totalPendingBalance = pendingPayments.reduce(
         (sum, item) => sum + Number(item.amount || 0),
         0,
@@ -629,23 +652,6 @@ export default function MemberBilling() {
                 <SkeletonMemberBilling />
             ) : (
                 <>
-                    {/* toast-allow: persistent payment verification status */}
-                    {new URLSearchParams(window.location.search).get(
-                        "payment",
-                    ) === "success" && (
-                        <div className="alert alert-info" data-toast-allow="toast-allow">
-                            Payment received for verification. Your membership
-                            will activate after PayMongo confirms the payment.
-                        </div>
-                    )}
-                    {/* toast-allow: persistent pending payment status */}
-                    {pendingPayments.length > 0 && (
-                        <div className="alert alert-warning" data-toast-allow="toast-allow">
-                            {pendingPayments.length} online payment
-                            {pendingPayments.length === 1 ? "" : "s"} pending
-                            confirmation.
-                        </div>
-                    )}
                     <div
                         className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3"
                         data-aos="fade-down"

@@ -63,9 +63,12 @@ erDiagram
 - `prediction_snapshots`: explainable attendance, revenue, and renewal estimates.
 - `reports`: generated report metadata and result payloads.
 - `gym_settings`: the single-row gym identity, hours, notification, reminder,
-  and maintenance configuration.
+  maintenance configuration, and member AI enable/disable toggle.
 - `audit_log`: sensitive operational action history.
-- `chatbot_conversations`, `chatbot_messages`: admin-scoped AI conversation history.
+- `chatbot_conversations`, `chatbot_messages`: owner-scoped admin/member AI
+  conversation history. Message access follows the parent conversation scope.
+- `ai_usage`: backend-only per-user, per-role daily request and token counters
+  used for persistent AI quotas.
 - `maintenance_backups`: admin-visible data-export status records and row-count
   summaries. These exports are CSV archives, not full Supabase database backups.
 
@@ -73,7 +76,7 @@ erDiagram
 
 - Every application table has RLS enabled.
 - Members can read only their own member, membership, attendance, billing,
-  notification, workout, and analytics rows.
+  notification, workout, analytics, and member-scoped chatbot rows.
 - Clerks can operate on member registration, memberships, payments, attendance,
   and notifications, but cannot edit plans, settings, analytics snapshots, or
   roles/statuses.

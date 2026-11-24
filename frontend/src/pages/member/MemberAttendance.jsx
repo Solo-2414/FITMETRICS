@@ -194,7 +194,23 @@ export default function MemberAttendance() {
     return (
         <MemberLayout>
             {error && <InlineError error={error} />}
-            {loading ? <SkeletonMemberAttendance /> : <>
+            {loading ? <>
+            <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3">
+                <div>
+                    <h1 className={styles.pageTitle}>Attendance History</h1>
+                    <p className={styles.pageDesc}>Review your gym check-ins, weekly consistency, and workout streak at Analyn&apos;s Gym.</p>
+                </div>
+                <div className="d-flex align-items-center gap-3">
+                    <div className={styles.monthNav}>
+                        <button className={styles.navArrow} disabled aria-label="Previous Month"><i className="fa-solid fa-chevron-left"></i></button>
+                        <span className={styles.monthText}><i className="fa-regular fa-calendar me-2"></i>{monthYearLabel}</span>
+                        <button className={styles.navArrow} disabled aria-label="Next Month"><i className="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                    <button className={styles.btnOutline} disabled><i className="fa-solid fa-download"></i> Export Log</button>
+                </div>
+            </div>
+            <SkeletonMemberAttendance styles={styles} year={year} month={month} monthYearLabel={monthYearLabel} />
+            </> : <>
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3"
                 data-aos="fade-down"

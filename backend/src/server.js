@@ -16,6 +16,7 @@ import publicRoutes from './routes/public.js';
 import videoRoutes from './routes/videos.js';
 import { mapDatabaseError } from './lib/errorMapper.js';
 import publicCheckinRoutes from './routes/publicCheckin.js';
+import aiRoutes from './routes/ai.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -41,6 +42,7 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api', publicRoutes);
 app.use('/api', publicCheckinRoutes);
+app.use('/api', aiRoutes);
 app.use('/api', videoRoutes);
 app.use('/api', paymongoWebhookRouter);
 app.use('/api', userRoutes);
@@ -57,9 +59,13 @@ app.use((err, _req, res, _next) => {
   const mapped = mapDatabaseError(err);
   const status = err.statusCode || 500;
   const response = {
-    error: status >= 400 && status < 500 ? err.message : mapped.message,
+    error: mapped.code.startsWith('AI_') ? mapped.message : (status >= 400 && status < 500 ? err.message : mapped.message),
     code: mapped.code,
   };
+  if (mapped.retryAfter) {
+    res.set('Retry-After', String(mapped.retryAfter));
+    response.retryAfter = mapped.retryAfter;
+  }
   if (process.env.NODE_ENV !== 'production' && err.message) response.debug = err.message;
   res.status(status).json(response);
 });

@@ -82,7 +82,7 @@ export default function AdminAttendanceAnalysis() {
                 <p className={styles.pageDesc}>Review daily member check-ins, peak visiting hours, and gym foot traffic</p>
             </div>
 
-            {loading && !analysis ? <SkeletonKpiCards /> : <div className="row g-3 mb-4 fm-fade-in">
+            {loading && !analysis ? <SkeletonKpiCards labels={["Check-Ins", "Current People in Gym", "Busiest Time of Day", "Most Active Day"]} icons={["fa-list-check", "fa-users", "fa-clock", "fa-calendar"]} /> : <div className="row g-3 mb-4 fm-fade-in">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
                         <div className={styles.kpiHeader}><span>Check-Ins</span><div className={styles.iconBoxPrimary}><i className="fa-solid fa-list-check"></i></div></div>
@@ -151,7 +151,7 @@ export default function AdminAttendanceAnalysis() {
                                 <select className={styles.filterSelect} value={plan} onChange={(event) => { setLoading(true); setError(""); setPlan(event.target.value); setPage(1); }}><option value="all">All Plans</option>{(analysis?.byPlan || []).map((item) => <option value={item.planId} key={item.planId}>{item.plan}</option>)}</select>
                             </div>
                         </div>
-                        {loading && !analysis ? <SkeletonTable rows={LIMIT} cols={5} /> : <div className={`table-responsive ${loading ? "fm-refreshing" : "fm-fade-in"}`}>
+                        {loading && !analysis ? <SkeletonTable rows={4} cols={5} headers={["Member name", "Membership plan", "Time in", "Recorded by", "Status"]} cellTypes={["text", "badge", "text", "text", "badge"]} /> : <div className={`table-responsive ${loading ? "fm-refreshing" : "fm-fade-in"}`}>
                             <table className={`table ${styles.customTable}`}>
                                 <thead><tr><th>MEMBER NAME</th><th>MEMBERSHIP PLAN</th><th>TIME IN</th><th>RECORDED BY</th><th className="text-end">STATUS</th></tr></thead>
                                 <tbody>

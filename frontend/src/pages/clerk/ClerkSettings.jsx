@@ -56,7 +56,7 @@ export default function ClerkSettings() {
         return <>
             <h1 className={styles.pageTitle}>Account Settings</h1>
             <p className={styles.pageDesc}>Manage your staff profile, security credentials, and terminal preferences</p>
-            <SkeletonSettings />
+            <SkeletonSettings styles={styles} />
         </>;
     }
     return (

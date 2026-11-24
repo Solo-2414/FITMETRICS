@@ -105,7 +105,7 @@ export default function AdminSettings() {
                 </div>
             </div>
 
-            {!settings ? <SkeletonAdminSettings /> : <form id="settings-form" ref={formRef} onChange={() => setDirty(true)} onSubmit={save} key={settings.updated_at || "settings-loaded"}>
+            {!settings ? <SkeletonAdminSettings styles={styles} /> : <form id="settings-form" ref={formRef} onChange={() => setDirty(true)} onSubmit={save} key={settings.updated_at || "settings-loaded"}>
                 <div
                     className="row g-4 mb-5"
                     data-aos="fade-up"

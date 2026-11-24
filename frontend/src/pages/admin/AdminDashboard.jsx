@@ -86,7 +86,7 @@ export default function AdminDashboard() {
                 </div>
             </div>
 
-            {showSkeleton ? <SkeletonKpiCards /> : <div className="row g-3 mb-4 fm-fade-in">
+            {showSkeleton ? <SkeletonKpiCards labels={["Today's Sales", "Active Members", "Today's Check-ins", "Expiring Memberships"]} icons={["fa-money-bill", "fa-users", "fa-person-walking-arrow-right", "fa-calendar-xmark"]} /> : <div className="row g-3 mb-4 fm-fade-in">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
                         <div className={styles.kpiHeader}>
@@ -242,7 +242,7 @@ export default function AdminDashboard() {
                             </Link>
                         </div>
 
-                        {showSkeleton ? <SkeletonTable rows={5} cols={4} /> : <div className="table-responsive fm-fade-in">
+                        {showSkeleton ? <SkeletonTable rows={4} cols={4} headers={["Member name & ID", "Plan", "Check-in time", "Recorded by"]} cellTypes={["text", "badge", "text", "text"]} /> : <div className="table-responsive fm-fade-in">
                             <table className={`table ${styles.customTable}`}>
                                 <thead>
                                     <tr>

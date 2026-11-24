@@ -4,7 +4,7 @@ import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberNotifications.module.css";
 import InlineError from "../../components/ui/InlineError";
 import { api } from "../../lib/api";
-import { SkeletonNotifications } from "../../components/ui/Skeleton";
+import { Skeleton, SkeletonRegion } from "../../components/ui/Skeleton";
 
 export default function MemberNotifications() {
     const [activeTab, setActiveTab] = useState("All");
@@ -99,7 +99,7 @@ export default function MemberNotifications() {
                     </p>
                 </div>
                 {error && <InlineError error={error} />}
-                <button className={styles.btnOutline} onClick={() => api("/member/notifications", { method: "PATCH" }).then(() => setNotifications((rows) => rows.map((row) => ({ ...row, isRead: true })))).catch((err) => setError(err.message))}>
+                <button className={styles.btnOutline} disabled={loading} onClick={() => api("/member/notifications", { method: "PATCH" }).then(() => setNotifications((rows) => rows.map((row) => ({ ...row, isRead: true })))).catch((err) => setError(err.message))}>
                     <i className="fa-solid fa-check-double"></i> Mark all as
                     read
                 </button>
@@ -119,13 +119,13 @@ export default function MemberNotifications() {
                     >
                         Unread{" "}
                         <span className={styles.unreadCount}>
-                            {notifications.filter((n) => !n.isRead).length}
+                            {loading ? <Skeleton w={18} h={12} className="fm-skel-inline" /> : notifications.filter((n) => !n.isRead).length}
                         </span>
                     </button>
                 </div>
 
                 <div className={styles.notificationList}>
-                    {loading ? <SkeletonNotifications /> : filteredNotifications.length > 0 ? (
+                    {loading ? <SkeletonRegion label="Loading notifications">{Array.from({ length: 5 }, (_, index) => <div key={index} className={`${styles.notificationCard} ${styles.cardUnread}`} aria-hidden="true"><div className={styles.cardIconWrapper}><Skeleton w={20} h={20} r={4} /></div><div className={styles.cardContent}><div className="d-flex justify-content-between align-items-start gap-3"><Skeleton w={index % 2 ? 150 : 190} h={16} /><Skeleton w={54} h={11} /></div><Skeleton w={index % 2 ? "78%" : "62%"} h={12} className="mt-2" /><Skeleton w="45%" h={12} className="mt-2" /></div><div className={styles.unreadIndicator}></div></div>)}</SkeletonRegion> : filteredNotifications.length > 0 ? (
                         filteredNotifications.map((note) => (
                             <div
                                 key={note.id}

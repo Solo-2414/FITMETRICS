@@ -215,7 +215,13 @@ export default function ClerkAttendance() {
     return (
         <>
             {error && <InlineError error={error} />}
-            {loading ? <><h1 className={styles.pageTitle}>Attendance</h1><p className={styles.pageDesc}>Fast check-in, live floor, QR station and today's log</p><SkeletonAttendance /></> : (
+            {loading ? <>
+                <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3">
+                    <div><h1 className={styles.pageTitle}>Attendance</h1><p className={styles.pageDesc}>Fast check-in, live floor, QR station and today&apos;s log</p></div>
+                    <input type="date" className="form-control bg-dark text-white border-secondary" value={date} disabled style={{ maxWidth: 170 }} />
+                </div>
+                <SkeletonAttendance />
+            </> : (
             <>
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3">
                 <div>

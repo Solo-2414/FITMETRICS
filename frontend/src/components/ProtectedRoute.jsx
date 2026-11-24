@@ -4,7 +4,6 @@ import { useAuth } from "../context/AuthContext";
 import { homePathForRole } from "../context/homePathForRole";
 import { api } from "../lib/api";
 import MaintenanceScreen from "./MaintenanceScreen";
-import { SkeletonPage } from "./ui/Skeleton";
 
 /**
  * <Route element={<ProtectedRoute roles={["admin"]} />}> ...child routes... </Route>
@@ -32,7 +31,7 @@ export default function ProtectedRoute({ roles }) {
     }, [memberRoute]);
 
     if (loading) {
-        return <SkeletonPage />;
+        return <p className="fm-route-loading" role="status">Checking your session...</p>;
     }
 
     if (!session) {

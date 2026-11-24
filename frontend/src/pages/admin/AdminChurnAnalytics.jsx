@@ -67,7 +67,7 @@ export default function AdminChurnAnalytics() {
                 </p>
             </div>
 
-            {loading ? <SkeletonKpiCards /> : <div className="row g-3 mb-4 fm-fade-in">
+            {loading ? <SkeletonKpiCards labels={["Members Visited This Month", "Inactive Members (>14 Days)", "Memberships Ending Soon", "Renewed This Month"]} icons={["fa-circle-check", "fa-stopwatch", "fa-calendar-xmark", "fa-rotate"]} /> : <div className="row g-3 mb-4 fm-fade-in">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
                         <div className={styles.kpiHeader}>
@@ -267,7 +267,7 @@ export default function AdminChurnAnalytics() {
                             </div>
                         </div>
 
-                        {loading ? <SkeletonTable rows={5} cols={6} /> : <div className="table-responsive fm-fade-in">
+                        {loading ? <SkeletonTable rows={4} cols={6} headers={["Member name", "Membership plan", "Last visited date", "Days inactive", "Contact", "Quick action"]} cellTypes={["text", "badge", "text", "badge", "text", "action"]} /> : <div className="table-responsive fm-fade-in">
                             <table className={`table ${styles.customTable}`}>
                                 <thead>
                                     <tr>

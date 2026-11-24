@@ -64,7 +64,7 @@ export default function ClerkDashboard() {
 
             {error && <InlineError error={error} onRetry={() => { setError(""); setLoading(true); reloadDashboard().catch(() => {}).finally(() => setLoading(false)); }} />}
             {dashboardRefreshing && <span className="text-secondary small d-block mb-2 fm-refreshing">Refreshing dashboard...</span>}
-            {loading ? <SkeletonKpiCards count={4} /> : <div className="row g-3 mb-4 fm-fade-in">
+            {loading ? <SkeletonKpiCards count={4} labels={["Active Members on Floor", "Today's Check-ins", "Today's Cash Collected", "New Registrations Today"]} icons={["fa-users", "fa-person-walking-arrow-right", "fa-money-bill", "fa-user-plus"]} /> : <div className="row g-3 mb-4 fm-fade-in">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <div className={styles.kpiCard}>
                         <div className={styles.kpiHeader}>
@@ -212,7 +212,7 @@ export default function ClerkDashboard() {
                 </div>
             </div>
 
-            {loading ? <div className="row g-4 mt-1"><div className="col-12 col-xl-8"><SkeletonTable rows={5} cols={4} /></div><div className="col-12 col-xl-4"><SkeletonList rows={4} /></div></div> : <div className="row g-4 mt-1 fm-fade-in">
+            {loading ? <div className="row g-4 mt-1"><div className="col-12 col-xl-8"><SkeletonTable rows={4} cols={4} headers={["Member", "Check-in time", "Membership plan", "Method"]} cellTypes={["text", "text", "badge", "text"]} /></div><div className="col-12 col-xl-4"><SkeletonList rows={3} /></div></div> : <div className="row g-4 mt-1 fm-fade-in">
                 <div className="col-12 col-xl-8">
                     <div className={styles.panelCard}>
                         <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">

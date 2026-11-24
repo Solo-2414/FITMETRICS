@@ -86,6 +86,14 @@ export default function AdminLayout({ children }) {
                         Churn Analytics
                     </Link>
                     <Link
+                        to="/admin/assistant"
+                        onClick={closeSidebar}
+                        className={`${styles.navItem} ${location.pathname === "/admin/assistant" ? styles.active : ""}`}
+                    >
+                        <i className="fa-solid fa-robot"></i>
+                        AI Assistant
+                    </Link>
+                    <Link
                         to="/admin/predictive-analytics"
                         onClick={closeSidebar}
                         className={`${styles.navItem} ${location.pathname === "/admin/predictive-analytics" ? styles.active : ""}`}

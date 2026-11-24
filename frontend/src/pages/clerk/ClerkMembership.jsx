@@ -8,7 +8,7 @@ import { normalizeQrPayment } from "../../lib/qrPayment";
 import { dateValue } from "../../lib/dates";
 import { useToast } from "../../components/ui/toast/useToast";
 import InlineError from "../../components/ui/InlineError";
-import { SkeletonMembership } from "../../components/ui/Skeleton";
+import { Skeleton, SkeletonMembership } from "../../components/ui/Skeleton";
 import styles from "./ClerkMembership.module.css";
 
 const money = (value) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
@@ -309,7 +309,7 @@ export default function ClerkMembership() {
     const tableStart = totalMembers ? ((tableFilters.page - 1) * tableFilters.limit) + 1 : 0;
     const tableEnd = Math.min(totalMembers, tableFilters.page * tableFilters.limit);
 
-    if (loading) return <><h1 className={styles.pageTitle}>Membership</h1><SkeletonMembership /></>;
+    if (loading) return <><header className={styles.pageHeader}><h1 className={styles.pageTitle}>Membership</h1><p className={styles.pageDesc}>Manage member plans and counter renewals</p><p className={styles.pageSummary}><Skeleton w={52} h={12} className="fm-skel-inline" /> members · <Skeleton w={32} h={12} className="fm-skel-inline" /> active · <Skeleton w={36} h={12} className="fm-skel-inline" /> expiring · <Skeleton w={32} h={12} className="fm-skel-inline" /> expired</p></header><SkeletonMembership styles={styles} /></>;
     return <>
         {error && <InlineError error={error} />}
         <header className={styles.pageHeader}><h1 className={styles.pageTitle}>Membership</h1><p className={styles.pageDesc}>Manage member plans and counter renewals</p><p className={styles.pageSummary}>{totalMembers} members · {counts.active || 0} active · {counts.expiring || 0} expiring · {counts.expired || 0} expired</p></header>

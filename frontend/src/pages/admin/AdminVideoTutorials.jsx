@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
 import { VIDEO_CATEGORIES } from "../../lib/videoCategories";
 import styles from "./AdminVideoTutorials.module.css";
-import { SkeletonAdminVideos } from "../../components/ui/Skeleton";
+import { Skeleton, SkeletonRegion } from "../../components/ui/Skeleton";
 import InlineError from "../../components/ui/InlineError";
 import { useToast } from "../../components/ui/toast/useToast";
 import { useConfirm } from "../../components/ui/toast/useConfirm";
@@ -88,7 +88,7 @@ export default function AdminVideoTutorials() {
             <input className={styles.formInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tutorials..." />
             <select className={styles.formSelect} value={filter} onChange={(event) => setFilter(event.target.value)}><option value="">All categories</option>{VIDEO_CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select>
         </div>
-        {loading ? <SkeletonAdminVideos /> : videos.length === 0 ? <div className="text-secondary py-5">No video tutorials found.</div> : <div className="row g-4 fm-fade-in">
+        {loading ? <SkeletonRegion label="Loading video tutorials" className="row g-4">{Array.from({ length: 6 }, (_, index) => <div className="col-12 col-md-6 col-xl-4" key={index}><div className={styles.videoCard} aria-hidden="true"><div className={styles.videoThumbnail}><Skeleton w="100%" h="100%" r={0} style={{ position: "absolute", inset: 0 }} /><div className={styles.playButtonWrapper}><i className="fa-solid fa-play"></i></div><Skeleton w={44} h={20} r={4} className={styles.durationBadge} /></div><div className={styles.videoBody}><div className="d-flex justify-content-between align-items-center mb-2"><Skeleton w={76} h={20} r={999} /><Skeleton w={48} h={11} /></div><Skeleton w="82%" h={18} className="mb-2" /><Skeleton w="64%" h={11} /></div><div className={styles.videoFooter}><Skeleton w={52} h={30} r={6} /><div className="d-flex gap-2"><Skeleton w={32} h={32} r={6} /><Skeleton w={32} h={32} r={6} /></div></div></div></div>)}</SkeletonRegion> : videos.length === 0 ? <div className="text-secondary py-5">No video tutorials found.</div> : <div className="row g-4 fm-fade-in">
             {videos.map((video) => <div className="col-12 col-md-6 col-xl-4" key={video.id}><div className={styles.videoCard}>
                 <div className={styles.videoThumbnail} style={video.thumbnailUrl ? { backgroundImage: `linear-gradient(rgba(15, 23, 42, .35), rgba(15, 23, 42, .7)), url(${video.thumbnailUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}><div className={styles.playButtonWrapper}><i className="fa-solid fa-play"></i></div><span className={styles.durationBadge}>{formatDuration(video.duration_seconds)}</span></div>
                 <div className={styles.videoBody}><div className="d-flex justify-content-between align-items-center mb-2"><span className={styles.tagBadge}>{video.category}</span><span className="text-secondary small">{video.visibility}</span></div><h3 className={styles.videoTitle}>{video.title}</h3><small className="text-secondary">{video.difficulty || "Difficulty not set"} · {video.provider}</small></div>

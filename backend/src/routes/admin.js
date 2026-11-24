@@ -372,7 +372,7 @@ router.get('/admin/dashboard', async (req, res, next) => {
     router.get('/admin/live-count', async (_req, res, next) => {
       try {
         const [attendance, settings] = await Promise.all([
-          supabaseAdmin.from('attendance').select('id').is('check_out_at', null).eq('status', 'checked_in'),
+          supabaseAdmin.from('attendance').select('id').is('check_out_at', null).eq('status', 'open'),
           supabaseAdmin.from('gym_settings').select('floor_capacity').eq('id', true).maybeSingle(),
         ]);
         if (attendance.error) return next(attendance.error);

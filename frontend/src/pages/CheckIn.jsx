@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import styles from "./CheckIn.module.css";
+import { SkeletonCheckIn } from "../components/ui/Skeleton";
 
 const DEVICE_KEY = "fitmetrics-checkin-device";
 const PHONE_KEY = "fitmetrics-checkin-phone";
@@ -122,7 +123,7 @@ export default function CheckIn() {
             <section className={styles.card} aria-live="polite">
                 <img src="/logo-no-bg.png" alt="Analyn's Fitness Gym" className={styles.logo} />
                 <p className={styles.eyebrow}>{station.gym_name || "Analyn's Fitness Gym"}</p>
-                {station.loading && <p className={styles.muted}>Checking this QR code...</p>}
+                {station.loading && <SkeletonCheckIn />}
                 {!station.loading && !station.valid && <div className={styles.error}>{station.error}</div>}
                 {!station.loading && station.valid && station.phone_checkin_enabled === false && <div className={styles.error}>Phone check-in is temporarily unavailable. Please see the front desk.</div>}
                 {!station.loading && station.valid && station.phone_checkin_enabled !== false && step === "phone" && (

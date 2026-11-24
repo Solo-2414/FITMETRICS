@@ -33,6 +33,13 @@
     --text-font: Inter, sans-serif;
 }
 
+.fm-route-loading {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    color: var(--text-color);
+}
+
 html {
     scroll-behavior: smooth;
 }

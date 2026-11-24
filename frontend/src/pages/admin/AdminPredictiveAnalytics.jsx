@@ -64,7 +64,7 @@ export default function AdminPredictiveAnalytics() {
             {prediction?.lowData && <p className={styles.panelDesc}>Forecasts are statistical estimates based on only {prediction.dataWindow?.attendanceDays || 0} attendance days. At least 14 days of data are recommended.</p>}
             {prediction?.dataWindow && <p className={styles.panelDesc}>Estimate window: {new Date(prediction.dataWindow.start).toLocaleDateString()}–{new Date(prediction.dataWindow.end).toLocaleDateString()}.</p>}
 
-            {loading ? <SkeletonKpiCards count={3} colClass="col-12 col-md-4" /> : <div className="row g-4 mb-4 fm-fade-in">
+            {loading ? <SkeletonKpiCards count={3} colClass="col-12 col-md-4" labels={["Expected Visits Tomorrow", "Projected Monthly Revenue", "Renewals (Next 14 Days)"]} icons={["fa-users", "fa-money-bill", "fa-calendar-check"]} /> : <div className="row g-4 mb-4 fm-fade-in">
                 <div className="col-12 col-md-4">
                     <div
                         className={styles.kpiCard}
@@ -302,7 +302,7 @@ export default function AdminPredictiveAnalytics() {
                             </span>
                         </div>
 
-                        {loading ? <SkeletonTable rows={5} cols={5} /> : <div className="table-responsive fm-fade-in">
+                        {loading ? <SkeletonTable rows={4} cols={5} headers={["Member name", "Plan type", "Expiration date", "Urgency", "Action"]} cellTypes={["text", "text", "text", "badge", "action"]} /> : <div className="table-responsive fm-fade-in">
                             <table className={`table ${styles.customTable}`}>
                                 <thead>
                                     <tr>

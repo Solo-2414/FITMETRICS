@@ -1,0 +1,5 @@
+.env
+data/users.json
+node_modules
+data/*.sqlite
+fixtures/identity/*.jpg

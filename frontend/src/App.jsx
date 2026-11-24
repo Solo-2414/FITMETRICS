@@ -37,6 +37,7 @@ import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
 import AdminVideoTutorials from "./pages/admin/AdminVideoTutorials";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminWalkInCustomers from "./pages/admin/AdminWalkInCustomers";
+import AdminAssistant from "./pages/admin/AdminAssistant";
 
 import ClerkDashboard from "./pages/clerk/ClerkDashboard";
 import ClerkMemberRegistration from "./pages/clerk/ClerkMemberRegistration";
@@ -140,6 +141,7 @@ export default function App() {
                 <Route element={<ProtectedRoute roles={["admin"]} />}>
                 <Route element={<AdminShell />}>
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                <Route path="/admin/assistant" element={<AdminAssistant />} />
                 <Route
                     path="/admin/churn-analytics"
                     element={<AdminChurnAnalytics />}

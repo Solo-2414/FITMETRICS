@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../lib/api";
-import { SkeletonNotificationRows } from "../../components/ui/Skeleton";
+import { Skeleton, SkeletonRegion } from "../../components/ui/Skeleton";
 import styles from "./ClerkNotifications.module.css";
 import InlineError from "../../components/ui/InlineError";
 import { useNavigate } from "react-router-dom";
@@ -71,8 +71,8 @@ export default function ClerkNotifications() {
             <div><h1 className={styles.pageTitle}>Notifications</h1><p className={styles.pageDesc}>Important front desk reminders, member registrations, and gym updates</p></div>
             <button className={styles.btnMarkRead} disabled={!state.counts?.unread || loading} onClick={markAll}><i className="fa-solid fa-check-double"></i> Mark {activeTab === "all" ? "all" : "these"} as read</button>
         </div>
-        <div className={styles.tabsContainer}><div className={styles.tabsScroll}>{tabs.map(([key, label]) => <button key={key} className={`${styles.tabBtn} ${activeTab === key ? styles.tabBtnActive : ""}`} onClick={() => setActiveTab(key)}>{label} <span className={styles.badgeMuted}>{key === "all" ? state.counts?.unread || 0 : unread[key] || 0}</span></button>)}</div></div>
-        {loading && <SkeletonNotificationRows rows={6} />}
+        <div className={styles.tabsContainer}><div className={styles.tabsScroll}>{tabs.map(([key, label]) => <button key={key} className={`${styles.tabBtn} ${activeTab === key ? styles.tabBtnActive : ""}`} onClick={() => setActiveTab(key)}>{label} <span className={styles.badgeMuted}>{loading ? <Skeleton w={16} h={10} className="fm-skel-inline" /> : key === "all" ? state.counts?.unread || 0 : unread[key] || 0}</span></button>)}</div></div>
+        {loading && <SkeletonRegion label="Loading notifications">{Array.from({ length: 5 }, (_, index) => <section key={index}><h3 className="text-secondary mt-4 mb-2"><Skeleton w={84} h={14} /></h3><div className={styles.listCard}><div className="d-flex align-items-start gap-3"><div className={styles.iconBoxPrimary}><Skeleton w={20} h={20} r={4} /></div><div className="flex-grow-1"><div className="d-flex justify-content-between gap-3"><Skeleton w={index % 2 ? 160 : 210} h={15} /><Skeleton w={52} h={11} /></div><Skeleton w={index % 2 ? "78%" : "62%"} h={12} className="mt-2" /><Skeleton w="42%" h={10} className="mt-2" /></div><Skeleton w={82} h={30} r={7} /></div></div></section>)}</SkeletonRegion>}
         {!loading && Object.entries(grouped).map(([group, rows]) => <section key={group}><h3 className="text-secondary mt-4 mb-2">{group}</h3>{rows.map((item) => <div className={styles.listCard} key={item.id} style={{ opacity: item.read_at ? 0.7 : 1 }} onClick={async () => { if (!item.read_at) await markRead(item.id); navigate(item.link || "/clerk/notification"); }} role="button" tabIndex={0}><div className="d-flex align-items-start gap-3"><div className={styles.iconBoxPrimary}><i className={`fa-solid ${iconFor(item.type)}`}></i></div><div className="flex-grow-1"><h4 className={styles.cardTitle}>{item.title}</h4><p className={styles.cardDesc}>{item.message}</p><span className={styles.cardMetaText}>{relativeTime(item.created_at)}</span></div>{!item.read_at && <button className={styles.btnActionOutlineSmall} onClick={(event) => { event.stopPropagation(); markRead(item.id); }}>Mark read</button>}</div></div>)}</section>)}
         {!loading && !state.rows.length && <div className="text-center text-secondary py-5">No notifications in this category.</div>}
         {!loading && state.hasMore && <button className={styles.btnMarkRead} disabled={loadingMore} onClick={() => { const next = page + 1; setPage(next); load(next, true); }}>{loadingMore ? "Loading..." : "Load more"}</button>}
