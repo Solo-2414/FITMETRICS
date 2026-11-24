@@ -24,6 +24,7 @@ export default function MemberCheckIn() {
                 <div className="card bg-dark text-white border-secondary p-4 mx-auto" style={{ maxWidth: 560 }}>
                     <h1 className="h3 mb-3">Gym Check-in</h1>
                     {state.loading && <p className="text-secondary">Checking you in...</p>}
+                    {/* field-error: station lookup and verification feedback remain inline */}
                     {state.error && <div className="text-danger" role="alert">{state.error}</div>}
                     {/* toast-allow: persistent check-in result card required by task */}
                     {state.result && <div className="alert alert-success">

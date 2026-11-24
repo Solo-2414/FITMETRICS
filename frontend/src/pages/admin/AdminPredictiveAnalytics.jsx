@@ -160,6 +160,7 @@ export default function AdminPredictiveAnalytics() {
                         >
                             <div className="text-warning">Busy</div>
                             <div className="text-secondary">Moderate</div>
+                            {/* field-error: analytical label, not transient feedback */}
                             <div className="text-danger">Peak Day</div>
                             <div className="text-secondary">Moderate</div>
                             <div className="text-secondary">Regular</div>

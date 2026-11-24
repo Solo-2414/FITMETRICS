@@ -223,6 +223,33 @@ export function SkeletonMemberBilling() {
     return <SkeletonRegion label="Loading billing"><SkeletonPanel className="mb-4"><SkeletonText lines={3} /></SkeletonPanel><SkeletonKpiCards count={3} colClass="col-12 col-md-4" /><SkeletonPanel><SkeletonTable rows={6} cols={5} /></SkeletonPanel></SkeletonRegion>;
 }
 
+export function SkeletonMemberWorkoutPlan() {
+    return (
+        <SkeletonRegion label="Loading workout plan">
+            <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3">
+                <div style={{ display: "grid", gap: 10, flex: 1 }}>
+                    <Skeleton w={110} h={22} r={999} />
+                    <Skeleton w="58%" h={28} />
+                    <Skeleton w="76%" h={12} />
+                </div>
+                <Skeleton w={156} h={40} r={8} />
+            </div>
+            <div className="d-flex gap-2 mb-4 overflow-auto">
+                {Array.from({ length: 7 }, (_, i) => (
+                    <Skeleton key={i} w={84} h={48} r={8} />
+                ))}
+            </div>
+            <SkeletonPanel>
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                    <Skeleton w="32%" h={20} />
+                    <Skeleton w={126} h={36} r={8} />
+                </div>
+                <SkeletonTable rows={5} cols={5} />
+            </SkeletonPanel>
+        </SkeletonRegion>
+    );
+}
+
 export function SkeletonNotifications() {
     return <SkeletonNotificationRows />;
 }

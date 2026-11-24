@@ -70,6 +70,7 @@ export default function MemberNotifications() {
             id: 5,
             type: "milestone",
             icon: "fa-solid fa-fire",
+            // field-error: notification severity styling, not transient feedback
             iconColor: "text-danger",
             title: "4-Week Consistency Streak!",
             message:

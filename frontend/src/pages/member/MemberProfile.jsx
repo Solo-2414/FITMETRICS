@@ -16,7 +16,6 @@ export default function MemberProfile() {
     const [profile, setProfile] = useState(null);
     const [devices, setDevices] = useState([]);
     const [error, setError] = useState("");
-    const [saveAlert, setSaveAlert] = useState({ type: "", message: "" });
     const [isSaving, setIsSaving] = useState(false);
 
     // Staged photo states (only persisted when "Save Profile Changes" is clicked)
@@ -103,11 +102,7 @@ export default function MemberProfile() {
         setStagedPhotoFile(file);
         setStagedPhotoPreview(previewUrl);
         setIsPhotoMarkedDeleted(false);
-        setSaveAlert({
-            type: "info",
-            message:
-                "New profile photo selected. Click 'Save Profile Changes' to apply.",
-        });
+        toast.info("New profile photo selected. Click 'Save Profile Changes' to apply.");
     };
 
     // Stage photo deletion locally (only if a saved or staged photo exists)
@@ -130,13 +125,7 @@ export default function MemberProfile() {
 
         if (existingAvatar) {
             setIsPhotoMarkedDeleted(true);
-            setSaveAlert({
-                type: "info",
-                message:
-                    "Profile photo marked for removal. Click 'Save Profile Changes' to confirm.",
-            });
-        } else {
-            setSaveAlert({ type: "", message: "" });
+            toast.info("Profile photo marked for removal. Click 'Save Profile Changes' to confirm.");
         }
     };
 
@@ -149,7 +138,6 @@ export default function MemberProfile() {
         setStagedPhotoFile(null);
         setStagedPhotoPreview(null);
         setIsPhotoMarkedDeleted(false);
-        setSaveAlert({ type: "", message: "" });
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -165,7 +153,6 @@ export default function MemberProfile() {
     const save = async (event) => {
         event.preventDefault();
         setIsSaving(true);
-        setSaveAlert({ type: "", message: "" });
 
         const formEntries = Object.fromEntries(
             new FormData(event.currentTarget).entries(),
@@ -232,10 +219,10 @@ export default function MemberProfile() {
             if (fileInputRef.current) fileInputRef.current.value = "";
 
             const successMsg = "Profile changes have been successfully saved!";
-            setSaveAlert({ type: "success", message: successMsg });
+            toast.success(successMsg);
         } catch (err) {
             const errMsg = err.message || "Failed to save profile changes.";
-            setSaveAlert({ type: "danger", message: errMsg });
+            toast.error(errMsg);
         } finally {
             setIsSaving(false);
         }
@@ -273,31 +260,6 @@ export default function MemberProfile() {
                 <SkeletonMemberProfile />
             ) : (
                 <>
-                    {saveAlert.message && (
-                        <div
-                            className={`alert alert-${saveAlert.type} d-flex align-items-center justify-content-between mb-4`}
-                            role="alert"
-                        >
-                            <span>
-                                <i
-                                    className={`fa-solid ${
-                                        saveAlert.type === "success"
-                                            ? "fa-circle-check"
-                                            : "fa-circle-info"
-                                    } me-2`}
-                                ></i>
-                                {saveAlert.message}
-                            </span>
-                            <button
-                                type="button"
-                                className="btn-close"
-                                aria-label="Close"
-                                onClick={() =>
-                                    setSaveAlert({ type: "", message: "" })
-                                }
-                            ></button>
-                        </div>
-                    )}
                     <div
                         className="mb-4"
                         data-aos="fade-down"

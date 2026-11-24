@@ -6,6 +6,7 @@ import { useConfirm } from "../../components/ui/toast/useConfirm";
 import InlineError from "../../components/ui/InlineError";
 import styles from "./ClerkAttendance.module.css";
 import QRCode from "qrcode";
+import { SkeletonAttendance } from "../../components/ui/Skeleton";
 
 const today = () =>
     new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(
@@ -35,6 +36,7 @@ export default function ClerkAttendance() {
     const [logSearch, setLogSearch] = useState("");
     const [error, setError] = useState("");
     const [busy, setBusy] = useState(false);
+    const [loading, setLoading] = useState(true);
     const inputRef = useRef(null);
 
     const load = useCallback(
@@ -53,6 +55,8 @@ export default function ClerkAttendance() {
                 setError("");
             } catch (requestError) {
                 setError(requestError.message);
+            } finally {
+                setLoading(false);
             }
         },
         [date],
@@ -211,6 +215,8 @@ export default function ClerkAttendance() {
     return (
         <>
             {error && <InlineError error={error} />}
+            {loading ? <><h1 className={styles.pageTitle}>Attendance</h1><p className={styles.pageDesc}>Fast check-in, live floor, QR station and today's log</p><SkeletonAttendance /></> : (
+            <>
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 gap-3">
                 <div>
                     <h1 className={styles.pageTitle}>Attendance</h1>
@@ -628,6 +634,8 @@ export default function ClerkAttendance() {
                     </div>
                 ))}
             </div>
+            </>
+            )}
         </>
     );
 }

@@ -4,6 +4,7 @@ import styles from "./MemberBilling.module.css";
 import { api } from "../../lib/api";
 import { SkeletonMemberBilling } from "../../components/ui/Skeleton";
 import InlineError from "../../components/ui/InlineError";
+import { useToast } from "../../components/ui/toast/useToast";
 
 const DEFAULT_RECEIPTS = [
     {
@@ -199,6 +200,7 @@ const normalizeReceipt = (item) => {
 };
 
 export default function MemberBilling() {
+    const toast = useToast();
     const [profile, setProfile] = useState(null);
     const [data, setData] = useState(null);
     const [dashboard, setDashboard] = useState(null);
@@ -212,7 +214,6 @@ export default function MemberBilling() {
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [isSendingEmail, setIsSendingEmail] = useState(false);
-    const [actionAlert, setActionAlert] = useState({ type: "", message: "" });
     const [error, setError] = useState("");
 
     const filterDropdownRef = useRef(null);
@@ -383,8 +384,6 @@ export default function MemberBilling() {
         if (!rawReceipt) return;
         const receipt = normalizeReceipt(rawReceipt);
         setIsDownloading(true);
-        setActionAlert({ type: "", message: "" });
-
         const receiptNo = receipt.receipt_number || receipt.id || "Receipt";
         const receiptHtml = buildReceiptHtml(receipt);
 
@@ -421,11 +420,7 @@ export default function MemberBilling() {
             } else {
                 const printWindow = window.open("", "_blank");
                 if (!printWindow) {
-                    setActionAlert({
-                        type: "warning",
-                        message:
-                            "Please allow popups to download the receipt PDF.",
-                    });
+                    toast.warning("Please allow popups to download the receipt PDF.");
                     return;
                 }
 
@@ -460,10 +455,7 @@ export default function MemberBilling() {
                 printWindow.document.close();
             }
         } catch {
-            setActionAlert({
-                type: "danger",
-                message: "Unable to generate receipt PDF. Please try again.",
-            });
+            toast.error("Unable to generate receipt PDF. Please try again.");
         } finally {
             setIsDownloading(false);
         }
@@ -474,25 +466,16 @@ export default function MemberBilling() {
         const receipt = normalizeReceipt(rawReceipt);
 
         if (receipt.status?.toLowerCase() === "pending") {
-            setActionAlert({
-                type: "warning",
-                message:
-                    "This receipt cannot be emailed until the payment is confirmed as paid.",
-            });
+            toast.warning("This receipt cannot be emailed until the payment is confirmed as paid.");
             return;
         }
 
         if (!profile?.email) {
-            setActionAlert({
-                type: "danger",
-                message: "No email address is linked to your profile.",
-            });
+            toast.error("No email address is linked to your profile.");
             return;
         }
 
         setIsSendingEmail(true);
-        setActionAlert({ type: "", message: "" });
-
         const receiptNo = receipt.receipt_number || receipt.id;
 
         try {
@@ -500,17 +483,9 @@ export default function MemberBilling() {
                 method: "POST",
             });
 
-            setActionAlert({
-                type: "success",
-                message: `Official receipt (${receiptNo}) has been queued for ${profile.email}.`,
-            });
+            toast.success(`Official receipt (${receiptNo}) has been queued for ${profile.email}.`);
         } catch (err) {
-            setActionAlert({
-                type: "danger",
-                message:
-                    err.message ||
-                    "Failed to send receipt email. Please try again.",
-            });
+            toast.error(err.message || "Failed to send receipt email. Please try again.");
         } finally {
             setIsSendingEmail(false);
         }
@@ -603,14 +578,6 @@ export default function MemberBilling() {
     const activeReceipt = normalizeReceipt(selectedReceipt);
     const activeLineItems = activeReceipt?.items || [];
 
-    useEffect(() => {
-        if (!actionAlert.message) return undefined;
-        const timeout = window.setTimeout(() => {
-            setActionAlert({ type: "", message: "" });
-        }, 4000);
-        return () => window.clearTimeout(timeout);
-    }, [actionAlert.message]);
-
     const plan = membership?.membership_plans;
 
     // Account Balance Calculation (Pending vs Settled)
@@ -666,22 +633,17 @@ export default function MemberBilling() {
                     {new URLSearchParams(window.location.search).get(
                         "payment",
                     ) === "success" && (
-                        <div className="alert alert-info">
+                        <div className="alert alert-info" data-toast-allow="toast-allow">
                             Payment received for verification. Your membership
                             will activate after PayMongo confirms the payment.
                         </div>
                     )}
                     {/* toast-allow: persistent pending payment status */}
                     {pendingPayments.length > 0 && (
-                        <div className="alert alert-warning">
+                        <div className="alert alert-warning" data-toast-allow="toast-allow">
                             {pendingPayments.length} online payment
                             {pendingPayments.length === 1 ? "" : "s"} pending
                             confirmation.
-                        </div>
-                    )}
-                    {actionAlert.message && (
-                        <div className={`alert alert-${actionAlert.type}`} role="alert">
-                            {actionAlert.message}
                         </div>
                     )}
                     <div

@@ -322,6 +322,7 @@ export default function ClerkLayout({ children }) {
                                 {!checkInLoading && checkInSearch.trim().length >= 2 && !checkInMatches.length && <p className="text-secondary mt-2 mb-0">No members found</p>}
                                 {!checkInMember && checkInMatches.length > 0 && <div className="d-flex flex-column gap-2 mt-2">{checkInMatches.map((member) => <button type="button" className="btn btn-outline-secondary text-start" key={member.id} onClick={() => setCheckInMember(member)}><strong>{member.full_name}</strong><small className="d-block text-secondary">{member.member_code || member.email || "No member code"} · {member.status}</small></button>)}</div>}
                                 {checkInMember && <p className="text-success">Selected: {checkInMember.full_name || checkInMember.email}</p>}
+                                {/* field-error: membership eligibility status */}
                                 {checkInMember && !["active", "expiring"].includes(checkInMember.status) && <p className="text-danger mb-0">{checkInMember.status === "suspended" ? "This member is suspended." : checkInMember.status === "expired" ? "This member's membership has expired." : "This member does not have a current active membership."}</p>}
                             </div>
 

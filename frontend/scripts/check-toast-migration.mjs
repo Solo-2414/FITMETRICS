@@ -8,6 +8,9 @@ import { join, relative } from 'node:path';
 const root = new URL('../src', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const rules = [
   { name: 'Bootstrap alert banner', re: /alert alert-(danger|success|warning|info)|className=\{?["'`]alert[ "'`]/ },
+  { name: 'role alert feedback', re: /role=["']alert["']/ },
+  { name: 'inline text-danger feedback', re: /text-danger/ },
+  { name: 'inline red feedback color', re: /(?:color\s*:\s*["']?#f87171|className=["'][^"']*text-danger)/i },
   { name: 'window.alert', re: /window\.alert\s*\(/ },
   { name: 'alert()', re: /(^|[^\w.$])alert\s*\(/ },
   { name: 'window.confirm', re: /window\.confirm\s*\(/ },
@@ -28,11 +31,13 @@ const findings = [];
 for (const file of files) {
   const rel = relative(root, file).replaceAll('\\', '/');
   if (rel.startsWith('components/ui/toast/')) continue; // the toast system itself
+  if (rel === 'components/ui/InlineError.jsx') continue; // shared inline-load error component
   const lines = readFileSync(file, 'utf8').split(/\r?\n/);
   lines.forEach((line, index) => {
     for (const rule of rules) {
       if (!rule.re.test(line)) continue;
-      if (/toast-allow:/.test(line) || /toast-allow:/.test(lines[index - 1] || '')) continue;
+      if (/toast-allow(?::|=)/.test(line) || /toast-allow(?::|=)/.test(lines[index - 1] || '')) continue;
+      if (/field-error(?::|=)/.test(line) || /field-error(?::|=)/.test(lines[index - 1] || '')) continue;
       findings.push({ rel, line: index + 1, rule: rule.name, text: line.trim().slice(0, 90) });
     }
   });

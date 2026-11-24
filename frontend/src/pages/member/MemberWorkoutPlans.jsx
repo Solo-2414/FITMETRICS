@@ -3,12 +3,27 @@ import MemberLayout from "../../components/member/MemberLayout";
 import styles from "./MemberWorkoutPlans.module.css";
 import InlineError from "../../components/ui/InlineError";
 import { api } from "../../lib/api";
+import { useToast } from "../../components/ui/toast/useToast";
+import { SkeletonMemberWorkoutPlan } from "../../components/ui/Skeleton";
 
-const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAYS = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+];
 const template = (title, definitions) => ({
     title,
     days: DAYS.map((day, dayOfWeek) => {
-        const definition = definitions[day] || { title: "Rest", focus: "Recovery", is_rest: true, exercises: [] };
+        const definition = definitions[day] || {
+            title: "Rest",
+            focus: "Recovery",
+            is_rest: true,
+            exercises: [],
+        };
         return { day_of_week: dayOfWeek, ...definition };
     }),
 });
@@ -16,43 +31,366 @@ const template = (title, definitions) => ({
 const TEMPLATES = {
     custom: { title: "Custom Program", days: [] },
     ppl: template("Push / Pull / Legs (PPL)", {
-        Monday: { title: "Push Day", focus: "Chest & Triceps", exercises: [{ name: "Barbell Bench Press", target_muscle: "Chest", sets: 4, reps: "8-10", weight: 70, unit: "kg", rest_seconds: 90 }, { name: "Overhead Press", target_muscle: "Shoulders", sets: 3, reps: "8-10", weight: 40, unit: "kg", rest_seconds: 75 }] },
-        Tuesday: { title: "Pull Day", focus: "Back & Biceps", exercises: [{ name: "Lat Pulldown", target_muscle: "Back", sets: 4, reps: "8-12", weight: 50, unit: "kg", rest_seconds: 90 }, { name: "Seated Cable Row", target_muscle: "Back", sets: 3, reps: "10-12", weight: 45, unit: "kg", rest_seconds: 75 }] },
-        Wednesday: { title: "Leg Day", focus: "Quads & Hamstrings", exercises: [{ name: "Barbell Squat", target_muscle: "Quads", sets: 4, reps: "6-10", weight: 80, unit: "kg", rest_seconds: 120 }, { name: "Romanian Deadlift", target_muscle: "Hamstrings", sets: 3, reps: "8-12", weight: 60, unit: "kg", rest_seconds: 90 }] },
-        Friday: { title: "Push Day", focus: "Chest & Shoulders", exercises: [{ name: "Incline Dumbbell Press", target_muscle: "Upper Chest", sets: 3, reps: "10-12", weight: 24, unit: "kg", rest_seconds: 75 }] },
-        Saturday: { title: "Pull Day", focus: "Back & Biceps", exercises: [{ name: "Dumbbell Row", target_muscle: "Back", sets: 3, reps: "8-12", weight: 24, unit: "kg", rest_seconds: 75 }] },
+        Monday: {
+            title: "Push Day",
+            focus: "Chest & Triceps",
+            exercises: [
+                {
+                    name: "Barbell Bench Press",
+                    target_muscle: "Chest",
+                    sets: 4,
+                    reps: "8-10",
+                    weight: 70,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+                {
+                    name: "Overhead Press",
+                    target_muscle: "Shoulders",
+                    sets: 3,
+                    reps: "8-10",
+                    weight: 40,
+                    unit: "kg",
+                    rest_seconds: 75,
+                },
+            ],
+        },
+        Tuesday: {
+            title: "Pull Day",
+            focus: "Back & Biceps",
+            exercises: [
+                {
+                    name: "Lat Pulldown",
+                    target_muscle: "Back",
+                    sets: 4,
+                    reps: "8-12",
+                    weight: 50,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+                {
+                    name: "Seated Cable Row",
+                    target_muscle: "Back",
+                    sets: 3,
+                    reps: "10-12",
+                    weight: 45,
+                    unit: "kg",
+                    rest_seconds: 75,
+                },
+            ],
+        },
+        Wednesday: {
+            title: "Leg Day",
+            focus: "Quads & Hamstrings",
+            exercises: [
+                {
+                    name: "Barbell Squat",
+                    target_muscle: "Quads",
+                    sets: 4,
+                    reps: "6-10",
+                    weight: 80,
+                    unit: "kg",
+                    rest_seconds: 120,
+                },
+                {
+                    name: "Romanian Deadlift",
+                    target_muscle: "Hamstrings",
+                    sets: 3,
+                    reps: "8-12",
+                    weight: 60,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+            ],
+        },
+        Friday: {
+            title: "Push Day",
+            focus: "Chest & Shoulders",
+            exercises: [
+                {
+                    name: "Incline Dumbbell Press",
+                    target_muscle: "Upper Chest",
+                    sets: 3,
+                    reps: "10-12",
+                    weight: 24,
+                    unit: "kg",
+                    rest_seconds: 75,
+                },
+            ],
+        },
+        Saturday: {
+            title: "Pull Day",
+            focus: "Back & Biceps",
+            exercises: [
+                {
+                    name: "Dumbbell Row",
+                    target_muscle: "Back",
+                    sets: 3,
+                    reps: "8-12",
+                    weight: 24,
+                    unit: "kg",
+                    rest_seconds: 75,
+                },
+            ],
+        },
     }),
     upperLower: template("Upper / Lower Split", {
-        Monday: { title: "Upper Body", focus: "Chest, Back & Shoulders", exercises: [{ name: "Barbell Bench Press", target_muscle: "Chest", sets: 4, reps: "8-10", weight: 70, unit: "kg", rest_seconds: 90 }, { name: "Lat Pulldown", target_muscle: "Back", sets: 4, reps: "8-12", weight: 50, unit: "kg", rest_seconds: 90 }] },
-        Tuesday: { title: "Lower Body", focus: "Quads, Glutes & Hamstrings", exercises: [{ name: "Barbell Squat", target_muscle: "Quads", sets: 4, reps: "6-10", weight: 80, unit: "kg", rest_seconds: 120 }, { name: "Romanian Deadlift", target_muscle: "Hamstrings", sets: 3, reps: "8-12", weight: 60, unit: "kg", rest_seconds: 90 }] },
-        Thursday: { title: "Upper Body", focus: "Chest, Back & Arms", exercises: [{ name: "Incline Dumbbell Press", target_muscle: "Upper Chest", sets: 3, reps: "10-12", weight: 24, unit: "kg", rest_seconds: 75 }, { name: "Seated Cable Row", target_muscle: "Back", sets: 3, reps: "10-12", weight: 45, unit: "kg", rest_seconds: 75 }] },
-        Friday: { title: "Lower Body", focus: "Glutes & Hamstrings", exercises: [{ name: "Hip Thrust", target_muscle: "Glutes", sets: 4, reps: "8-12", weight: 70, unit: "kg", rest_seconds: 90 }] },
+        Monday: {
+            title: "Upper Body",
+            focus: "Chest, Back & Shoulders",
+            exercises: [
+                {
+                    name: "Barbell Bench Press",
+                    target_muscle: "Chest",
+                    sets: 4,
+                    reps: "8-10",
+                    weight: 70,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+                {
+                    name: "Lat Pulldown",
+                    target_muscle: "Back",
+                    sets: 4,
+                    reps: "8-12",
+                    weight: 50,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+            ],
+        },
+        Tuesday: {
+            title: "Lower Body",
+            focus: "Quads, Glutes & Hamstrings",
+            exercises: [
+                {
+                    name: "Barbell Squat",
+                    target_muscle: "Quads",
+                    sets: 4,
+                    reps: "6-10",
+                    weight: 80,
+                    unit: "kg",
+                    rest_seconds: 120,
+                },
+                {
+                    name: "Romanian Deadlift",
+                    target_muscle: "Hamstrings",
+                    sets: 3,
+                    reps: "8-12",
+                    weight: 60,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+            ],
+        },
+        Thursday: {
+            title: "Upper Body",
+            focus: "Chest, Back & Arms",
+            exercises: [
+                {
+                    name: "Incline Dumbbell Press",
+                    target_muscle: "Upper Chest",
+                    sets: 3,
+                    reps: "10-12",
+                    weight: 24,
+                    unit: "kg",
+                    rest_seconds: 75,
+                },
+                {
+                    name: "Seated Cable Row",
+                    target_muscle: "Back",
+                    sets: 3,
+                    reps: "10-12",
+                    weight: 45,
+                    unit: "kg",
+                    rest_seconds: 75,
+                },
+            ],
+        },
+        Friday: {
+            title: "Lower Body",
+            focus: "Glutes & Hamstrings",
+            exercises: [
+                {
+                    name: "Hip Thrust",
+                    target_muscle: "Glutes",
+                    sets: 4,
+                    reps: "8-12",
+                    weight: 70,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+            ],
+        },
     }),
     bro: template("Bro Split (Single Muscle Group)", {
-        Monday: { title: "Chest", focus: "Chest", exercises: [{ name: "Barbell Bench Press", target_muscle: "Chest", sets: 4, reps: "8-10", weight: 70, unit: "kg", rest_seconds: 90 }] },
-        Tuesday: { title: "Back", focus: "Back", exercises: [{ name: "Lat Pulldown", target_muscle: "Back", sets: 4, reps: "8-12", weight: 50, unit: "kg", rest_seconds: 90 }] },
-        Wednesday: { title: "Shoulders", focus: "Shoulders", exercises: [{ name: "Overhead Press", target_muscle: "Shoulders", sets: 4, reps: "8-10", weight: 40, unit: "kg", rest_seconds: 90 }] },
-        Thursday: { title: "Arms", focus: "Biceps & Triceps", exercises: [{ name: "Cable Curl", target_muscle: "Biceps", sets: 3, reps: "10-12", weight: 20, unit: "kg", rest_seconds: 60 }] },
-        Friday: { title: "Legs", focus: "Quads, Glutes & Hamstrings", exercises: [{ name: "Barbell Squat", target_muscle: "Quads", sets: 4, reps: "6-10", weight: 80, unit: "kg", rest_seconds: 120 }] },
+        Monday: {
+            title: "Chest",
+            focus: "Chest",
+            exercises: [
+                {
+                    name: "Barbell Bench Press",
+                    target_muscle: "Chest",
+                    sets: 4,
+                    reps: "8-10",
+                    weight: 70,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+            ],
+        },
+        Tuesday: {
+            title: "Back",
+            focus: "Back",
+            exercises: [
+                {
+                    name: "Lat Pulldown",
+                    target_muscle: "Back",
+                    sets: 4,
+                    reps: "8-12",
+                    weight: 50,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+            ],
+        },
+        Wednesday: {
+            title: "Shoulders",
+            focus: "Shoulders",
+            exercises: [
+                {
+                    name: "Overhead Press",
+                    target_muscle: "Shoulders",
+                    sets: 4,
+                    reps: "8-10",
+                    weight: 40,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+            ],
+        },
+        Thursday: {
+            title: "Arms",
+            focus: "Biceps & Triceps",
+            exercises: [
+                {
+                    name: "Cable Curl",
+                    target_muscle: "Biceps",
+                    sets: 3,
+                    reps: "10-12",
+                    weight: 20,
+                    unit: "kg",
+                    rest_seconds: 60,
+                },
+            ],
+        },
+        Friday: {
+            title: "Legs",
+            focus: "Quads, Glutes & Hamstrings",
+            exercises: [
+                {
+                    name: "Barbell Squat",
+                    target_muscle: "Quads",
+                    sets: 4,
+                    reps: "6-10",
+                    weight: 80,
+                    unit: "kg",
+                    rest_seconds: 120,
+                },
+            ],
+        },
     }),
     fullBody: template("Full Body (3x a week)", {
-        Monday: { title: "Full Body A", focus: "Full Body", exercises: [{ name: "Barbell Squat", target_muscle: "Quads", sets: 3, reps: "8-10", weight: 60, unit: "kg", rest_seconds: 90 }, { name: "Barbell Bench Press", target_muscle: "Chest", sets: 3, reps: "8-10", weight: 60, unit: "kg", rest_seconds: 90 }] },
-        Wednesday: { title: "Full Body B", focus: "Full Body", exercises: [{ name: "Romanian Deadlift", target_muscle: "Hamstrings", sets: 3, reps: "8-12", weight: 50, unit: "kg", rest_seconds: 90 }, { name: "Overhead Press", target_muscle: "Shoulders", sets: 3, reps: "8-10", weight: 30, unit: "kg", rest_seconds: 75 }] },
-        Friday: { title: "Full Body C", focus: "Full Body", exercises: [{ name: "Lat Pulldown", target_muscle: "Back", sets: 3, reps: "8-12", weight: 45, unit: "kg", rest_seconds: 75 }, { name: "Goblet Squat", target_muscle: "Quads", sets: 3, reps: "10-12", weight: 24, unit: "kg", rest_seconds: 75 }] },
+        Monday: {
+            title: "Full Body A",
+            focus: "Full Body",
+            exercises: [
+                {
+                    name: "Barbell Squat",
+                    target_muscle: "Quads",
+                    sets: 3,
+                    reps: "8-10",
+                    weight: 60,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+                {
+                    name: "Barbell Bench Press",
+                    target_muscle: "Chest",
+                    sets: 3,
+                    reps: "8-10",
+                    weight: 60,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+            ],
+        },
+        Wednesday: {
+            title: "Full Body B",
+            focus: "Full Body",
+            exercises: [
+                {
+                    name: "Romanian Deadlift",
+                    target_muscle: "Hamstrings",
+                    sets: 3,
+                    reps: "8-12",
+                    weight: 50,
+                    unit: "kg",
+                    rest_seconds: 90,
+                },
+                {
+                    name: "Overhead Press",
+                    target_muscle: "Shoulders",
+                    sets: 3,
+                    reps: "8-10",
+                    weight: 30,
+                    unit: "kg",
+                    rest_seconds: 75,
+                },
+            ],
+        },
+        Friday: {
+            title: "Full Body C",
+            focus: "Full Body",
+            exercises: [
+                {
+                    name: "Lat Pulldown",
+                    target_muscle: "Back",
+                    sets: 3,
+                    reps: "8-12",
+                    weight: 45,
+                    unit: "kg",
+                    rest_seconds: 75,
+                },
+                {
+                    name: "Goblet Squat",
+                    target_muscle: "Quads",
+                    sets: 3,
+                    reps: "10-12",
+                    weight: 24,
+                    unit: "kg",
+                    rest_seconds: 75,
+                },
+            ],
+        },
     }),
 };
 
-const templateKeyForTitle = (title) => Object.keys(TEMPLATES).find((key) => TEMPLATES[key].title === title) || "custom";
+const templateKeyForTitle = (title) =>
+    Object.keys(TEMPLATES).find((key) => TEMPLATES[key].title === title) ||
+    "custom";
 
-const emptyDays = () => DAYS.map((day, dayOfWeek) => ({
-    day_of_week: dayOfWeek,
-    title: "Rest",
-    focus: "Recovery",
-    is_rest: true,
-    exercises: [],
-}));
+const emptyDays = () =>
+    DAYS.map((day, dayOfWeek) => ({
+        day_of_week: dayOfWeek,
+        title: "Rest",
+        focus: "Recovery",
+        is_rest: true,
+        exercises: [],
+    }));
 
 export default function MemberWorkoutPlans() {
+    const toast = useToast();
     const today = DAYS[new Date().getDay()];
     const [activeDay, setActiveDay] = useState(today);
     const [showSplitModal, setShowSplitModal] = useState(false);
@@ -60,25 +398,47 @@ export default function MemberWorkoutPlans() {
     const [plan, setPlan] = useState(null);
     const [splitDraft, setSplitDraft] = useState(emptyDays);
     const [templateKey, setTemplateKey] = useState("custom");
-    const [exerciseForm, setExerciseForm] = useState({ name: "", target_muscle: "", sets: "", reps: "", weight: "", unit: "kg", rest_seconds: "" });
+    const [exerciseForm, setExerciseForm] = useState({
+        name: "",
+        target_muscle: "",
+        sets: "",
+        reps: "",
+        weight: "",
+        unit: "kg",
+        rest_seconds: "",
+    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
-    const [savedMessage, setSavedMessage] = useState("");
-
     useEffect(() => {
         api("/member/workout-plan")
             .then(({ plan: loadedPlan }) => {
                 setPlan(loadedPlan);
-                if (loadedPlan?.title) setTemplateKey(templateKeyForTitle(loadedPlan.title));
-                if (loadedPlan?.days?.length) setSplitDraft(DAYS.map((_, dayOfWeek) => loadedPlan.days.find((day) => day.day_of_week === dayOfWeek) || emptyDays()[dayOfWeek]));
+                if (loadedPlan?.title)
+                    setTemplateKey(templateKeyForTitle(loadedPlan.title));
+                if (loadedPlan?.days?.length)
+                    setSplitDraft(
+                        DAYS.map(
+                            (_, dayOfWeek) =>
+                                loadedPlan.days.find(
+                                    (day) => day.day_of_week === dayOfWeek,
+                                ) || emptyDays()[dayOfWeek],
+                        ),
+                    );
             })
             .catch((err) => setError(err.message))
             .finally(() => setLoading(false));
     }, []);
 
-    const activePlanDays = plan?.days?.length ? DAYS.map((_, dayOfWeek) => plan.days.find((day) => day.day_of_week === dayOfWeek) || emptyDays()[dayOfWeek]) : emptyDays();
-    const selectedDay = activePlanDays[DAYS.indexOf(activeDay)] || emptyDays()[0];
+    const activePlanDays = plan?.days?.length
+        ? DAYS.map(
+              (_, dayOfWeek) =>
+                  plan.days.find((day) => day.day_of_week === dayOfWeek) ||
+                  emptyDays()[dayOfWeek],
+          )
+        : emptyDays();
+    const selectedDay =
+        activePlanDays[DAYS.indexOf(activeDay)] || emptyDays()[0];
     const allExercises = activePlanDays.flatMap((day) => day.exercises || []);
     const muscleSets = allExercises.reduce((result, exercise) => {
         const muscle = exercise.target_muscle || "Unspecified";
@@ -86,7 +446,14 @@ export default function MemberWorkoutPlans() {
         return result;
     }, {});
     const maxSets = Math.max(...Object.values(muscleSets), 1);
-    const focusTags = [...new Set(activePlanDays.filter((day) => !day.is_rest).map((day) => day.focus).filter(Boolean))].slice(0, 5);
+    const focusTags = [
+        ...new Set(
+            activePlanDays
+                .filter((day) => !day.is_rest)
+                .map((day) => day.focus)
+                .filter(Boolean),
+        ),
+    ].slice(0, 5);
 
     const handleSplitUpdate = (event) => {
         event.preventDefault();
@@ -95,7 +462,6 @@ export default function MemberWorkoutPlans() {
             title: TEMPLATES[templateKey].title,
             days: splitDraft,
         }));
-        setSavedMessage("");
         setShowSplitModal(false);
     };
 
@@ -113,19 +479,40 @@ export default function MemberWorkoutPlans() {
         setPlan((current) => ({
             ...(current || {}),
             title: current?.title || "Custom Program",
-            days: activePlanDays.map((day) => day.day_of_week === DAYS.indexOf(activeDay)
-                ? { ...day, is_rest: false, title: day.title === "Rest" ? "Workout" : day.title, exercises: [...(day.exercises || []), newExercise] }
-                : day),
+            days: activePlanDays.map((day) =>
+                day.day_of_week === DAYS.indexOf(activeDay)
+                    ? {
+                          ...day,
+                          is_rest: false,
+                          title: day.title === "Rest" ? "Workout" : day.title,
+                          exercises: [...(day.exercises || []), newExercise],
+                      }
+                    : day,
+            ),
         }));
-        setExerciseForm({ name: "", target_muscle: "", sets: "", reps: "", weight: "", unit: "kg", rest_seconds: "" });
-        setSavedMessage("");
+        setExerciseForm({
+            name: "",
+            target_muscle: "",
+            sets: "",
+            reps: "",
+            weight: "",
+            unit: "kg",
+            rest_seconds: "",
+        });
         setShowExerciseModal(false);
     };
 
     const handleDeleteExercise = (id) => {
         try {
-            setPlan((current) => ({ ...current, days: current.days.map((day) => ({ ...day, exercises: (day.exercises || []).filter((exercise) => exercise.id !== id) })) }));
-            setSavedMessage("");
+            setPlan((current) => ({
+                ...current,
+                days: current.days.map((day) => ({
+                    ...day,
+                    exercises: (day.exercises || []).filter(
+                        (exercise) => exercise.id !== id,
+                    ),
+                })),
+            }));
         } catch (err) {
             setError(err.message);
         }
@@ -134,7 +521,6 @@ export default function MemberWorkoutPlans() {
     const handleSavePlan = async () => {
         setSaving(true);
         setError("");
-        setSavedMessage("");
         try {
             const result = await api("/member/workout-plan", {
                 method: "PUT",
@@ -144,7 +530,7 @@ export default function MemberWorkoutPlans() {
                 },
             });
             setPlan(result.plan);
-            setSavedMessage("Workout plan saved.");
+            toast.success("Workout plan saved.");
         } catch (err) {
             setError(err.message);
         } finally {
@@ -153,26 +539,24 @@ export default function MemberWorkoutPlans() {
     };
 
     const handleUnitChange = (id, newUnit) => {
-        setPlan((current) => ({ ...current, days: current.days.map((day) => ({ ...day, exercises: (day.exercises || []).map((exercise) => exercise.id === id ? { ...exercise, unit: newUnit } : exercise) })) }));
+        setPlan((current) => ({
+            ...current,
+            days: current.days.map((day) => ({
+                ...day,
+                exercises: (day.exercises || []).map((exercise) =>
+                    exercise.id === id
+                        ? { ...exercise, unit: newUnit }
+                        : exercise,
+                ),
+            })),
+        }));
     };
 
     return (
         <MemberLayout>
             {error && <InlineError error={error} />}
-            {savedMessage && <div className="alert alert-success py-2 mb-3">{savedMessage}</div>}
-            {loading && <div className="text-secondary mb-3">Loading workout plan...</div>}
-            <div
-                className="d-flex align-items-center gap-2 mb-3 text-secondary"
-                style={{ fontSize: "0.8rem" }}
-                data-aos="fade-down"
-            >
-                <span>Dashboard</span>
-                <i
-                    className="fa-solid fa-chevron-right"
-                    style={{ fontSize: "0.6rem" }}
-                ></i>
-                <span className="text-white fw-bold">Workout Plans</span>
-            </div>
+            {loading ? <SkeletonMemberWorkoutPlan /> : (
+            <>
 
             <div
                 className="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3"
@@ -196,14 +580,24 @@ export default function MemberWorkoutPlans() {
                         className={styles.btnSecondary}
                         onClick={() => {
                             setTemplateKey(templateKeyForTitle(plan?.title));
-                            setSplitDraft(activePlanDays.map((day) => ({ ...day, exercises: [...(day.exercises || [])] })));
+                            setSplitDraft(
+                                activePlanDays.map((day) => ({
+                                    ...day,
+                                    exercises: [...(day.exercises || [])],
+                                })),
+                            );
                             setShowSplitModal(true);
                         }}
                     >
                         <i className="fa-solid fa-sliders"></i> Configure Split
                     </button>
-                    <button className={styles.btnPrimary} onClick={handleSavePlan} disabled={saving}>
-                        <i className="fa-solid fa-check"></i> {saving ? "Saving..." : "Save Plan"}
+                    <button
+                        className={styles.btnPrimary}
+                        onClick={handleSavePlan}
+                        disabled={saving}
+                    >
+                        <i className="fa-solid fa-check"></i>{" "}
+                        {saving ? "Saving..." : "Save Plan"}
                     </button>
                 </div>
             </div>
@@ -219,39 +613,41 @@ export default function MemberWorkoutPlans() {
                     </span>
                 </div>
                 <div className={styles.matrixGrid}>
-                    {DAYS.slice(1).concat(DAYS[0]).map((day) => {
-                        const dayPlan = activePlanDays[DAYS.indexOf(day)];
-                        return (
-                        <div
-                            key={day}
-                            className={`${styles.matrixCard} ${activeDay === day ? styles.matrixActive : ""} ${dayPlan.is_rest ? styles.matrixRest : ""} p-3`}
-                            onClick={() => setActiveDay(day)}
-                        >
-                            <span className={styles.matrixDay}>
-                                {day.toUpperCase()}
-                            </span>
-                            <h5 className={styles.matrixTitle}>
-                                {dayPlan.title}
-                            </h5>
-                            <p className={styles.matrixSubtitle}>
-                                {dayPlan.focus || "No muscle focus set"}
-                            </p>
-                            <div
-                                className="d-flex justify-content-between align-items-center pt-2 mt-auto border-top border-secondary text-secondary"
-                                style={{ fontSize: "0.75rem" }}
-                            >
-                                <span>
-                                    {dayPlan.is_rest
-                                        ? "Rest day"
-                                        : `${dayPlan.exercises?.length || 0} Exercises`}
-                                </span>
-                                <i
-                                    className={`fa-solid ${dayPlan.is_rest ? "fa-bed" : "fa-arrow-right"}`}
-                                ></i>
-                            </div>
-                        </div>
-                        );
-                    })}
+                    {DAYS.slice(1)
+                        .concat(DAYS[0])
+                        .map((day) => {
+                            const dayPlan = activePlanDays[DAYS.indexOf(day)];
+                            return (
+                                <div
+                                    key={day}
+                                    className={`${styles.matrixCard} ${activeDay === day ? styles.matrixActive : ""} ${dayPlan.is_rest ? styles.matrixRest : ""} p-3`}
+                                    onClick={() => setActiveDay(day)}
+                                >
+                                    <span className={styles.matrixDay}>
+                                        {day.toUpperCase()}
+                                    </span>
+                                    <h5 className={styles.matrixTitle}>
+                                        {dayPlan.title}
+                                    </h5>
+                                    <p className={styles.matrixSubtitle}>
+                                        {dayPlan.focus || "No muscle focus set"}
+                                    </p>
+                                    <div
+                                        className="d-flex justify-content-between align-items-center pt-2 mt-auto border-top border-secondary text-secondary"
+                                        style={{ fontSize: "0.75rem" }}
+                                    >
+                                        <span>
+                                            {dayPlan.is_rest
+                                                ? "Rest day"
+                                                : `${dayPlan.exercises?.length || 0} Exercises`}
+                                        </span>
+                                        <i
+                                            className={`fa-solid ${dayPlan.is_rest ? "fa-bed" : "fa-arrow-right"}`}
+                                        ></i>
+                                    </div>
+                                </div>
+                            );
+                        })}
                 </div>
             </div>
 
@@ -271,7 +667,8 @@ export default function MemberWorkoutPlans() {
                                     {activeDay}: {selectedDay.title}
                                 </h3>
                                 <p className={styles.routineTarget}>
-                                    Target: {selectedDay.focus || "No muscle focus set"}
+                                    Target:{" "}
+                                    {selectedDay.focus || "No muscle focus set"}
                                 </p>
                             </div>
                         </div>
@@ -279,11 +676,41 @@ export default function MemberWorkoutPlans() {
                             <div className="d-flex gap-4">
                                 <div className={styles.statGroup}>
                                     <span>Total Volume</span>
-                                    <h4>{(selectedDay.exercises || []).reduce((total, exercise) => total + (Number(exercise.sets) || 0), 0)} Sets</h4>
+                                    <h4>
+                                        {(selectedDay.exercises || []).reduce(
+                                            (total, exercise) =>
+                                                total +
+                                                (Number(exercise.sets) || 0),
+                                            0,
+                                        )}{" "}
+                                        Sets
+                                    </h4>
                                 </div>
                                 <div className={styles.statGroup}>
                                     <span>Est. Duration</span>
-                                    <h4>{Math.max(1, Math.round((selectedDay.exercises || []).reduce((total, exercise) => total + ((Number(exercise.sets) || 0) * 3 + (Number(exercise.rest_seconds) || 0) / 60), 0)))} Mins</h4>
+                                    <h4>
+                                        {Math.max(
+                                            1,
+                                            Math.round(
+                                                (
+                                                    selectedDay.exercises || []
+                                                ).reduce(
+                                                    (total, exercise) =>
+                                                        total +
+                                                        ((Number(
+                                                            exercise.sets,
+                                                        ) || 0) *
+                                                            3 +
+                                                            (Number(
+                                                                exercise.rest_seconds,
+                                                            ) || 0) /
+                                                                60),
+                                                    0,
+                                                ),
+                                            ),
+                                        )}{" "}
+                                        Mins
+                                    </h4>
                                 </div>
                             </div>
                         )}
@@ -337,11 +764,18 @@ export default function MemberWorkoutPlans() {
                                                         styles.exerciseTarget
                                                     }
                                                 >
-                                                    {ex.target_muscle || "Target muscle not specified"}
+                                                    {ex.target_muscle ||
+                                                        "Target muscle not specified"}
                                                 </p>
                                             </div>
                                         </div>
-                                        <button className={styles.btnIcon} onClick={() => handleDeleteExercise(ex.id)} aria-label={`Remove ${ex.name}`}>
+                                        <button
+                                            className={styles.btnIcon}
+                                            onClick={() =>
+                                                handleDeleteExercise(ex.id)
+                                            }
+                                            aria-label={`Remove ${ex.name}`}
+                                        >
                                             <i className="fa-regular fa-trash-can"></i>
                                         </button>
                                     </div>
@@ -461,7 +895,9 @@ export default function MemberWorkoutPlans() {
                                                 <div className="d-flex align-items-center gap-1">
                                                     <input
                                                         type="number"
-                                                        defaultValue={ex.rest_seconds}
+                                                        defaultValue={
+                                                            ex.rest_seconds
+                                                        }
                                                         className={
                                                             styles.metricInput
                                                         }
@@ -478,7 +914,7 @@ export default function MemberWorkoutPlans() {
                                         </div>
                                     </div>
                                 </div>
-                                ))}
+                            ))}
 
                             <button
                                 className={styles.btnAddExercise}
@@ -510,27 +946,36 @@ export default function MemberWorkoutPlans() {
                             </h4>
                         </div>
                         <div className="d-flex flex-column gap-3">
-                            {Object.entries(muscleSets).map(([muscle, sets], index) => (
-                            <div
-                                key={muscle}
-                                className="d-flex align-items-center gap-3 text-secondary"
-                                style={{ fontSize: "0.8rem" }}
-                            >
-                                <span style={{ width: "120px" }}>
-                                    {muscle}
-                                </span>
-                                <div className={styles.progressBar}>
+                            {Object.entries(muscleSets).map(
+                                ([muscle, sets], index) => (
                                     <div
-                                        style={{
-                                            width: `${Math.round((sets / maxSets) * 100)}%`,
-                                            backgroundColor: index % 2 ? "var(--green-color)" : "var(--primary-color)",
-                                        }}
-                                    ></div>
-                                </div>
-                                <span>{sets} Sets</span>
-                            </div>
-                            ))}
-                            {!Object.keys(muscleSets).length && <span className="text-secondary">No exercises scheduled.</span>}
+                                        key={muscle}
+                                        className="d-flex align-items-center gap-3 text-secondary"
+                                        style={{ fontSize: "0.8rem" }}
+                                    >
+                                        <span style={{ width: "120px" }}>
+                                            {muscle}
+                                        </span>
+                                        <div className={styles.progressBar}>
+                                            <div
+                                                style={{
+                                                    width: `${Math.round((sets / maxSets) * 100)}%`,
+                                                    backgroundColor:
+                                                        index % 2
+                                                            ? "var(--green-color)"
+                                                            : "var(--primary-color)",
+                                                }}
+                                            ></div>
+                                        </div>
+                                        <span>{sets} Sets</span>
+                                    </div>
+                                ),
+                            )}
+                            {!Object.keys(muscleSets).length && (
+                                <span className="text-secondary">
+                                    No exercises scheduled.
+                                </span>
+                            )}
                         </div>
                     </div>
 
@@ -560,9 +1005,20 @@ export default function MemberWorkoutPlans() {
                                 : `${selectedDay.title} targets ${selectedDay.focus || "the muscles listed in each exercise"}.`}
                         </p>
                         <div className="d-flex flex-wrap gap-2">
-                            {focusTags.length ? focusTags.map((focus) => (
-                                <span className={styles.focusTag} key={focus}>{focus}</span>
-                            )) : <span className="text-secondary">No muscle focus set.</span>}
+                            {focusTags.length ? (
+                                focusTags.map((focus) => (
+                                    <span
+                                        className={styles.focusTag}
+                                        key={focus}
+                                    >
+                                        {focus}
+                                    </span>
+                                ))
+                            ) : (
+                                <span className="text-secondary">
+                                    No muscle focus set.
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -593,67 +1049,144 @@ export default function MemberWorkoutPlans() {
                                 <label className={styles.formLabel}>
                                     Routine Template
                                 </label>
-                                <select className={styles.formInput} value={templateKey} onChange={(event) => {
-                                    const nextKey = event.target.value;
-                                    setTemplateKey(nextKey);
-                                    if (nextKey !== "custom") setSplitDraft(TEMPLATES[nextKey].days.map((day) => ({ ...day, exercises: day.exercises.map((exercise) => ({ ...exercise })) })));
-                                }}>
-                                    <option value="custom">Custom Program</option>
-                                    <option value="ppl">Push / Pull / Legs (PPL)</option>
-                                    <option value="upperLower">Upper / Lower Split</option>
-                                    <option value="bro">Bro Split (Single Muscle Group)</option>
-                                    <option value="fullBody">Full Body (3x a week)</option>
+                                <select
+                                    className={styles.formInput}
+                                    value={templateKey}
+                                    onChange={(event) => {
+                                        const nextKey = event.target.value;
+                                        setTemplateKey(nextKey);
+                                        if (nextKey !== "custom")
+                                            setSplitDraft(
+                                                TEMPLATES[nextKey].days.map(
+                                                    (day) => ({
+                                                        ...day,
+                                                        exercises:
+                                                            day.exercises.map(
+                                                                (exercise) => ({
+                                                                    ...exercise,
+                                                                }),
+                                                            ),
+                                                    }),
+                                                ),
+                                            );
+                                    }}
+                                >
+                                    <option value="custom">
+                                        Custom Program
+                                    </option>
+                                    <option value="ppl">
+                                        Push / Pull / Legs (PPL)
+                                    </option>
+                                    <option value="upperLower">
+                                        Upper / Lower Split
+                                    </option>
+                                    <option value="bro">
+                                        Bro Split (Single Muscle Group)
+                                    </option>
+                                    <option value="fullBody">
+                                        Full Body (3x a week)
+                                    </option>
                                 </select>
                             </div>
                             <div className={styles.splitGrid}>
-                                {DAYS.slice(1).concat(DAYS[0]).map((day) => {
-                                    const dayOfWeek = DAYS.indexOf(day);
-                                    const draft = splitDraft[dayOfWeek];
-                                    return (
-                                    <div
-                                        key={day}
-                                        className="d-flex align-items-center gap-3"
-                                    >
-                                        <span
-                                            className="text-secondary fw-bold"
-                                            style={{
-                                                width: "40px",
-                                                fontSize: "0.8rem",
-                                            }}
-                                        >
-                                            {day.substring(0, 3)}
-                                        </span>
-                                        <input
-                                            type="text"
-                                            className={styles.formInput}
-                                            value={draft.title}
-                                            onChange={(event) => setSplitDraft((current) => current.map((item, index) => index === dayOfWeek ? { ...item, title: event.target.value, is_rest: false } : item))}
-                                            placeholder="e.g. Push Day"
-                                        />
-                                        <div
-                                            className="d-flex align-items-center gap-2"
-                                            style={{ width: "70px" }}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                id={`rest-${day}`}
-                                                checked={draft.is_rest}
-                                                onChange={(event) => setSplitDraft((current) => current.map((item, index) => index === dayOfWeek ? { ...item, is_rest: event.target.checked, title: event.target.checked ? "Rest" : item.title === "Rest" ? "Workout" : item.title } : item))}
-                                            />
-                                            <label
-                                                className="text-secondary m-0"
-                                                style={{
-                                                    fontSize: "0.8rem",
-                                                    cursor: "pointer",
-                                                }}
-                                                htmlFor={`rest-${day}`}
+                                {DAYS.slice(1)
+                                    .concat(DAYS[0])
+                                    .map((day) => {
+                                        const dayOfWeek = DAYS.indexOf(day);
+                                        const draft = splitDraft[dayOfWeek];
+                                        return (
+                                            <div
+                                                key={day}
+                                                className="d-flex align-items-center gap-3"
                                             >
-                                                Rest
-                                            </label>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                                                <span
+                                                    className="text-secondary fw-bold"
+                                                    style={{
+                                                        width: "40px",
+                                                        fontSize: "0.8rem",
+                                                    }}
+                                                >
+                                                    {day.substring(0, 3)}
+                                                </span>
+                                                <input
+                                                    type="text"
+                                                    className={styles.formInput}
+                                                    value={draft.title}
+                                                    onChange={(event) =>
+                                                        setSplitDraft(
+                                                            (current) =>
+                                                                current.map(
+                                                                    (
+                                                                        item,
+                                                                        index,
+                                                                    ) =>
+                                                                        index ===
+                                                                        dayOfWeek
+                                                                            ? {
+                                                                                  ...item,
+                                                                                  title: event
+                                                                                      .target
+                                                                                      .value,
+                                                                                  is_rest: false,
+                                                                              }
+                                                                            : item,
+                                                                ),
+                                                        )
+                                                    }
+                                                    placeholder="e.g. Push Day"
+                                                />
+                                                <div
+                                                    className="d-flex align-items-center gap-2"
+                                                    style={{ width: "70px" }}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        id={`rest-${day}`}
+                                                        checked={draft.is_rest}
+                                                        onChange={(event) =>
+                                                            setSplitDraft(
+                                                                (current) =>
+                                                                    current.map(
+                                                                        (
+                                                                            item,
+                                                                            index,
+                                                                        ) =>
+                                                                            index ===
+                                                                            dayOfWeek
+                                                                                ? {
+                                                                                      ...item,
+                                                                                      is_rest:
+                                                                                          event
+                                                                                              .target
+                                                                                              .checked,
+                                                                                      title: event
+                                                                                          .target
+                                                                                          .checked
+                                                                                          ? "Rest"
+                                                                                          : item.title ===
+                                                                                              "Rest"
+                                                                                            ? "Workout"
+                                                                                            : item.title,
+                                                                                  }
+                                                                                : item,
+                                                                    ),
+                                                            )
+                                                        }
+                                                    />
+                                                    <label
+                                                        className="text-secondary m-0"
+                                                        style={{
+                                                            fontSize: "0.8rem",
+                                                            cursor: "pointer",
+                                                        }}
+                                                        htmlFor={`rest-${day}`}
+                                                    >
+                                                        Rest
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                             </div>
                             <div className="d-flex justify-content-end gap-3 mt-4 pt-4 border-top border-secondary">
                                 <button
@@ -706,7 +1239,12 @@ export default function MemberWorkoutPlans() {
                                     placeholder="e.g. Barbell Squat"
                                     required
                                     value={exerciseForm.name}
-                                    onChange={(event) => setExerciseForm((current) => ({ ...current, name: event.target.value }))}
+                                    onChange={(event) =>
+                                        setExerciseForm((current) => ({
+                                            ...current,
+                                            name: event.target.value,
+                                        }))
+                                    }
                                 />
                             </div>
                             <div className="mb-3">
@@ -719,7 +1257,12 @@ export default function MemberWorkoutPlans() {
                                     placeholder="e.g. Primary Quads"
                                     required
                                     value={exerciseForm.target_muscle}
-                                    onChange={(event) => setExerciseForm((current) => ({ ...current, target_muscle: event.target.value }))}
+                                    onChange={(event) =>
+                                        setExerciseForm((current) => ({
+                                            ...current,
+                                            target_muscle: event.target.value,
+                                        }))
+                                    }
                                 />
                             </div>
                             <div className="row g-3 mb-4">
@@ -733,7 +1276,12 @@ export default function MemberWorkoutPlans() {
                                         placeholder="3"
                                         required
                                         value={exerciseForm.sets}
-                                        onChange={(event) => setExerciseForm((current) => ({ ...current, sets: event.target.value }))}
+                                        onChange={(event) =>
+                                            setExerciseForm((current) => ({
+                                                ...current,
+                                                sets: event.target.value,
+                                            }))
+                                        }
                                     />
                                 </div>
                                 <div className="col-6">
@@ -746,7 +1294,12 @@ export default function MemberWorkoutPlans() {
                                         placeholder="8-12"
                                         required
                                         value={exerciseForm.reps}
-                                        onChange={(event) => setExerciseForm((current) => ({ ...current, reps: event.target.value }))}
+                                        onChange={(event) =>
+                                            setExerciseForm((current) => ({
+                                                ...current,
+                                                reps: event.target.value,
+                                            }))
+                                        }
                                     />
                                 </div>
                                 <div className="col-6">
@@ -760,13 +1313,23 @@ export default function MemberWorkoutPlans() {
                                             placeholder="50"
                                             required
                                             value={exerciseForm.weight}
-                                            onChange={(event) => setExerciseForm((current) => ({ ...current, weight: event.target.value }))}
+                                            onChange={(event) =>
+                                                setExerciseForm((current) => ({
+                                                    ...current,
+                                                    weight: event.target.value,
+                                                }))
+                                            }
                                         />
                                         <select
                                             className={styles.formInput}
                                             style={{ width: "80px" }}
                                             value={exerciseForm.unit}
-                                            onChange={(event) => setExerciseForm((current) => ({ ...current, unit: event.target.value }))}
+                                            onChange={(event) =>
+                                                setExerciseForm((current) => ({
+                                                    ...current,
+                                                    unit: event.target.value,
+                                                }))
+                                            }
                                         >
                                             <option value="kg">kg</option>
                                             <option value="lbs">lbs</option>
@@ -783,7 +1346,13 @@ export default function MemberWorkoutPlans() {
                                         placeholder="60"
                                         required
                                         value={exerciseForm.rest_seconds}
-                                        onChange={(event) => setExerciseForm((current) => ({ ...current, rest_seconds: event.target.value }))}
+                                        onChange={(event) =>
+                                            setExerciseForm((current) => ({
+                                                ...current,
+                                                rest_seconds:
+                                                    event.target.value,
+                                            }))
+                                        }
                                     />
                                 </div>
                             </div>
@@ -805,6 +1374,8 @@ export default function MemberWorkoutPlans() {
                         </form>
                     </div>
                 </div>
+            )}
+            </>
             )}
         </MemberLayout>
     );

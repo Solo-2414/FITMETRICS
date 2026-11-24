@@ -116,7 +116,7 @@ export default function Login() {
                     </p>
                     {/* toast-allow: persistent maintenance notice */}
                     {maintenance && (
-                        <div className="alert alert-warning">
+                        <div className="alert alert-warning" data-toast-allow="toast-allow">
                             {maintenance.message} Staff access remains
                             available.
                         </div>

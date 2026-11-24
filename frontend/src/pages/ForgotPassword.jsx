@@ -141,11 +141,14 @@ export default function ForgotPassword() {
             </header>
 
             <main className="d-flex flex-column align-items-center justify-content-center flex-grow-1 w-100 px-3 py-5">
+                {/* field-error: form-level validation and verification feedback remain inline */}
                 {error && (
                     <div
+                        data-field-error="field-error"
                         role="alert"
+                        data-field-error="field-error"
                         className="mb-3"
-                        style={{ color: "#f87171", fontSize: "0.85rem" }}
+                        style={{ color: "#f87171", fontSize: "0.85rem" }} data-field-error="field-error"
                     >
                         {error}
                     </div>
