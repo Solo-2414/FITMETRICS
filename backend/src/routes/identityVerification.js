@@ -142,7 +142,7 @@ router.get('/admin/identity-verifications', async (req, res, next) => {
     if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new IdentityInputError('Page size must be from 1 to 50.');
 
     let query = supabaseAdmin.from('identity_verifications')
-      .select('id, member_id, status, method, score, id_name_match, id_type, id_last4, created_at, reviewed_at, review_reason, verified_at, expires_at, images_deleted_at, profiles(full_name, email)', { count: 'exact' })
+      .select('id, member_id, status, method, score, id_name_match, id_type, id_last4, created_at, reviewed_at, review_reason, verified_at, expires_at, images_deleted_at, profiles!identity_verifications_member_id_fkey(full_name, email)', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
     if (status !== 'all') query = query.eq('status', status);

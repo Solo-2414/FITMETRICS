@@ -1,6 +1,5 @@
-// Guards against PostgREST error PGRST201 ("more than one relationship was found for payments and walk_in_visits").
-// payments <-> walk_in_visits has TWO foreign keys (payments.walk_in_visit_id and walk_in_visits.payment_id), so any embed
-// between these two tables must name the relationship. Run from /backend:  node scripts/check-postgrest-embeds.mjs
+// Guards against PostgREST PGRST201 errors from embeds with multiple foreign-key relationships.
+// Run from /backend: node scripts/check-postgrest-embeds.mjs
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
@@ -20,8 +19,9 @@ for (const file of files) {
     const context = lines.slice(Math.max(0, i - 3), i + 1).join('\n');
     if (/walk_in_visits\(/.test(line) && /from\(['"]payments['"]\)/.test(context)) problems.push([file, i + 1, 'payments -> walk_in_visits(...) needs !payments_walk_in_visit_id_fkey']);
     if (/[^_\w]payments\(/.test(line) && /from\(['"]walk_in_visits['"]\)/.test(context)) problems.push([file, i + 1, 'walk_in_visits -> payments(...) needs !payments_walk_in_visit_id_fkey']);
+    if (/profiles\(/.test(line) && /from\(['"]identity_verifications['"]\)/.test(context)) problems.push([file, i + 1, 'identity_verifications -> profiles(...) needs !identity_verifications_member_id_fkey']);
   });
 }
 for (const [file, line, message] of problems) console.log(`${relative(root, file)}:${line}  ${message}`);
-console.log(problems.length ? `\n${problems.length} ambiguous embed(s).` : 'No ambiguous payments/walk_in_visits embeds.');
+console.log(problems.length ? `\n${problems.length} ambiguous embed(s).` : 'No known ambiguous PostgREST embeds.');
 process.exit(problems.length ? 1 : 0);
