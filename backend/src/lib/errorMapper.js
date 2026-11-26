@@ -18,6 +18,7 @@ export function mapDatabaseError(error) {
       message: knownErrors[code],
       code,
       retryAfter: Number.isSafeInteger(error?.retryAfter) ? error.retryAfter : undefined,
+      remainingQuota: Number.isSafeInteger(error?.remainingQuota) ? error.remainingQuota : undefined,
     };
   }
   const raw = error?.message || "";

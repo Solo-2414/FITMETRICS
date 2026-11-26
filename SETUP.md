@@ -25,13 +25,14 @@ Copy the files over your repo keeping the same paths. Commit first so you can di
 ## Setup steps
 1. **Supabase project** → Project Settings → API: copy the URL, the public anon/publishable key, and the secret `service_role` key.
 2. **Authentication → Providers → Email:** turn **off** "Allow new users to sign up".
-3. **SQL Editor:** paste and run `supabase/schema.sql`, then run the numbered
-   migrations in `supabase/migrations/` order (`001_core.sql` through
-   `008_email_queue_payload.sql`). Run `supabase/seed.sql` only for development
-   or initial gym configuration.
+3. **SQL Editor:** paste and run `supabase/schema.sql`, then run every numbered
+   migration in `supabase/migrations/` order. Run `supabase/seed.sql` only for
+   development or initial gym configuration.
 4. **First admin:** Authentication → Users → Add user (tick *Auto Confirm User*), then run:
    `update public.profiles set role = 'admin' where email = 'your@email.com';`
-5. **Forgot-password OTP:** Authentication → Email Templates → *Reset Password*. Replace the link with the code, e.g. `<p>Your FITMETRICS reset code is <b>{{ .Token }}</b></p>`. (Default code length is 6, matching your 6-box UI. Supabase's built-in mailer is heavily rate-limited, so set up custom SMTP before real use.)
+5. **Forgot-password OTP:** The self-service reset flow sends a six-digit code
+   through the backend email queue. The Supabase Auth *Reset Password* email
+   template is not used by this flow.
 6. **Backend:** `cd backend && cp .env.example .env` (fill it, including
    `SUPABASE_ANON_KEY`), `npm install`, `npm run dev`. The anon key is used by
    the server-side password sign-in endpoint; the service-role key never reaches
@@ -62,9 +63,10 @@ Copy the files over your repo keeping the same paths. Commit first so you can di
 5. Apply `supabase/migrations/011_email_provider_priority.sql` after the existing
    email migrations. Admins can inspect provider usage at
    `GET /api/admin/email-status`.
-6. Do not change Supabase Auth email delivery in this setup. Configure Supabase
-   Auth SMTP separately if desired; the Brevo/Mailjet queue applies only to
-   FITMETRICS transactional and bulk application emails.
+6. Apply `supabase/migrations/040_password_reset_otp.sql` in the Supabase SQL
+   Editor. Password-reset codes are sent through the backend Brevo/Mailjet
+   queue; the Supabase Auth "Reset Password" email template is no longer used
+   by the self-service password-reset flow.
 
 Receipt emails are queued after paid member payments. Walk-in Session Passes
 do not receive a receipt email because they do not create a member account or

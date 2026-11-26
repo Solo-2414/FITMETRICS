@@ -40,3 +40,14 @@ explain these values, but must not invent or recalculate them.
 
 Forecasts in `prediction_snapshots` are estimates produced by explainable
 backend methods. Each record includes a method version and confidence note.
+
+## AI what-if estimates
+
+The admin assistant uses `monthly_revenue` and `active_members` from
+`analytics_kpis`. A price-change input is a PHP amount applied to active
+memberships whose plan duration is 28-31 days, using
+`ai_active_membership_distribution`; it assumes those memberships remain
+active and renew at the changed price. Other what-if inputs are percentage
+changes applied to current-month revenue, with active members shown as context.
+The low/high range is a deterministic 35% spread around the calculated change.
+These outputs are estimates, not forecasts or observed results.

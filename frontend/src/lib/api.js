@@ -8,6 +8,21 @@ export function getFriendlyError(error) {
     if (!status || error?.name === "TypeError" || error?.message === "Failed to fetch") {
         return "Can't reach the server. Check your connection and try again.";
     }
+    if (error?.code === "AI_BUSY") {
+        const retryAfter = Number(error.retryAfter);
+        return Number.isSafeInteger(retryAfter) && retryAfter > 0
+            ? `The AI assistant is busy. Please retry in ${retryAfter} seconds.`
+            : "The AI assistant is busy. Please try again shortly.";
+    }
+    if (error?.code === "AI_RATE_LIMITED") {
+        const retryAfter = Number(error.retryAfter);
+        return Number.isSafeInteger(retryAfter) && retryAfter > 0
+            ? `The AI request limit has been reached. Please retry in ${retryAfter} seconds.`
+            : "The AI request limit has been reached. Please try again later.";
+    }
+    if (error?.code === "AI_DISABLED" || error?.code === "AI_NOT_CONFIGURED") {
+        return error.message || "The AI assistant is not available right now.";
+    }
     if (status === 401) return "Your session expired. Please sign in again.";
     if (status === 403) return "You don't have permission to do that.";
     if (status === 404) return "We couldn't find that record.";
@@ -59,10 +74,25 @@ export async function api(path, { method = "GET", body, signal } = {}) {
         error.payment = json.payment;
         error.expires_at = json.expires_at;
         error.maintenance = json.maintenance === true;
+        const retryAfter = Number(json.retryAfter || res.headers.get("Retry-After"));
+        if (Number.isSafeInteger(retryAfter) && retryAfter > 0) error.retryAfter = retryAfter;
+        if (Number.isSafeInteger(json.remainingQuota)) error.remainingQuota = json.remainingQuota;
         throw error;
     }
     return json;
 }
+
+export const requestPasswordResetOtp = (email) =>
+    api("/auth/password-reset/request", { method: "POST", body: { email } });
+
+export const verifyPasswordResetOtp = (email, code) =>
+    api("/auth/password-reset/verify", { method: "POST", body: { email, code } });
+
+export const confirmPasswordReset = (email, resetToken, newPassword) =>
+    api("/auth/password-reset/confirm", {
+        method: "POST",
+        body: { email, resetToken, newPassword },
+    });
 
 export async function apiText(path) {
     const { data: { session } } = await supabase.auth.getSession();

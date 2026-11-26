@@ -179,10 +179,31 @@ export const renderEmail = (emailType, payload = {}) => {
     };
   }
   if (emailType === 'password_otp') {
+    const otp = escapeHtml(payload.otp);
     return {
       subject: 'Your FITMETRICS password reset code',
       text: `Your FITMETRICS password reset code is ${payload.otp}.`,
-      html: `<p>Your FITMETRICS password reset code is <strong>${escapeHtml(payload.otp)}</strong>.</p>`,
+      html: brandedShell({
+        gymName: escapeHtml(payload.gymName || 'FITMETRICS'),
+        logoUrl: payload.logoUrl || process.env.EMAIL_LOGO_URL,
+        label: 'Password reset',
+        heading: 'Your verification code',
+        content: `<p style="text-align:center;font-size:38px;line-height:1.2;letter-spacing:10px;font-weight:800;color:#f8fafc;">${otp}</p><p>This code expires in 10 minutes.</p><p>If you did not request a password reset, ignore this email.</p>`,
+      }),
+    };
+  }
+  if (emailType === 'password_changed') {
+    const gymName = escapeHtml(payload.gymName || 'FITMETRICS');
+    return {
+      subject: 'Your FITMETRICS password was changed',
+      text: 'Your FITMETRICS password was changed. If you did not make this change, contact the gym immediately.',
+      html: brandedShell({
+        gymName,
+        logoUrl: payload.logoUrl || process.env.EMAIL_LOGO_URL,
+        label: 'Account security',
+        heading: 'Your password was changed',
+        content: '<p>Your FITMETRICS account password was successfully changed.</p><p>If you did not make this change, contact the gym immediately.</p>',
+      }),
     };
   }
   if (emailType === 'checkin_code') {

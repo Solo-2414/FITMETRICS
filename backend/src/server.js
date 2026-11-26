@@ -66,6 +66,7 @@ app.use((err, _req, res, _next) => {
     res.set('Retry-After', String(mapped.retryAfter));
     response.retryAfter = mapped.retryAfter;
   }
+  if (Number.isSafeInteger(mapped.remainingQuota)) response.remainingQuota = mapped.remainingQuota;
   if (process.env.NODE_ENV !== 'production' && err.message) response.debug = err.message;
   res.status(status).json(response);
 });

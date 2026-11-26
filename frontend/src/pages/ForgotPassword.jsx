@@ -1,14 +1,22 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "../App.css";
-import { supabase } from "../lib/supabase";
+import {
+    confirmPasswordReset,
+    requestPasswordResetOtp,
+    verifyPasswordResetOtp,
+} from "../lib/api";
+import { toastError, useToast } from "../components/ui/toast/useToast";
 
 export default function ForgotPassword() {
     const navigate = useNavigate();
+    const toast = useToast();
     const [step, setStep] = useState(1);
     const [email, setEmail] = useState("");
-    const [error, setError] = useState("");
+    const [otpError, setOtpError] = useState("");
+    const [resetToken, setResetToken] = useState("");
     const [busy, setBusy] = useState(false);
+    const busyRef = useRef(false);
 
     const [otp, setOtp] = useState(new Array(6).fill(""));
     const otpRefs = useRef([]);
@@ -18,6 +26,11 @@ export default function ForgotPassword() {
     const [confirmPassword, setConfirmPassword] = useState("");
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+    const showActionError = (err) => {
+        if (err?.name === "TypeError" || err?.message === "Failed to fetch") return;
+        toast.error(toastError(err));
+    };
 
     const hasMinLength = newPassword.length >= 8;
     const hasNumOrSym = /[0-9!@#$%^&*(),.?":{}|<>]/.test(newPassword);
@@ -34,65 +47,148 @@ export default function ForgotPassword() {
 
     const handleEmailSubmit = async (e) => {
         e.preventDefault();
-        setError("");
+        if (busyRef.current) return;
+        busyRef.current = true;
         setBusy(true);
-        // Sends a 6-digit code (see SETUP.md: edit the "Reset Password" email template)
-        const { error: err } = await supabase.auth.resetPasswordForEmail(
-            email.trim().toLowerCase(),
-        );
-        setBusy(false);
-        if (err) return setError(err.message);
-        setOtp(new Array(6).fill(""));
-        setStep(2);
-        setTimeLeft(60);
+        try {
+            const result = await requestPasswordResetOtp(
+                email.trim().toLowerCase(),
+            );
+            setOtp(new Array(6).fill(""));
+            setOtpError("");
+            setResetToken("");
+            setStep(2);
+            setTimeLeft(result.resendAfter);
+            toast.info(result.message);
+        } catch (err) {
+            showActionError(err);
+        } finally {
+            busyRef.current = false;
+            setBusy(false);
+        }
     };
 
     const handleResend = async () => {
-        setError("");
-        const { error: err } = await supabase.auth.resetPasswordForEmail(
-            email.trim().toLowerCase(),
-        );
-        if (err) return setError(err.message);
-        setTimeLeft(60);
+        if (busyRef.current || timeLeft > 0) return;
+        busyRef.current = true;
+        setBusy(true);
+        try {
+            const result = await requestPasswordResetOtp(
+                email.trim().toLowerCase(),
+            );
+            setTimeLeft(result.resendAfter);
+            setOtp(new Array(6).fill(""));
+            setOtpError("");
+            toast.info(result.message);
+        } catch (err) {
+            showActionError(err);
+        } finally {
+            busyRef.current = false;
+            setBusy(false);
+        }
     };
 
-    const handleOtpSubmit = async (e) => {
-        e.preventDefault();
-        setError("");
+    const verifyOtp = async (code) => {
+        if (busyRef.current || code.length !== 6) return;
+        busyRef.current = true;
         setBusy(true);
-        const { error: err } = await supabase.auth.verifyOtp({
-            email: email.trim().toLowerCase(),
-            token: otp.join(""),
-            type: "recovery",
-        });
-        setBusy(false);
-        if (err) return setError("Invalid or expired code. Please try again.");
-        setStep(3);
+        setOtpError("");
+        try {
+            const result = await verifyPasswordResetOtp(
+                email.trim().toLowerCase(),
+                code,
+            );
+            setResetToken(result.resetToken);
+            setStep(3);
+            toast.success("Code verified. You can now create a new password.");
+        } catch (err) {
+            if (err.code === "RESET_CODE_EXPIRED") {
+                setOtpError("This code has expired. Request a new one.");
+            } else if (err.code === "RESET_CODE_INVALID") {
+                setOtpError("That code is incorrect. Check it and try again.");
+            } else if (err.code === "RESET_CODE_LOCKED") {
+                setOtpError("Too many incorrect attempts. Request a new code.");
+            } else {
+                showActionError(err);
+            }
+        } finally {
+            busyRef.current = false;
+            setBusy(false);
+        }
+    };
+
+    const handleOtpSubmit = (e) => {
+        e.preventDefault();
+        void verifyOtp(otp.join(""));
     };
 
     const handlePasswordSubmit = async (e) => {
         e.preventDefault();
-        if (!isPasswordValid) return;
-        setError("");
+        if (!isPasswordValid || busyRef.current) return;
+        busyRef.current = true;
         setBusy(true);
-        const { error: err } = await supabase.auth.updateUser({
-            password: newPassword,
-        });
-        if (err) {
+        try {
+            await confirmPasswordReset(
+                email.trim().toLowerCase(),
+                resetToken,
+                newPassword,
+            );
+            toast.success("Your password was changed. Please sign in.");
+            navigate("/login");
+        } catch (err) {
+            if (err.code === "RESET_CODE_EXPIRED") {
+                setStep(2);
+                setOtpError("This code has expired. Request a new one.");
+            } else if (err.code === "RESET_RESTART_REQUIRED") {
+                setResetToken("");
+                setStep(1);
+                toast.error(err.message);
+            } else if (err.code === "PASSWORD_CHANGED_PARTIALLY") {
+                toast.error(err.message);
+                navigate("/login");
+            } else {
+                showActionError(err);
+            }
+        } finally {
+            busyRef.current = false;
             setBusy(false);
-            return setError(err.message);
         }
-        await supabase.auth.signOut(); // make them log in with the new password
-        setBusy(false);
-        navigate("/login");
     };
 
     const handleOtpChange = (element, index) => {
-        if (isNaN(element.value)) return false;
-        setOtp([...otp.map((d, idx) => (idx === index ? element.value : d))]);
-        if (element.value !== "" && index < 5) {
+        const digits = element.value.replace(/\D/g, "");
+        if (!digits) {
+            const nextOtp = otp.map((digit, idx) => (idx === index ? "" : digit));
+            setOtp(nextOtp);
+            setOtpError("");
+            return;
+        }
+        if (digits.length > 1) {
+            const pastedCode = digits.slice(0, 6);
+            const nextOtp = new Array(6).fill("").map((_, idx) => pastedCode[idx] || "");
+            setOtp(nextOtp);
+            setOtpError("");
+            if (pastedCode.length === 6) void verifyOtp(pastedCode);
+            return;
+        }
+
+        const nextOtp = otp.map((digit, idx) => (idx === index ? digits : digit));
+        setOtp(nextOtp);
+        setOtpError("");
+        if (digits && index < 5) {
             otpRefs.current[index + 1].focus();
         }
+        if (nextOtp.every(Boolean)) void verifyOtp(nextOtp.join(""));
+    };
+
+    const handleOtpPaste = (e) => {
+        const pastedCode = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+        if (pastedCode.length !== 6) return;
+        e.preventDefault();
+        setOtp(pastedCode.split(""));
+        setOtpError("");
+        otpRefs.current[5]?.focus();
+        void verifyOtp(pastedCode);
     };
 
     const handleKeyDown = (e, index) => {
@@ -141,19 +237,6 @@ export default function ForgotPassword() {
             </header>
 
             <main className="d-flex flex-column align-items-center justify-content-center flex-grow-1 w-100 px-3 py-5">
-                {/* field-error: form-level validation and verification feedback remain inline */}
-                {error && (
-                    <div
-                        data-field-error="field-error"
-                        role="alert"
-                        data-field-error="field-error"
-                        className="mb-3"
-                        style={{ color: "#f87171", fontSize: "0.85rem" }} data-field-error="field-error"
-                    >
-                        {error}
-                    </div>
-                )}
-
                 <div
                     className="stepper-container mb-5"
                     data-aos="fade-down"
@@ -235,6 +318,7 @@ export default function ForgotPassword() {
                                         <input
                                             type="email"
                                             className="form-control-custom"
+                                            disabled={busy}
                                             value={email}
                                             onChange={(e) =>
                                                 setEmail(e.target.value)
@@ -293,6 +377,7 @@ export default function ForgotPassword() {
                                                 name="otp"
                                                 maxLength="1"
                                                 className="otp-input"
+                                                disabled={busy}
                                                 value={data}
                                                 onChange={(e) =>
                                                     handleOtpChange(
@@ -300,9 +385,13 @@ export default function ForgotPassword() {
                                                         index,
                                                     )
                                                 }
+                                                onPaste={handleOtpPaste}
                                                 onKeyDown={(e) =>
                                                     handleKeyDown(e, index)
                                                 }
+                                                inputMode="numeric"
+                                                autoComplete="one-time-code"
+                                                aria-label={`OTP digit ${index + 1}`}
                                                 ref={(ref) =>
                                                     (otpRefs.current[index] =
                                                         ref)
@@ -310,6 +399,19 @@ export default function ForgotPassword() {
                                             />
                                         ))}
                                     </div>
+                                    {otpError && (
+                                        <p
+                                            data-field-error="OTP verification feedback; keep this message beside the OTP inputs"
+                                            role="alert"
+                                            className="mb-0 mt-2"
+                                            style={{
+                                                color: "#f87171",
+                                                fontSize: "0.85rem",
+                                            }}
+                                        >
+                                            {otpError}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="d-flex justify-content-between align-items-center mb-4 text-sm">
@@ -318,15 +420,14 @@ export default function ForgotPassword() {
                                         style={{ fontSize: "0.8rem" }}
                                     >
                                         <i className="fa-regular fa-clock me-1"></i>{" "}
-                                        Resend OTP in 00:
-                                        {timeLeft < 10
-                                            ? `0${timeLeft}`
-                                            : timeLeft}
+                                        {timeLeft > 0
+                                            ? `Resend OTP in 00:${timeLeft < 10 ? `0${timeLeft}` : timeLeft}`
+                                            : "You can request a new code now."}
                                     </span>
                                     <button
                                         type="button"
                                         className="btn-resend border-0 bg-transparent"
-                                        disabled={timeLeft > 0}
+                                        disabled={busy || timeLeft > 0}
                                         onClick={handleResend}
                                     >
                                         <i className="fa-solid fa-arrow-rotate-right me-1"></i>{" "}
@@ -349,7 +450,11 @@ export default function ForgotPassword() {
                                 >
                                     <button
                                         type="button"
-                                        onClick={() => setStep(1)}
+                                        disabled={busy}
+                                        onClick={() => {
+                                            setOtpError("");
+                                            setStep(1);
+                                        }}
                                         className="btn-text border-0 bg-transparent p-0 text-secondary hover-primary"
                                     >
                                         <i className="fa-solid fa-pen me-1"></i>{" "}
@@ -398,6 +503,7 @@ export default function ForgotPassword() {
                                             }
                                             className="form-control-custom"
                                             placeholder="Enter new strong password"
+                                            disabled={busy}
                                             value={newPassword}
                                             onChange={(e) =>
                                                 setNewPassword(e.target.value)
@@ -407,6 +513,7 @@ export default function ForgotPassword() {
                                         <button
                                             type="button"
                                             className="btn-eye icon-right"
+                                            disabled={busy}
                                             onClick={() =>
                                                 setShowNewPassword(
                                                     !showNewPassword,
@@ -440,6 +547,7 @@ export default function ForgotPassword() {
                                             }
                                             className="form-control-custom"
                                             placeholder="Confirm your new password"
+                                            disabled={busy}
                                             value={confirmPassword}
                                             onChange={(e) =>
                                                 setConfirmPassword(
@@ -451,6 +559,7 @@ export default function ForgotPassword() {
                                         <button
                                             type="button"
                                             className="btn-eye icon-right"
+                                            disabled={busy}
                                             onClick={() =>
                                                 setShowConfirmPassword(
                                                     !showConfirmPassword,
@@ -505,9 +614,9 @@ export default function ForgotPassword() {
                                 <button
                                     type="submit"
                                     className="btn-primary-action w-100 mb-3"
-                                    disabled={!isPasswordValid}
+                                    disabled={!isPasswordValid || busy}
                                 >
-                                    Change Password & Log In{" "}
+                                    {busy ? "Changing Password..." : "Change Password & Log In"}{" "}
                                     <i className="fa-solid fa-arrow-right ms-2"></i>
                                 </button>
 

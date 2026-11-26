@@ -8,9 +8,14 @@ export const AI_BUSY = (retryAfter = 60) => Object.assign(
   { code: 'AI_BUSY', statusCode: 503, retryAfter: Math.max(1, Math.ceil(retryAfter)) },
 );
 
-export const AI_RATE_LIMITED = (retryAfter = 60) => Object.assign(
+export const AI_RATE_LIMITED = (retryAfter = 60, requestCount) => Object.assign(
   new Error('AI assistant quota reached. Please try again later.'),
-  { code: 'AI_RATE_LIMITED', statusCode: 429, retryAfter: Math.max(1, Math.ceil(retryAfter)) },
+  {
+    code: 'AI_RATE_LIMITED',
+    statusCode: 429,
+    retryAfter: Math.max(1, Math.ceil(retryAfter)),
+    remainingQuota: Number.isSafeInteger(requestCount) ? 0 : undefined,
+  },
 );
 
 export const AI_UNAVAILABLE = () => Object.assign(

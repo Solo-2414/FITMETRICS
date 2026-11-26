@@ -1,10 +1,11 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { sendEmail } from './mailer.js';
+import { protectEmailPayload, revealEmailPayload } from '../lib/emailPayload.js';
 import { dayStart, nextDayStart } from '../utils/time.js';
 
 const MAX_ATTEMPTS = Number(process.env.EMAIL_MAX_ATTEMPTS || 5);
 const RETRY_BASE_MINUTES = Number(process.env.EMAIL_RETRY_BASE_MINUTES || 5);
-const TRANSACTIONAL_TYPES = new Set(['password_otp', 'receipt', 'welcome', 'expiry_reminder', 'expiry_notice', 'information_overview']);
+const TRANSACTIONAL_TYPES = new Set(['password_otp', 'password_changed', 'receipt', 'welcome', 'expiry_reminder', 'expiry_notice', 'information_overview']);
 const isTransactional = (emailType) => TRANSACTIONAL_TYPES.has(emailType);
 const tomorrow = () => nextDayStart();
 const limits = () => ({
@@ -28,7 +29,7 @@ export const enqueueEmail = async ({ emailType, recipient, payload, dedupeKey = 
     email_type: emailType,
     recipient,
     status: 'queued',
-    payload: { ...payload, dedupe_key: dedupeKey },
+    payload: protectEmailPayload(emailType, { ...payload, dedupe_key: dedupeKey }),
     priority: priority ?? (isTransactional(emailType) ? 1 : 5),
     next_attempt_at: now,
   }).select().single();
@@ -123,14 +124,17 @@ export const processEmailQueue = async () => {
       const result = await sendEmail({
         recipient: job.email_log.recipient,
         emailType: job.email_log.email_type,
-        payload: job.email_log.payload || {},
+        payload: revealEmailPayload(job.email_log.email_type, job.email_log.payload || {}),
         providers: available.providers,
       });
       await supabaseAdmin.from('email_queue').update({ completed_at: new Date().toISOString(), locked_at: null }).eq('id', job.id);
       await supabaseAdmin.from('email_log').update({ status: 'sent', provider: result.provider, provider_message_id: result.messageId, sent_at: new Date().toISOString(), next_attempt_at: null }).eq('id', job.email_log_id);
     } catch (error) {
-      await markFailure(job, error.message);
-      console.error(`Email delivery failed for ${job.email_log.recipient}: ${error.message}`);
+      const message = job.email_log.email_type === 'password_otp'
+        ? 'Password reset email delivery failed.'
+        : error.message;
+      await markFailure(job, message);
+      console.error(`Email delivery failed for ${job.email_log.recipient}: ${message}`);
     }
   }
 };
