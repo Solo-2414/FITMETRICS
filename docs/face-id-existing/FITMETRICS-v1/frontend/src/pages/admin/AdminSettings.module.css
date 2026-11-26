@@ -1,0 +1,361 @@
+.pageTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.pageDesc {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.btnPrimary {
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.9rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btnPrimary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px var(--glow-primary);
+}
+
+.btnSecondary {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btnSecondary:hover {
+    border-color: var(--header-text-color);
+    color: var(--header-text-color);
+}
+
+.settingsCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.cardHeader {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--card-stroke-color);
+}
+
+.cardBody {
+    padding: 24px;
+}
+
+.iconBoxPrimary,
+.iconBoxSuccess,
+.iconBoxSecondary,
+.iconBoxWarning {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.iconBoxPrimary {
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary-color);
+}
+
+.iconBoxSuccess {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--green-color);
+}
+
+.iconBoxSecondary {
+    background-color: rgba(148, 163, 184, 0.1);
+    color: #94a3b8;
+}
+
+.iconBoxWarning {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+}
+
+.cardTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 2px;
+}
+
+.cardDesc {
+    color: var(--text-color);
+    font-size: 0.75rem;
+    margin: 0;
+}
+
+.formLabel {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-color);
+    margin-bottom: 8px;
+}
+
+.formInput,
+.formSelect,
+.formTextarea {
+    width: 100%;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--header-text-color);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.formInput:focus,
+.formSelect:focus,
+.formTextarea:focus {
+    border-color: var(--primary-color);
+}
+
+.inputGroup {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.inputGroup i {
+    position: absolute;
+    right: 14px;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    pointer-events: none;
+}
+
+.inputGroup .formInput {
+    padding-right: 40px;
+}
+
+.helperText {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-color);
+    margin-top: 6px;
+}
+
+.checkboxGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.checkboxLabel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    padding: 12px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--header-text-color);
+    transition: border-color 0.2s;
+}
+
+.checkboxLabel:hover {
+    border-color: var(--primary-color);
+}
+
+.customCheckbox {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+}
+
+.toggleSwitch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.toggleSwitch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggleSlider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--card-stroke-color);
+    transition: 0.4s;
+    border-radius: 24px;
+}
+
+.toggleSlider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggleSlider {
+    background-color: var(--primary-color);
+}
+
+input:checked + .toggleSlider:before {
+    transform: translateX(20px);
+}
+
+.maintenanceAlert {
+    background-color: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.statusHealthy {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--green-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.dotGreen {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--green-color);
+    box-shadow: 0 0 6px var(--glow-green);
+}
+
+.backupBox {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.storageBox {
+    margin-bottom: 24px;
+}
+
+.storageBarBg {
+    width: 100%;
+    height: 6px;
+    background-color: var(--card-bg-dark);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.storageBarFill {
+    height: 100%;
+    background-color: var(--primary-color);
+    border-radius: 4px;
+}
+
+.btnPrimaryFull {
+    width: 100%;
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    padding: 12px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.btnPrimaryFull:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px var(--glow-primary);
+}
+
+.systemFooterBanner {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+@media (min-width: 768px) {
+    .systemFooterBanner {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+}
+
+.badgeOutline {
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+}
+
+.badgeSuccessOutline {
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: var(--green-color);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}

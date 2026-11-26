@@ -1,0 +1,293 @@
+.welcomeBanner {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.bannerBadge {
+    display: inline-block;
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary-color);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.welcomeTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.welcomeSub {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.noticeBtn {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--header-text-color);
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-family: var(--heading-font);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.noticeBtn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.kpiCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 20px;
+    height: 100%;
+}
+
+.kpiHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+}
+
+.kpiHeader i {
+    color: var(--primary-color);
+    font-size: 1.1rem;
+}
+
+.kpiValue {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+}
+
+.kpiStatusPositive {
+    color: var(--green-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.kpiSubPositive {
+    color: var(--green-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.kpiStatusWarning {
+    color: #f59e0b;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.panelCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.panelHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.panelLabel {
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.panelTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.timeEst {
+    background-color: var(--card-button-bg);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+}
+
+.routineGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.exerciseCard {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.exerciseNum {
+    width: 24px;
+    height: 24px;
+    background-color: var(--card-button-bg);
+    color: var(--primary-color);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+}
+
+.exerciseCard h5 {
+    color: var(--header-text-color);
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+}
+
+.exerciseCard p {
+    color: var(--text-color);
+    font-size: 0.8rem;
+    margin-bottom: 12px;
+}
+
+.targetArea {
+    display: inline-block;
+    color: var(--primary-color);
+    font-size: 0.75rem;
+    background-color: rgba(56, 189, 248, 0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.panelFooter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--card-stroke-color);
+    padding-top: 16px;
+}
+
+.footerNote {
+    color: var(--text-color);
+    font-size: 0.85rem;
+}
+
+.footerLink {
+    background: none;
+    border: none;
+    color: var(--header-text-color);
+    font-size: 0.85rem;
+    font-family: var(--heading-font);
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.footerLink:hover {
+    color: var(--primary-color);
+}
+
+.customTable {
+    color: var(--text-color) !important;
+    margin: 0;
+}
+
+.customTable th {
+    background-color: transparent !important;
+    color: var(--text-color);
+    font-size: 0.75rem;
+    border-bottom: 1px solid var(--card-stroke-color) !important;
+    font-weight: 600;
+    letter-spacing: 1px;
+    padding-bottom: 12px;
+}
+
+.customTable td {
+    background-color: transparent !important;
+    color: var(--header-text-color);
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--card-stroke-color) !important;
+    padding: 16px 8px;
+    vertical-align: middle;
+}
+
+.dateActive {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dot {
+    width: 6px;
+    height: 6px;
+    background-color: var(--green-color);
+    border-radius: 50%;
+}
+
+.methodBadge {
+    background-color: var(--card-button-bg);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+}
+
+.methodBadgeOutline {
+    border: 1px solid var(--card-stroke-color);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+}
+
+.noticeList {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.noticeItem {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.noticeItem h6 {
+    color: var(--header-text-color);
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.noticeItem p {
+    color: var(--text-color);
+    font-size: 0.8rem;
+    margin: 0;
+    line-height: 1.5;
+}

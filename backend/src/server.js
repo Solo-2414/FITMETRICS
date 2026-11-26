@@ -17,6 +17,7 @@ import videoRoutes from './routes/videos.js';
 import { mapDatabaseError } from './lib/errorMapper.js';
 import publicCheckinRoutes from './routes/publicCheckin.js';
 import aiRoutes from './routes/ai.js';
+import identityVerificationRoutes from './routes/identityVerification.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -43,6 +44,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api', publicRoutes);
 app.use('/api', publicCheckinRoutes);
 app.use('/api', aiRoutes);
+app.use('/api', identityVerificationRoutes);
 app.use('/api', videoRoutes);
 app.use('/api', paymongoWebhookRouter);
 app.use('/api', userRoutes);

@@ -121,9 +121,12 @@ router.post('/admin/ai/chat', limiter, async (req, res, next) => {
       conversation = created.data;
     }
 
-    const historyResult = await supabaseAdmin.from('chatbot_messages').select('role, content').eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(MAX_HISTORY);
-    if (historyResult.error) return next(historyResult.error);
-    const history = (historyResult.data || []).reverse();
+    let history = [];
+    if (req.body?.conversationId) {
+      const historyResult = await supabaseAdmin.from('chatbot_messages').select('role, content').eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(MAX_HISTORY);
+      if (historyResult.error) return next(historyResult.error);
+      history = (historyResult.data || []).reverse();
+    }
     const savedUser = await supabaseAdmin.from('chatbot_messages').insert({ conversation_id: conversation.id, role: 'user', content: userText });
     if (savedUser.error) return next(savedUser.error);
 
@@ -143,22 +146,26 @@ router.post('/admin/ai/chat', limiter, async (req, res, next) => {
         toolsUsed: [...new Set(result.toolsUsed)],
         dataAsOf: result.dataAsOf,
         modelUsed: result.modelUsed,
+        figures: result.figures || [],
       },
     });
     if (savedAssistant.error) return next(savedAssistant.error);
-    const updated = await supabaseAdmin.from('chatbot_conversations').update({ updated_at: new Date().toISOString() }).eq('id', conversation.id);
+    const [updated, , auditResult] = await Promise.all([
+      supabaseAdmin.from('chatbot_conversations').update({ updated_at: new Date().toISOString() }).eq('id', conversation.id),
+      tokensUsed > 0
+        ? aiQuota.addTokens({ userId: req.user.id, role: 'admin', usageDay: usage.usageDay, tokens: tokensUsed })
+        : Promise.resolve(),
+      supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'admin_ai_chat_completed', entity_type: 'chatbot_conversation', entity_id: conversation.id, details: { route: '/admin/ai/chat', allowed: true, tool_count: result.toolsUsed.length, tools: [...new Set(result.toolsUsed)], token_count: tokensUsed } }),
+    ]);
     if (updated.error) return next(updated.error);
-    if (tokensUsed > 0) {
-      await aiQuota.addTokens({ userId: req.user.id, role: 'admin', usageDay: usage.usageDay, tokens: tokensUsed });
-    }
-    const { error: auditError } = await supabaseAdmin.from('audit_log').insert({ actor_id: req.user.id, action: 'admin_ai_chat_completed', entity_type: 'chatbot_conversation', entity_id: conversation.id, details: { route: '/admin/ai/chat', allowed: true, tool_count: result.toolsUsed.length, tools: [...new Set(result.toolsUsed)], token_count: tokensUsed } });
-    if (auditError) return next(auditError);
+    if (auditResult.error) return next(auditResult.error);
     res.json({
       conversationId: conversation.id,
       answer: result.answer,
       toolsUsed: [...new Set(result.toolsUsed)],
       dataAsOf: result.dataAsOf,
       modelUsed: result.modelUsed,
+      figures: result.figures || [],
       remainingQuota: Math.max(0, config.adminDailyLimit - usage.requestCount),
       dailyLimit: config.adminDailyLimit,
     });

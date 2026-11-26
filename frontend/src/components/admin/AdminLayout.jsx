@@ -126,6 +126,14 @@ export default function AdminLayout({ children }) {
                         Manage Users
                     </Link>
                     <Link
+                        to="/admin/identity-verification"
+                        onClick={closeSidebar}
+                        className={`${styles.navItem} ${location.pathname === "/admin/identity-verification" ? styles.active : ""}`}
+                    >
+                        <i className="fa-solid fa-id-card-clip"></i>
+                        Identity Verification
+                    </Link>
+                    <Link
                         to="/admin/reports"
                         onClick={closeSidebar}
                         className={`${styles.navItem} ${location.pathname === "/admin/reports" ? styles.active : ""}`}

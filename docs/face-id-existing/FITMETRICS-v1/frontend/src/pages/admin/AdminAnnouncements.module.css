@@ -1,0 +1,549 @@
+.pageTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.pageDesc {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.btnPrimary {
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.9rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btnPrimary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px var(--glow-primary);
+}
+
+.kpiCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.kpiHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-color);
+    font-size: 0.8rem;
+    margin-bottom: 16px;
+}
+
+.iconBoxPrimary {
+    width: 32px;
+    height: 32px;
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.iconBoxSecondary {
+    width: 32px;
+    height: 32px;
+    background-color: rgba(148, 163, 184, 0.1);
+    color: #94a3b8;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.iconBoxSuccess {
+    width: 32px;
+    height: 32px;
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--green-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.kpiValue {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.kpiValueText {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.kpiSub {
+    color: var(--text-color);
+    font-size: 0.75rem;
+}
+
+.kpiPositive {
+    color: var(--green-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.sectionTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.countBadge {
+    background-color: rgba(148, 163, 184, 0.1);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.btnFilterActive {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 4px 16px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.announcementCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    transition:
+        transform 0.2s,
+        border-color 0.2s;
+}
+
+.announcementCard:hover {
+    border-color: rgba(56, 189, 248, 0.3);
+    transform: translateY(-2px);
+}
+
+.announcementCardInactive {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    opacity: 0.8;
+}
+
+.statusPublished {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--green-color);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.statusPinned {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary-color);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.statusCompleted {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background-color: rgba(148, 163, 184, 0.1);
+    color: var(--text-color);
+    border: 1px solid var(--card-stroke-color);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.dotGreen {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--green-color);
+    box-shadow: 0 0 6px var(--glow-green);
+}
+
+.dotGray {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--text-color);
+}
+
+.metaText {
+    color: var(--text-color);
+    font-size: 0.8rem;
+    margin-bottom: 12px;
+}
+
+.cardTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.cardTitleInactive {
+    font-family: var(--heading-font);
+    color: var(--text-color);
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.cardDesc {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.cardDescInactive {
+    color: #64748b;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.cardMetrics {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    color: var(--text-color);
+    font-size: 0.8rem;
+}
+
+.cardMetricsInactive {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.metricSeparator {
+    color: var(--card-stroke-color);
+}
+
+.btnActionSecondary {
+    background-color: rgba(30, 41, 59, 0.8);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--primary-color);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btnActionSecondary:hover {
+    border-color: var(--primary-color);
+}
+
+.btnActionIconOutline {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btnActionIconOutline:hover {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btnActionIcon {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btnActionIcon:hover {
+    color: var(--header-text-color);
+    border-color: var(--text-color);
+}
+
+.btnActionIconDanger {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: #ef4444;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btnActionIconDanger:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.formCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    position: sticky;
+    top: 90px;
+}
+
+.formTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.formDesc {
+    color: var(--text-color);
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+.iconBoxPrimarySmall {
+    width: 36px;
+    height: 36px;
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.formLabel {
+    display: block;
+    color: var(--text-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.formInput,
+.formTextarea,
+.formInputDate {
+    width: 100%;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--header-text-color);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.formInput:focus,
+.formTextarea:focus,
+.formInputDate:focus {
+    border-color: var(--primary-color);
+}
+
+.radioLabelActive {
+    background-color: rgba(30, 41, 59, 0.8);
+    border: 1px solid var(--primary-color);
+    color: var(--header-text-color);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    flex: 1;
+    justify-content: center;
+}
+
+.radioLabel {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    flex: 1;
+    justify-content: center;
+    transition: border-color 0.2s;
+}
+
+.radioLabel:hover {
+    border-color: var(--text-color);
+}
+
+.radioInput {
+    display: none;
+}
+
+.radioCustom {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--primary-color);
+    position: relative;
+}
+
+.radioLabelActive .radioCustom::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px;
+    height: 6px;
+    background-color: var(--primary-color);
+    border-radius: 50%;
+}
+
+.radioLabel .radioCustom {
+    border-color: var(--card-stroke-color);
+}
+
+.helperText {
+    color: var(--card-stroke-color);
+    font-size: 0.7rem;
+}
+
+.helperTextBlock {
+    display: block;
+    color: var(--text-color);
+    font-size: 0.75rem;
+    margin-top: 6px;
+}
+
+.inputGroup {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.infoAlert {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background-color: rgba(56, 189, 248, 0.05);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+.infoAlert i {
+    color: var(--primary-color);
+    margin-top: 2px;
+}
+
+.infoAlert span {
+    color: var(--text-color);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.btnPrimaryFull {
+    width: 100%;
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    padding: 12px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.btnPrimaryFull:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px var(--glow-primary);
+}

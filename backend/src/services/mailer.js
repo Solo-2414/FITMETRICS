@@ -179,16 +179,19 @@ export const renderEmail = (emailType, payload = {}) => {
     };
   }
   if (emailType === 'password_otp') {
+    if (typeof payload.otp !== 'string' || !/^\d{6}$/.test(payload.otp)) {
+      throw new Error('Password reset email requires a six-digit verification code.');
+    }
     const otp = escapeHtml(payload.otp);
     return {
       subject: 'Your FITMETRICS password reset code',
-      text: `Your FITMETRICS password reset code is ${payload.otp}.`,
+      text: `Use this code to reset your FITMETRICS password:\n\n${payload.otp}\n\nThis code expires in 10 minutes. If you did not request a password reset, ignore this email.`,
       html: brandedShell({
         gymName: escapeHtml(payload.gymName || 'FITMETRICS'),
         logoUrl: payload.logoUrl || process.env.EMAIL_LOGO_URL,
         label: 'Password reset',
-        heading: 'Your verification code',
-        content: `<p style="text-align:center;font-size:38px;line-height:1.2;letter-spacing:10px;font-weight:800;color:#f8fafc;">${otp}</p><p>This code expires in 10 minutes.</p><p>If you did not request a password reset, ignore this email.</p>`,
+        heading: 'Reset your password',
+        content: `<p style="margin:0 0 18px;text-align:center;">Use the verification code below to reset your FITMETRICS password.</p><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 auto 20px;background:#10243a;border:1px solid #28506e;border-radius:12px;"><tr><td style="padding:18px 12px;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:36px;line-height:1.2;letter-spacing:8px;font-weight:800;color:#f8fafc;">${otp}</td></tr></table><p style="margin:0 0 12px;text-align:center;color:#94a3b8;font-size:14px;">This code expires in 10 minutes.</p><p style="margin:0;text-align:center;font-size:14px;">If you did not request a password reset, you can safely ignore this email.</p>`,
       }),
     };
   }

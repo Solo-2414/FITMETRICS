@@ -1,0 +1,491 @@
+.pageTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.pageDesc {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.btnPrimary {
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.85rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.btnPrimary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px var(--glow-primary);
+}
+
+.btnSecondary {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btnSecondary:hover {
+    border-color: var(--header-text-color);
+    color: var(--header-text-color);
+}
+
+.kpiCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    height: 100%;
+}
+
+.kpiHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-color);
+    font-size: 0.8rem;
+    margin-bottom: 16px;
+}
+
+.iconBoxPrimary {
+    width: 32px;
+    height: 32px;
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.iconBoxSuccess {
+    width: 32px;
+    height: 32px;
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--green-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.iconBoxSecondary {
+    width: 32px;
+    height: 32px;
+    background-color: rgba(148, 163, 184, 0.1);
+    color: #94a3b8;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.kpiValue {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.kpiSub {
+    color: var(--text-color);
+    font-size: 0.75rem;
+}
+
+.kpiPositive {
+    color: var(--green-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.sectionTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.sectionSubtitle {
+    color: var(--text-color);
+    font-size: 0.8rem;
+}
+
+.planCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.planCardPopular {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--primary-color);
+    border-radius: 12px;
+    padding: 24px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.1);
+}
+
+.popularRibbon {
+    position: absolute;
+    top: 18px;
+    right: -32px;
+    background-color: var(--primary-color);
+    color: #051424;
+    font-family: var(--heading-font);
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 4px 32px;
+    transform: rotate(45deg);
+    box-shadow: 0 0 10px var(--glow-primary);
+}
+
+.planTag {
+    background-color: rgba(148, 163, 184, 0.1);
+    color: #94a3b8;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.planTagPopular {
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary-color);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.planName {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.priceContainer {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.planPrice {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.planPricePopular {
+    font-family: var(--heading-font);
+    color: var(--primary-color);
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin: 0;
+    text-shadow: 0 0 10px var(--glow-primary);
+}
+
+.planDuration {
+    color: var(--text-color);
+    font-size: 0.85rem;
+}
+
+.planDesc {
+    color: var(--text-color);
+    font-size: 0.85rem;
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+.studentRateBox {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: auto;
+}
+
+.studentLabel {
+    color: var(--primary-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.studentPrice {
+    color: var(--header-text-color);
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.studentDesc {
+    color: var(--text-color);
+    font-size: 0.75rem;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.featureBox {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.featureBox i {
+    margin-top: 2px;
+}
+
+.featureTitle {
+    display: block;
+    color: var(--header-text-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.featureDesc {
+    color: var(--text-color);
+    font-size: 0.75rem;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.planFooter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--card-stroke-color);
+    padding-top: 16px;
+    margin-top: 24px;
+}
+
+.footerStat {
+    color: var(--text-color);
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.footerStatPopular {
+    color: var(--header-text-color);
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.footerStatusActive {
+    color: var(--green-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.footerStatusNeutral {
+    color: var(--text-color);
+    font-size: 0.75rem;
+}
+
+.footerStatusPrimary {
+    color: var(--primary-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.policyBanner {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.policyBanner i {
+    color: var(--text-color);
+    font-size: 1.2rem;
+    margin-top: 2px;
+}
+
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(5, 20, 36, 0.85);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modalContent {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    animation: slideUp 0.3s ease-out forwards;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modalHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--card-stroke-color);
+}
+
+.modalHeader h3 {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.2rem;
+    margin: 0;
+}
+
+.modalHeader button {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.modalHeader button:hover {
+    color: var(--header-text-color);
+}
+
+.modalBody {
+    padding: 24px;
+}
+
+.formLabel {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-color);
+    margin-bottom: 6px;
+}
+
+.formInput,
+.formSelect,
+.formTextarea {
+    width: 100%;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--header-text-color);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.formInput:focus,
+.formSelect:focus,
+.formTextarea:focus {
+    border-color: var(--primary-color);
+}
+
+.modalFooter {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--card-stroke-color);
+}
+
+.btnCancel {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btnCancel:hover {
+    color: var(--header-text-color);
+    border-color: var(--text-color);
+}
+
+.btnPrimaryModal {
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.btnPrimaryModal:hover {
+    transform: translateY(-2px);
+}

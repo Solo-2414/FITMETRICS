@@ -1,0 +1,544 @@
+.pageTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.pageDesc {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.emailBadge {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.emailBadge i {
+    color: var(--green-color);
+}
+
+.sectionTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.sectionSubtitle {
+    color: var(--text-color);
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+
+.rateCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.rateCardPopular {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--primary-color);
+    border-radius: 12px;
+    padding: 24px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.1);
+}
+
+.popularRibbon {
+    position: absolute;
+    top: 14px;
+    right: -28px;
+    background-color: var(--primary-color);
+    color: #051424;
+    font-family: var(--heading-font);
+    font-size: 0.6rem;
+    font-weight: 800;
+    padding: 4px 32px;
+    transform: rotate(45deg);
+}
+
+.rateLabel {
+    color: var(--text-color);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.rateLabelPopular {
+    color: var(--primary-color);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.rateDuration {
+    color: var(--text-color);
+    font-size: 0.75rem;
+}
+
+.rateDurationPopular {
+    color: var(--header-text-color);
+    font-size: 0.75rem;
+}
+
+.ratePrice {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 8px 0 4px 0;
+}
+
+.ratePricePopular {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 8px 0 4px 0;
+}
+
+.ratePriceSmall {
+    color: var(--primary-color);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.rateSub {
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.rateSubDark {
+    color: var(--header-text-color);
+    font-size: 0.8rem;
+}
+
+.rateFooter {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    font-size: 0.75rem;
+}
+
+.rateFooterPopular {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid rgba(56, 189, 248, 0.2);
+    color: var(--primary-color);
+    font-size: 0.75rem;
+}
+
+.renewalPanel {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 32px;
+    margin-bottom: 24px;
+}
+
+.iconBoxPrimary {
+    width: 44px;
+    height: 44px;
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary-color);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+.panelTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.panelDesc {
+    color: var(--text-color);
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.badgeOutline {
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+}
+
+.formLabel {
+    display: block;
+    color: var(--text-color);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.formSelect {
+    width: 100%;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--header-text-color);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+    height: 42px;
+}
+
+.formSelect:focus {
+    border-color: var(--primary-color);
+}
+
+.inputGroup {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.inputGroup i {
+    position: absolute;
+    left: 14px;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    pointer-events: none;
+}
+
+.formInputGroup {
+    width: 100%;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--header-text-color);
+    padding: 10px 14px 10px 40px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+    height: 42px;
+}
+
+.formInputGroup:focus {
+    border-color: var(--primary-color);
+}
+
+.btnMethod {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btnMethod:hover {
+    border-color: var(--header-text-color);
+    color: var(--header-text-color);
+}
+
+.btnMethodActive {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background-color: rgba(56, 189, 248, 0.05);
+}
+
+.btnPrimaryFull {
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-family: var(--heading-font);
+    font-size: 0.95rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btnPrimaryFull:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px var(--glow-primary);
+}
+
+.tablePanel {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.filterGroup {
+    display: flex;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.filterBtn,
+.filterBtnActive {
+    background: transparent;
+    border: none;
+    padding: 8px 16px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-color);
+    white-space: nowrap;
+}
+
+.filterBtn:hover {
+    color: var(--header-text-color);
+}
+
+.filterBtnActive {
+    background-color: rgba(30, 41, 59, 0.8);
+    color: var(--header-text-color);
+    font-weight: 600;
+}
+
+.badgeWarningSmall {
+    background-color: #f59e0b;
+    color: #051424;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.textMuted {
+    color: #64748b;
+}
+
+.customTable {
+    color: var(--text-color) !important;
+    margin: 0;
+}
+
+.customTable th {
+    background-color: transparent !important;
+    color: var(--text-color);
+    font-size: 0.7rem;
+    border-bottom: 1px solid var(--card-stroke-color) !important;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding-bottom: 12px;
+    white-space: nowrap;
+}
+
+.customTable td {
+    background-color: transparent !important;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--card-stroke-color) !important;
+    padding: 16px 8px;
+    vertical-align: middle;
+}
+
+.avatarWarning {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.avatarDanger {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.avatarSuccess {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--green-color);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.subText {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.planBadgeOutline {
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.badgeWarningOutline {
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.badgeDangerOutline {
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.badgeSuccessOutline {
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: var(--green-color);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.btnActionPrimary {
+    background-color: var(--primary-color);
+    border: none;
+    color: #051424;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+    white-space: nowrap;
+}
+
+.btnActionPrimary:hover {
+    transform: translateY(-1px);
+}
+
+.btnActionOutline {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btnActionOutline:hover {
+    color: var(--header-text-color);
+    border-color: var(--text-color);
+}
+
+.btnActionDangerOutline {
+    background: transparent;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btnActionDangerOutline:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.pageBtnText,
+.pageBtnTextActive {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pageBtnText:hover:not(:disabled) {
+    border-color: var(--primary-color);
+    color: var(--header-text-color);
+}
+
+.pageBtnText:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pageBtnTextActive {
+    background-color: var(--card-bg-dark);
+    border-color: var(--primary-color);
+    color: var(--header-text-color);
+}

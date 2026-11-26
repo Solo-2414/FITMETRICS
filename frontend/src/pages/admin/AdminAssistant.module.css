@@ -1,42 +1,937 @@
-.pageTitle { font-family: var(--heading-font); color: var(--header-text-color); font-size: 1.8rem; font-weight: 700; margin-bottom: 4px; }
-.pageDesc, .muted { color: var(--text-color); font-size: .9rem; margin: 0; }
-.layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 20px; min-height: 640px; }
-.history, .chatCard { background: var(--secondary-background-color); border: 1px solid var(--card-stroke-color); border-radius: 12px; }
-.history { padding: 16px; }
-.sectionHeader, .chatHeader { display: flex; justify-content: space-between; align-items: center; color: var(--header-text-color); font-weight: 700; }
-.sectionHeader { padding: 4px 4px 14px; font-size: .85rem; }
-.count { color: var(--primary-color); }
-.historyItem { display: flex; flex-direction: column; width: 100%; gap: 5px; background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--header-text-color); padding: 11px; text-align: left; margin-bottom: 6px; cursor: pointer; }
-.historyItem:hover, .selected { background: rgba(56,189,248,.1); border-color: rgba(56,189,248,.25); }
-.historyItem strong { font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.historyItem small, .chatHeader small { color: var(--text-color); font-size: .7rem; }
-.chatCard { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-.chatHeader { padding: 18px 22px; background: var(--card-color); border-bottom: 1px solid var(--card-stroke-color); }
-.chatHeader div { display: flex; flex-direction: column; gap: 4px; }
-.chatHeader > i { color: var(--primary-color); font-size: 1.3rem; }
-.thread { flex: 1; min-height: 480px; max-height: 560px; overflow-y: auto; padding: 24px; background: var(--background-color); }
-.welcome { max-width: 620px; margin: 50px auto; text-align: center; color: var(--text-color); }
-.welcome > i { color: var(--primary-color); font-size: 2rem; }
-.welcome h2 { color: var(--header-text-color); font-size: 1.25rem; margin: 14px 0 8px; }
-.welcome p { font-size: .85rem; line-height: 1.6; }
-.suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 20px; }
-.suggestions button, .secondaryButton, .dangerButton { border: 1px solid var(--card-stroke-color); background: var(--card-bg-dark); color: var(--text-color); border-radius: 8px; padding: 9px 12px; font-size: .78rem; cursor: pointer; }
-.suggestions button:hover, .secondaryButton:hover { border-color: var(--primary-color); color: var(--header-text-color); }
-.messageRow { display: flex; margin-bottom: 18px; }
-.userRow { justify-content: flex-end; }
-.message { max-width: 82%; color: var(--header-text-color); background: rgba(56,189,248,.1); border: 1px solid rgba(56,189,248,.2); border-radius: 10px 10px 10px 2px; padding: 13px 15px; }
-.userRow .message { background: var(--card-bg-dark); border-color: var(--card-stroke-color); border-radius: 10px 10px 2px 10px; }
-.messageContent { white-space: pre-wrap; font-size: .88rem; line-height: 1.6; }
-.messageMeta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border-top: 1px solid rgba(148,163,184,.2); margin-top: 10px; padding-top: 8px; color: var(--text-color); font-size: .68rem; }
-.messageMeta button { border: 0; background: transparent; color: var(--text-color); cursor: pointer; margin-left: auto; }
-.typing { color: var(--text-color); font-size: .75rem; display: flex; gap: 4px; align-items: center; }
-.typing span { width: 6px; height: 6px; background: var(--primary-color); border-radius: 50%; animation: pulse 1s infinite alternate; }
-.typing span:nth-child(2) { animation-delay: .2s; }.typing span:nth-child(3) { animation-delay: .4s; }
-@keyframes pulse { to { opacity: .25; transform: translateY(-2px); } }
-.composer { display: flex; gap: 8px; padding: 14px; background: var(--card-color); border-top: 1px solid var(--card-stroke-color); }
-.composer input { flex: 1; min-width: 0; background: var(--background-color); border: 1px solid var(--card-stroke-color); color: var(--header-text-color); border-radius: 8px; padding: 11px 13px; font-size: .85rem; outline: none; }
-.composer input:focus { border-color: var(--primary-color); }
-.composer button { width: 42px; border: 0; border-radius: 8px; background: var(--primary-color); color: #051424; cursor: pointer; }
-.composer button:disabled { opacity: .45; cursor: not-allowed; }
-.dangerButton { color: #f87171; }.dangerButton:disabled { opacity: .45; cursor: not-allowed; }
-@media (max-width: 700px) { .layout { grid-template-columns: 1fr; min-height: 0; }.history { max-height: 190px; overflow-y: auto; }.thread { min-height: 480px; padding: 16px; }.message { max-width: 94%; }.welcome { margin: 32px auto; } }
+.page {
+    min-width: 0;
+}
+
+.pageHeading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.pageTitle {
+    margin: 0 0 4px;
+    color: var(--header-text-color);
+    font-family: var(--heading-font);
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.pageDesc,
+.muted {
+    margin: 0;
+    color: var(--text-color);
+    font-size: .88rem;
+    line-height: 1.5;
+}
+
+.pageActions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 8px;
+}
+
+.layout {
+    display: grid;
+    grid-template-columns: minmax(230px, 270px) minmax(0, 1fr);
+    gap: 16px;
+    min-height: min(720px, calc(100vh - 220px));
+}
+
+.history,
+.chatCard {
+    min-width: 0;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    background: var(--secondary-background-color);
+}
+
+.history {
+    align-self: start;
+    max-height: min(720px, calc(100vh - 220px));
+    padding: 14px;
+    overflow-y: auto;
+}
+
+.historyHeading,
+.historyToggle {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 4px 13px;
+    border: 0;
+    background: transparent;
+    color: var(--header-text-color);
+    font-size: .84rem;
+    font-weight: 700;
+    text-align: left;
+}
+
+.historyToggle {
+    display: none;
+    cursor: pointer;
+}
+
+.count {
+    margin-left: 5px;
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.historyList {
+    display: grid;
+    gap: 5px;
+}
+
+.historyItem {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    max-height: 72px;
+    gap: 5px;
+    padding: 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--header-text-color);
+    text-align: left;
+    cursor: pointer;
+    transition: opacity 180ms ease, max-height 180ms ease, padding 180ms ease, margin 180ms ease;
+}
+
+.historyItem:hover,
+.historyItem.selected {
+    border-color: var(--card-stroke-color);
+    background: var(--card-bg-dark);
+}
+
+.historyItem strong {
+    overflow: hidden;
+    font-size: .79rem;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.historyItem small {
+    color: var(--text-color);
+    font-size: .7rem;
+}
+
+.historyItem:disabled {
+    cursor: wait;
+}
+
+.historyItem.removing {
+    max-height: 0;
+    margin: 0;
+    padding-block: 0;
+    overflow: hidden;
+    opacity: 0;
+}
+
+.historySkeleton {
+    display: grid;
+    gap: 5px;
+}
+
+.historySkeletonItem {
+    display: grid;
+    min-height: 52px;
+    align-content: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    background: var(--card-bg-dark);
+}
+
+.chatCard {
+    display: flex;
+    min-height: 620px;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chatHeader {
+    display: flex;
+    min-height: 68px;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--card-stroke-color);
+    background: var(--card-color);
+}
+
+.chatHeader > div {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+}
+
+.chatHeader strong {
+    overflow: hidden;
+    color: var(--header-text-color);
+    font-size: .91rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chatHeader small {
+    color: var(--text-color);
+    font-size: .72rem;
+}
+
+.headerLabel {
+    flex-shrink: 0;
+    color: var(--text-color);
+    font-size: .72rem;
+}
+
+.thread {
+    position: relative;
+    display: flex;
+    min-height: 480px;
+    max-height: 640px;
+    flex: 1;
+    flex-direction: column;
+    gap: 16px;
+    padding: 22px clamp(16px, 3vw, 32px);
+    overflow-y: auto;
+    background: var(--background-color);
+}
+
+.threadSkeleton {
+    display: grid;
+    align-content: start;
+    gap: 14px;
+}
+
+.questionSkeleton,
+.answerSkeleton {
+    display: grid;
+    gap: 12px;
+    padding: 12px 0 16px;
+    border-bottom: 1px solid var(--card-stroke-color);
+}
+
+.answerSkeleton {
+    min-height: 150px;
+    align-content: start;
+    padding: 18px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 10px;
+    background: var(--secondary-background-color);
+}
+
+.emptyState {
+    width: min(100%, 760px);
+    margin: auto;
+    padding: 12px 0;
+}
+
+.emptyHeading {
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--card-stroke-color);
+}
+
+.eyebrow {
+    color: var(--primary-color);
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+}
+
+.emptyHeading h2 {
+    margin: 8px 0 6px;
+    color: var(--header-text-color);
+    font-family: var(--heading-font);
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.emptyHeading p {
+    max-width: 680px;
+    margin: 0;
+    color: var(--text-color);
+    font-size: .8rem;
+    line-height: 1.55;
+}
+
+.questionGroups {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    padding-top: 16px;
+}
+
+.questionGroup {
+    display: grid;
+    align-content: start;
+    gap: 7px;
+}
+
+.questionGroup h3 {
+    margin: 0 0 2px;
+    color: var(--text-color);
+    font-size: .72rem;
+    font-weight: 700;
+}
+
+.exampleQuestion {
+    display: flex;
+    min-height: 44px;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 7px;
+    background: var(--secondary-background-color);
+    color: var(--header-text-color);
+    font-size: .74rem;
+    line-height: 1.4;
+    text-align: left;
+    cursor: pointer;
+}
+
+.exampleQuestion i {
+    flex-shrink: 0;
+    color: var(--text-color);
+    font-size: .7rem;
+}
+
+.exampleQuestion:hover {
+    border-color: var(--primary-color);
+}
+
+.questionRow {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px 12px;
+    padding: 0 0 13px;
+    border-bottom: 1px solid var(--card-stroke-color);
+}
+
+.questionLabel {
+    padding-top: 2px;
+    color: var(--text-color);
+    font-size: .67rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.questionRow > p {
+    margin: 0;
+    color: var(--header-text-color);
+    font-size: .83rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.deliveryStatus {
+    grid-column: 2 / -1;
+    color: var(--text-color);
+    font-size: .7rem;
+}
+
+.failedState {
+    grid-column: 2 / -1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-color);
+    font-size: .73rem;
+}
+
+.failedState > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.retryButton,
+.copyButton,
+.modelDetails summary {
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 6px;
+    background: var(--card-bg-dark);
+    color: var(--header-text-color);
+    font: inherit;
+    cursor: pointer;
+}
+
+.retryButton {
+    padding: 4px 9px;
+}
+
+.retryButton:disabled {
+    cursor: not-allowed;
+    opacity: .55;
+}
+
+.answerBlock {
+    display: grid;
+    gap: 13px;
+    padding: 17px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 10px;
+    background: var(--secondary-background-color);
+    color: var(--text-color);
+}
+
+.finding {
+    display: grid;
+    gap: 6px;
+}
+
+.findingLabel {
+    color: var(--primary-color);
+    font-size: .67rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.finding p {
+    margin: 0;
+    color: var(--header-text-color);
+    font-size: .96rem;
+    font-weight: 600;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.supportingText {
+    display: grid;
+    gap: 8px;
+    font-size: .81rem;
+    line-height: 1.6;
+}
+
+.supportingText p {
+    margin: 0;
+}
+
+.answerList,
+.assumptions ul {
+    display: grid;
+    gap: 5px;
+    margin: 0;
+    padding-left: 20px;
+    font-size: .8rem;
+    line-height: 1.55;
+}
+
+.assumptions {
+    display: grid;
+    gap: 7px;
+    padding: 11px 12px;
+    border-left: 2px solid var(--card-stroke-color);
+    background: var(--card-bg-dark);
+    font-size: .77rem;
+}
+
+.assumptions strong {
+    color: var(--header-text-color);
+}
+
+.figureArea {
+    display: grid;
+    gap: 10px;
+}
+
+.metricGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 8px;
+}
+
+.metricTile {
+    display: grid;
+    min-height: 76px;
+    align-content: space-between;
+    gap: 7px;
+    padding: 11px 12px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    background: var(--card-color);
+}
+
+.metricTile span {
+    color: var(--text-color);
+    font-size: .69rem;
+}
+
+.metricTile strong {
+    color: var(--header-text-color);
+    font-family: var(--heading-font);
+    font-size: 1.03rem;
+    overflow-wrap: anywhere;
+}
+
+.figurePanel {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    background: var(--card-color);
+}
+
+.figurePanel h4 {
+    margin: 0;
+    color: var(--header-text-color);
+    font-family: var(--heading-font);
+    font-size: .82rem;
+    font-weight: 600;
+}
+
+.figureHeading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.chartBox {
+    height: 190px;
+    margin-top: 10px;
+}
+
+.estimateLabel {
+    color: var(--primary-color);
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.estimateTable {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.estimateTable th {
+    padding: 7px 8px;
+    border-bottom: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    font-size: .68rem;
+    font-weight: 600;
+}
+
+.estimateTable td {
+    padding: 9px 8px 4px;
+    color: var(--header-text-color);
+    font-size: .78rem;
+    font-weight: 600;
+}
+
+.answerFooter {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px;
+    padding-top: 11px;
+    border-top: 1px solid var(--card-stroke-color);
+}
+
+.basedOn {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 5px 10px;
+    color: var(--text-color);
+    font-size: .67rem;
+    line-height: 1.45;
+}
+
+.basedOn strong {
+    color: var(--header-text-color);
+}
+
+.answerActions {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 7px;
+}
+
+.modelDetails {
+    position: relative;
+    font-size: .68rem;
+}
+
+.modelDetails summary {
+    padding: 5px 8px;
+    color: var(--text-color);
+    list-style: none;
+}
+
+.modelDetails summary::-webkit-details-marker {
+    display: none;
+}
+
+.modelDetails > span {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 6px);
+    z-index: 1;
+    width: max-content;
+    max-width: 220px;
+    padding: 8px 10px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 6px;
+    background: var(--card-bg-dark);
+    color: var(--text-color);
+}
+
+.copyButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    color: var(--text-color);
+    font-size: .68rem;
+}
+
+.copyButton:hover,
+.modelDetails summary:hover,
+.retryButton:hover {
+    border-color: var(--primary-color);
+    color: var(--header-text-color);
+}
+
+.progressBlock {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    background: var(--secondary-background-color);
+}
+
+.progressBlock > div {
+    display: grid;
+    gap: 3px;
+}
+
+.progressBlock strong {
+    color: var(--header-text-color);
+    font-size: .77rem;
+    font-weight: 600;
+}
+
+.progressBlock small {
+    color: var(--text-color);
+    font-size: .68rem;
+}
+
+.progressSpinner,
+.buttonSpinner {
+    flex: 0 0 auto;
+    border: 2px solid var(--card-stroke-color);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: assistant-spinner 800ms linear infinite;
+}
+
+.progressSpinner {
+    width: 17px;
+    height: 17px;
+}
+
+.jumpButton {
+    position: sticky;
+    bottom: 0;
+    align-self: flex-end;
+    padding: 7px 10px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 7px;
+    background: var(--card-color);
+    color: var(--header-text-color);
+    font-size: .72rem;
+    cursor: pointer;
+}
+
+.composer {
+    display: grid;
+    gap: 9px;
+    padding: 12px 18px 14px;
+    border-top: 1px solid var(--card-stroke-color);
+    background: var(--card-color);
+}
+
+.composerRow {
+    display: flex;
+    gap: 8px;
+}
+
+.composer input {
+    width: 100%;
+    min-width: 0;
+    padding: 11px 13px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 7px;
+    outline: none;
+    background: var(--background-color);
+    color: var(--header-text-color);
+    font: inherit;
+    font-size: .83rem;
+}
+
+.composer input::placeholder {
+    color: var(--text-color);
+}
+
+.composer input:focus {
+    border-color: var(--primary-color);
+}
+
+.composer input:disabled {
+    cursor: not-allowed;
+    opacity: .7;
+}
+
+.composerRow > button {
+    display: grid;
+    width: 42px;
+    flex: 0 0 42px;
+    place-items: center;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 7px;
+    background: var(--primary-color);
+    color: var(--background-color);
+    cursor: pointer;
+}
+
+.composerRow > button:disabled {
+    cursor: not-allowed;
+    opacity: .5;
+}
+
+.buttonSpinner {
+    width: 16px;
+    height: 16px;
+    border-color: var(--background-color);
+    border-top-color: var(--card-color);
+}
+
+.privacyNote,
+.quotaNotice {
+    margin: 0;
+    color: var(--text-color);
+    font-size: .68rem;
+    line-height: 1.45;
+}
+
+.quotaNotice {
+    padding: 7px 9px;
+    border-left: 2px solid var(--primary-color);
+    background: var(--background-color);
+}
+
+.quotaMeter {
+    display: grid;
+    gap: 5px;
+}
+
+.quotaLabel {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--text-color);
+    font-size: .67rem;
+}
+
+.quotaTrack {
+    height: 4px;
+    overflow: hidden;
+    border-radius: 4px;
+    background: var(--background-color);
+}
+
+.quotaTrack span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--primary-color);
+    transition: width 180ms ease;
+}
+
+.quotaNearLimit .quotaTrack span,
+.quotaExhausted .quotaTrack span {
+    background: var(--text-color);
+}
+
+.secondaryButton,
+.dangerButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 8px 11px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 7px;
+    background: var(--card-color);
+    color: var(--header-text-color);
+    font-size: .77rem;
+    cursor: pointer;
+}
+
+.secondaryButton:hover {
+    border-color: var(--primary-color);
+}
+
+.dangerButton {
+    color: var(--text-color);
+}
+
+.dangerButton:hover:not(:disabled) {
+    border-color: var(--card-stroke-color);
+    color: var(--header-text-color);
+}
+
+.secondaryButton:disabled,
+.dangerButton:disabled {
+    cursor: not-allowed;
+    opacity: .5;
+}
+
+.page button:focus-visible,
+.page input:focus-visible,
+.page summary:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+@keyframes assistant-spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 1000px) {
+    .layout {
+        grid-template-columns: minmax(205px, 235px) minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .questionGroups {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+}
+
+@media (max-width: 700px) {
+    .pageHeading {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pageActions {
+        align-self: flex-start;
+    }
+
+    .layout {
+        grid-template-columns: minmax(0, 1fr);
+        min-height: 0;
+    }
+
+    .history {
+        max-height: none;
+        padding: 10px 12px;
+    }
+
+    .historyHeading {
+        display: none;
+    }
+
+    .historyToggle {
+        display: flex;
+        padding: 4px 2px;
+    }
+
+    .historyToggle[aria-expanded="true"] i {
+        transform: rotate(180deg);
+    }
+
+    .historyList.collapsed {
+        display: none;
+    }
+
+    .historyList:not(.collapsed) {
+        margin-top: 8px;
+    }
+
+    .chatCard {
+        min-height: 580px;
+    }
+
+    .chatHeader {
+        min-height: 62px;
+        padding: 12px;
+    }
+
+    .headerLabel {
+        display: none;
+    }
+
+    .thread {
+        min-height: 400px;
+        max-height: 62vh;
+        padding: 16px 12px;
+    }
+
+    .emptyState {
+        margin: auto 0;
+    }
+
+    .questionGroups {
+        gap: 10px;
+    }
+
+    .answerBlock {
+        padding: 13px;
+    }
+
+    .answerFooter {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .answerActions {
+        align-self: flex-end;
+    }
+
+    .composer {
+        padding: 11px 12px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .historyItem,
+    .quotaTrack span,
+    .progressSpinner,
+    .buttonSpinner {
+        transition: none;
+        animation: none;
+    }
+}

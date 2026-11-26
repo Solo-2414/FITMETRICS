@@ -1,0 +1,240 @@
+.pageTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.pageDesc {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.kpiCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.kpiHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-color);
+    font-size: 0.8rem;
+    margin-bottom: 16px;
+}
+
+.iconBoxPrimary {
+    width: 32px;
+    height: 32px;
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.iconBoxSuccess {
+    width: 32px;
+    height: 32px;
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--green-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.iconBoxWarning {
+    width: 32px;
+    height: 32px;
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.kpiValue {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.kpiSub {
+    color: var(--text-color);
+    font-size: 0.8rem;
+}
+
+.panelCard,
+.chartCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.panelTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.panelDesc {
+    color: var(--text-color);
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.chartLegend {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dotPrimary {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    box-shadow: 0 0 8px var(--glow-primary);
+}
+
+.chartWrapper {
+    height: 320px;
+    width: 100%;
+    margin-top: 20px;
+}
+
+.advisoryCard {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 10px;
+    padding: 20px;
+    height: 100%;
+}
+
+.totalBadge {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.customTable {
+    color: var(--text-color) !important;
+    margin: 0;
+}
+
+.customTable th {
+    background-color: transparent !important;
+    color: var(--text-color);
+    font-size: 0.7rem;
+    border-bottom: 1px solid var(--card-stroke-color) !important;
+    font-weight: 600;
+    letter-spacing: 1px;
+    padding-bottom: 12px;
+}
+
+.customTable td {
+    background-color: transparent !important;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--card-stroke-color) !important;
+    padding: 16px 8px;
+    vertical-align: middle;
+}
+
+.avatarSecondary {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: rgba(148, 163, 184, 0.1);
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.85rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.memberSince {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.badgeWarning {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.badgeDanger {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.badgeSecondary {
+    background-color: var(--card-bg-dark);
+    color: var(--text-color);
+    border: 1px solid var(--card-stroke-color);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.btnActionOutline {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btnActionOutline:hover {
+    border-color: var(--header-text-color);
+    color: var(--header-text-color);
+}

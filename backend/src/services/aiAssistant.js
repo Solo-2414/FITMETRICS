@@ -242,6 +242,141 @@ const toolHandlers = {
   what_if: async (args) => calculateWhatIf(args, await getWhatIfMetrics()),
 };
 
+const metricLabels = {
+  total_members: ['Total members', ''],
+  active_members: ['Active members', ''],
+  new_members: ['New members', ''],
+  expiring_memberships: ['Expiring memberships', ''],
+  monthly_revenue: ['Monthly revenue', 'PHP'],
+  month_visits: ['Visits this month', ''],
+  average_visits_per_member: ['Average visits per member', ''],
+  renewal_rate: ['Renewal rate', '%'],
+  retention_rate: ['Retention rate', '%'],
+  attendance_trend_score: ['Attendance trend score', '%'],
+  revenue_growth_score: ['Revenue growth score', '%'],
+  active_member_growth_score: ['Active member growth score', '%'],
+  business_health_score: ['Business health score', '%'],
+  membersWithRisk: ['Members with risk', ''],
+  highRisk: ['High risk', ''],
+  mediumRisk: ['Medium risk', ''],
+  lowRisk: ['Low risk', ''],
+  count: ['Expiring memberships', ''],
+};
+
+const numericValue = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+const makeKpis = (tool, metrics, period) => {
+  const items = Object.entries(metrics || {}).flatMap(([key, rawValue]) => {
+    const definition = metricLabels[key];
+    const value = numericValue(rawValue);
+    return definition && value !== null
+      ? [{ label: definition[0], value, unit: definition[1] }]
+      : [];
+  });
+  const inactivityBuckets = metrics?.inactivityBuckets;
+  if (inactivityBuckets && typeof inactivityBuckets === 'object') {
+    for (const [label, rawValue] of Object.entries(inactivityBuckets)) {
+      const value = numericValue(rawValue);
+      if (value !== null) items.push({ label: `${label} inactive`, value, unit: '' });
+    }
+  }
+  return items.length ? [{ type: 'kpis', tool, period, items: items.slice(0, 6) }] : [];
+};
+
+const buildFigures = (toolResults) => toolResults.flatMap(({ name: tool, result }) => {
+  const period = result?.period || (result?.scope ? { label: result.scope } : null);
+  if (tool === 'get_kpis_health' || tool === 'get_churn_summary' || tool === 'get_expiring_memberships') {
+    return makeKpis(tool, result?.metrics, period);
+  }
+  if (tool === 'what_if' && result?.isEstimate === true && result.range) {
+    const range = {
+      low: numericValue(result.range.low),
+      base: numericValue(result.range.base),
+      high: numericValue(result.range.high),
+    };
+    if (Object.values(range).some((value) => value === null)) return [];
+    return [{
+      type: 'estimate',
+      tool,
+      title: 'Estimated monthly revenue',
+      unit: 'PHP',
+      period: { label: 'Current metrics baseline' },
+      range,
+      assumptions: typeof result.assumptions === 'string' ? result.assumptions : '',
+    }];
+  }
+  if (tool === 'get_revenue_trend' || tool === 'get_retention' || tool === 'get_prediction_snapshots') {
+    const rows = Array.isArray(result?.rows) ? result.rows : [];
+    const dateKey = tool === 'get_prediction_snapshots' ? 'target_date' : 'period';
+    const points = rows.flatMap((row) => (
+      typeof row?.[dateKey] === 'string' ? [{ date: row[dateKey], row }] : []
+    )).slice(-24);
+    const labels = points.map((point) => point.date);
+    const seriesDefinitions = tool === 'get_revenue_trend'
+      ? [['Revenue', 'revenue', 'PHP']]
+      : tool === 'get_retention'
+        ? [['Started', 'started', ''], ['Retained', 'retained', '']]
+        : [['Predicted visits', 'predicted_visits', ''], ['Predicted revenue', 'predicted_revenue', 'PHP'], ['Predicted renewals', 'predicted_renewals', '']];
+    if (tool === 'get_prediction_snapshots') {
+      return seriesDefinitions.flatMap(([label, key, unit]) => {
+        const values = points.map((point) => numericValue(point.row[key]));
+        if (!values.some((value) => value !== null)) return [];
+        return [{
+          type: 'trend',
+          tool,
+          title: label,
+          period,
+          labels,
+          series: [{ label, unit, values }],
+        }];
+      });
+    }
+    const series = seriesDefinitions.map(([label, key, unit]) => ({
+      label,
+      unit,
+      values: points.map((point) => numericValue(point.row[key])),
+    })).filter((item) => item.values.some((value) => value !== null));
+    if (labels.length && series.length) {
+      return [{ type: 'trend', tool, title: tool === 'get_revenue_trend' ? 'Revenue trend' : 'Membership retention trend', period, labels, series }];
+    }
+    return [];
+  }
+  if (tool === 'get_membership_distribution') {
+    const rows = Array.isArray(result?.rows) ? result.rows : [];
+    const items = rows.flatMap((row) => {
+      const value = numericValue(row?.count);
+      return value !== null && typeof row?.name === 'string'
+        ? [{ label: row.name, value }]
+        : [];
+    }).slice(0, 12);
+    return items.length ? [{ type: 'breakdown', tool, title: 'Active memberships by plan', period: result?.asOf ? { label: `As of ${result.asOf}` } : period, items }] : [];
+  }
+  if (tool === 'get_attendance_peaks') {
+    const rows = Array.isArray(result?.rows) ? result.rows : [];
+    const byHour = new Map();
+    for (const row of rows) {
+      const hour = numericValue(row?.hour);
+      const visits = numericValue(row?.visits);
+      if (hour === null || hour < 0 || hour > 23 || visits === null) continue;
+      byHour.set(hour, (byHour.get(hour) || 0) + visits);
+    }
+    const hours = [...byHour.entries()].sort(([left], [right]) => left - right);
+    return hours.length ? [{
+      type: 'trend',
+      tool,
+      title: 'Attendance by hour',
+      period,
+      labels: hours.map(([hour]) => `${String(hour).padStart(2, '0')}:00`),
+      series: [{ label: 'Visits', unit: '', values: hours.map(([, visits]) => visits) }],
+    }] : [];
+  }
+  return [];
+});
+
 export const runTool = async (name, args) => {
   if (!TOOL_NAMES.includes(name) || !toolHandlers[name]) throw unavailableMetric();
   return toolHandlers[name](args || {});
@@ -265,6 +400,7 @@ export const chatWithAssistant = async ({ messages, userText }) => {
       dataAsOf: today(),
       modelUsed: null,
       tokensUsed: 0,
+      figures: [],
     };
   }
   let remainingChars = Math.max(0, maxInputChars - safeUserText.length);
@@ -280,6 +416,7 @@ export const chatWithAssistant = async ({ messages, userText }) => {
     parts: [{ text: redactSensitive(message.content) }],
   })), { role: 'user', parts: [{ text: safeUserText }] }];
   const toolsUsed = [];
+  const figures = [];
   let inputTokens = 0;
   let outputTokens = 0;
   const noData = (modelUsed = null) => ({
@@ -288,6 +425,7 @@ export const chatWithAssistant = async ({ messages, userText }) => {
     dataAsOf: today(),
     modelUsed,
     tokensUsed: inputTokens + outputTokens,
+    figures: [],
   });
   for (let call = 0; call <= MAX_TOOL_CALLS; call += 1) {
     const { body: response, model } = await requestGemini(contents, {
@@ -306,24 +444,27 @@ export const chatWithAssistant = async ({ messages, userText }) => {
         dataAsOf: today(),
         modelUsed: model,
         tokensUsed: inputTokens + outputTokens,
+        figures,
       };
     }
     if (call === MAX_TOOL_CALLS) throw Object.assign(new Error('The assistant reached its tool-call limit. Please ask a narrower question.'), { statusCode: 429 });
     contents.push({ role: 'model', parts });
-    const toolParts = [];
-    for (const part of calls) {
+    if (calls.some((part) => !TOOL_NAMES.includes(part.functionCall.name))) return noData(model);
+    const toolResults = await Promise.all(calls.map(async (part) => {
       const name = part.functionCall.name;
-      if (!TOOL_NAMES.includes(name)) return noData(model);
-      let result;
       try {
-        result = await runTool(name, part.functionCall.args || {});
+        return { name, result: await runTool(name, part.functionCall.args || {}) };
       } catch (error) {
-        if (error.code === 'AI_METRIC_UNAVAILABLE') return noData(model);
+        if (error.code === 'AI_METRIC_UNAVAILABLE') return null;
         throw error;
       }
+    }));
+    if (toolResults.some((result) => result === null)) return noData(model);
+    figures.push(...buildFigures(toolResults));
+    const toolParts = toolResults.map(({ name, result }) => {
       toolsUsed.push(name);
-      toolParts.push({ functionResponse: { name, response: { data: result } } });
-    }
+      return { functionResponse: { name, response: { data: result } } };
+    });
     contents.push({ role: 'user', parts: toolParts });
   }
   throw new Error('Assistant response was not completed.');

@@ -193,10 +193,18 @@ const run = async () => {
   assert.ok(failedQueueCode);
   assert.equal(loggedMessages.join('\n').includes(failedQueueCode), false);
 
-  const otpEmail = renderEmail('password_otp', { otp: '<123456>' });
-  assert.match(otpEmail.html, /&lt;123456&gt;/);
+  const otpEmail = renderEmail(
+    'password_otp',
+    revealEmailPayload('password_otp', queuedEmails[0].payload),
+  );
+  assert.ok(otpEmail.text.includes(firstCode));
+  assert.ok(otpEmail.html.includes(firstCode));
   assert.match(otpEmail.html, /expires in 10 minutes/i);
   assert.match(otpEmail.html, /ignore this email/i);
+  assert.throws(
+    () => renderEmail('password_otp', {}),
+    /requires a six-digit verification code/,
+  );
   const changedEmail = renderEmail('password_changed');
   assert.match(changedEmail.subject, /password was changed/i);
 

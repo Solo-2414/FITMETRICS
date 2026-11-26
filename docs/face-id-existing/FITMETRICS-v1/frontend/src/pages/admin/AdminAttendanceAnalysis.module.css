@@ -1,0 +1,449 @@
+.pageTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.pageDesc {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.kpiCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.kpiHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-color);
+    font-size: 0.8rem;
+    margin-bottom: 16px;
+}
+
+.iconBoxPrimary {
+    width: 32px;
+    height: 32px;
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.iconBoxSuccess {
+    width: 32px;
+    height: 32px;
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--green-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.iconBoxWarning {
+    width: 32px;
+    height: 32px;
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.kpiValue {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.kpiValueText {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.kpiValueUnit {
+    font-size: 0.9rem;
+    color: var(--text-color);
+    font-weight: 500;
+    font-family: var(--text-font);
+}
+
+.kpiSub {
+    color: var(--text-color);
+    font-size: 0.75rem;
+}
+
+.kpiPositive {
+    color: var(--green-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.kpiWarning {
+    color: #f59e0b;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.kpiPrimary {
+    color: var(--primary-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.kpiLive {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--header-text-color);
+    font-size: 0.75rem;
+}
+
+.liveDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--green-color);
+    box-shadow: 0 0 6px var(--glow-green);
+}
+
+.panelCard,
+.chartCard {
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+    padding: 24px;
+    height: 100%;
+}
+
+.panelTitle {
+    font-family: var(--heading-font);
+    color: var(--header-text-color);
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.panelDesc {
+    color: var(--text-color);
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.chartLegendOutline {
+    background-color: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chartLegendOutline strong {
+    color: var(--header-text-color);
+}
+
+.dotWarning {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #f59e0b;
+    box-shadow: 0 0 8px #f59e0b;
+}
+
+.dotGreen {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--green-color);
+}
+
+.legendBoxPrimary {
+    width: 12px;
+    height: 12px;
+    background-color: var(--card-stroke-color);
+    border-radius: 2px;
+}
+
+.legendBoxWarning {
+    width: 12px;
+    height: 12px;
+    background-color: #f59e0b;
+    border-radius: 2px;
+}
+
+.chartWrapper {
+    height: 320px;
+    width: 100%;
+    margin-top: 20px;
+}
+
+.progressItem {
+    width: 100%;
+}
+
+.progressBarBg {
+    width: 100%;
+    height: 8px;
+    background-color: var(--card-bg-dark);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progressBarFillPrimary {
+    height: 100%;
+    background-color: var(--primary-color);
+    border-radius: 4px;
+}
+
+.progressBarFillSecondary {
+    height: 100%;
+    background-color: var(--card-stroke-color);
+    border-radius: 4px;
+}
+
+.searchBox {
+    display: flex;
+    align-items: center;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    padding: 6px 12px;
+}
+
+.searchBox i {
+    color: var(--text-color);
+    font-size: 0.85rem;
+    margin-right: 8px;
+}
+
+.searchBox input {
+    background: transparent;
+    border: none;
+    color: var(--header-text-color);
+    font-size: 0.85rem;
+    outline: none;
+    width: 180px;
+}
+
+.filterGroup {
+    display: flex;
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.filterBtn,
+.filterBtnActive {
+    background: transparent;
+    border: none;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.filterBtn {
+    color: var(--text-color);
+}
+
+.filterBtn:hover {
+    color: var(--header-text-color);
+}
+
+.filterBtnActive {
+    background-color: rgba(30, 41, 59, 0.8);
+    color: var(--header-text-color);
+    font-weight: 600;
+}
+
+.filterSelect {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    outline: none;
+    cursor: pointer;
+}
+
+.customTable {
+    color: var(--text-color) !important;
+    margin: 0;
+}
+
+.customTable th {
+    background-color: transparent !important;
+    color: var(--text-color);
+    font-size: 0.7rem;
+    border-bottom: 1px solid var(--card-stroke-color) !important;
+    font-weight: 600;
+    letter-spacing: 1px;
+    padding-bottom: 12px;
+}
+
+.customTable td {
+    background-color: transparent !important;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--card-stroke-color) !important;
+    padding: 16px 8px;
+    vertical-align: middle;
+}
+
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--card-button-bg);
+    color: var(--header-text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: 1px solid var(--card-stroke-color);
+}
+
+.avatarPrimary {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.avatarSuccess {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--heading-font);
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.memberId {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.planBadgeOutline {
+    border: 1px solid var(--card-stroke-color);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+}
+
+.planBadgePrimary {
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary-color);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.planBadgeWarning {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.btnActionIcon {
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btnActionIcon:hover {
+    background-color: var(--card-bg-dark);
+    color: var(--header-text-color);
+}
+
+.pageBtnText {
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    color: var(--text-color);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pageBtnText:hover:not(:disabled) {
+    border-color: var(--primary-color);
+    color: var(--header-text-color);
+}
+
+.pageBtnText:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pageBtnTextActive {
+    background-color: var(--card-bg-dark);
+    border: 1px solid var(--primary-color);
+    color: var(--header-text-color);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}

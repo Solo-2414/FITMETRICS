@@ -1,0 +1,488 @@
+.page {
+    display: grid;
+    gap: 22px;
+}
+
+.pageHeader h1 {
+    margin: 0 0 6px;
+    color: var(--header-text-color);
+    font: 700 1.8rem var(--heading-font);
+}
+
+.pageHeader p,
+.panelHeading p,
+.queueHeader p,
+.manualForm p {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 0.88rem;
+}
+
+.panel {
+    display: grid;
+    gap: 18px;
+    padding: 22px;
+    background: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+}
+
+.panelHeading h2,
+.queueHeader h2 {
+    margin: 0 0 5px;
+    color: var(--header-text-color);
+    font: 650 1.15rem var(--heading-font);
+}
+
+.memberPicker,
+.captureForm,
+.manualForm {
+    display: grid;
+    gap: 12px;
+}
+
+.memberPicker {
+    position: relative;
+    max-width: 720px;
+}
+
+.memberPicker > label,
+.formGrid label,
+.manualForm > label,
+.queueHeader label,
+.reviewActions > label {
+    display: grid;
+    gap: 6px;
+    color: var(--text-color);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.memberPicker input,
+.formGrid input,
+.formGrid select,
+.queueHeader select,
+.manualForm textarea,
+.reviewActions textarea {
+    width: 100%;
+    padding: 10px 12px;
+    color: var(--header-text-color);
+    background: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    outline: none;
+}
+
+.memberPicker input:focus,
+.formGrid input:focus,
+.formGrid select:focus,
+.queueHeader select:focus,
+.manualForm textarea:focus,
+.reviewActions textarea:focus {
+    border-color: var(--primary-color);
+}
+
+.memberResults {
+    position: absolute;
+    z-index: 4;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 240px;
+    overflow: auto;
+    padding: 4px;
+    margin: 4px 0 0;
+    list-style: none;
+    background: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+.memberResults button {
+    display: grid;
+    width: 100%;
+    gap: 3px;
+    padding: 9px 10px;
+    color: var(--header-text-color);
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+}
+
+.memberResults button:hover,
+.memberResults button:focus-visible {
+    background: var(--card-bg-dark);
+}
+
+.memberResults span,
+.selectedMember,
+.helper {
+    color: var(--text-color);
+    font-size: 0.8rem;
+}
+
+.selectedMember {
+    margin: 0;
+}
+
+.selectedMember strong {
+    color: var(--header-text-color);
+}
+
+.formGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.consentBox {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    background: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 10px;
+}
+
+.consentBox p {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 0.82rem;
+    line-height: 1.55;
+}
+
+.transferNotice a {
+    color: var(--primary-color);
+}
+
+.consentLabel {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: var(--header-text-color);
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+
+.consentLabel input {
+    width: 17px;
+    height: 17px;
+    margin-top: 2px;
+    accent-color: var(--primary-color);
+    flex: 0 0 auto;
+}
+
+.primaryButton,
+.secondaryButton,
+.rejectButton,
+.deleteButton,
+.textButton {
+    width: fit-content;
+    padding: 9px 15px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    font: 600 0.84rem var(--heading-font);
+    cursor: pointer;
+}
+
+.primaryButton {
+    color: #051424;
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.secondaryButton,
+.textButton {
+    color: var(--header-text-color);
+    background: transparent;
+}
+
+.rejectButton,
+.deleteButton {
+    color: var(--header-text-color);
+    background: transparent;
+    border-color: #ef4444;
+}
+
+.deleteButton {
+    color: #fca5a5;
+    margin-top: 8px;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.rejectButton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.livenessNote {
+    margin: 0;
+    color: var(--green-color);
+    font-size: 0.82rem;
+}
+
+.manualForm {
+    padding-top: 18px;
+    border-top: 1px solid var(--card-stroke-color);
+}
+
+.manualForm h3 {
+    margin: 0;
+    color: var(--header-text-color);
+    font: 600 1rem var(--heading-font);
+}
+
+.manualForm textarea,
+.reviewActions textarea {
+    resize: vertical;
+}
+
+.queueHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.queueHeader label {
+    min-width: 180px;
+}
+
+.tableWrap {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    color: var(--text-color);
+    font-size: 0.84rem;
+}
+
+.table th {
+    padding: 11px 10px;
+    color: var(--text-color);
+    border-bottom: 1px solid var(--card-stroke-color);
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.table td {
+    padding: 13px 10px;
+    border-bottom: 1px solid var(--card-stroke-color);
+    vertical-align: middle;
+}
+
+.table td strong,
+.table td small {
+    display: block;
+}
+
+.table td strong {
+    color: var(--header-text-color);
+}
+
+.table td small {
+    margin-top: 3px;
+    color: var(--text-color);
+    font-size: 0.76rem;
+}
+
+.status {
+    display: inline-flex;
+    padding: 4px 9px;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 999px;
+    color: var(--text-color);
+    font-size: 0.74rem;
+    white-space: nowrap;
+}
+
+.status_needs_review,
+.status_pending {
+    color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.4);
+}
+
+.status_verified {
+    color: var(--green-color);
+    border-color: rgba(16, 185, 129, 0.4);
+}
+
+.status_rejected,
+.status_expired {
+    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.empty {
+    padding: 30px 12px !important;
+    color: var(--text-color);
+    text-align: center;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-color);
+    font-size: 0.82rem;
+}
+
+.pagination > div {
+    display: flex;
+    gap: 8px;
+}
+
+.pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.modalBackdrop {
+    position: fixed;
+    z-index: 2100;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(3, 12, 23, 0.82);
+}
+
+.modal {
+    position: relative;
+    display: grid;
+    gap: 16px;
+    width: min(100%, 980px);
+    max-height: min(92vh, 900px);
+    overflow-y: auto;
+    padding: 24px;
+    background: var(--secondary-background-color);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 12px;
+}
+
+.modal h2 {
+    margin: 0;
+    color: var(--header-text-color);
+    font: 650 1.2rem var(--heading-font);
+}
+
+.closeButton {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    color: var(--text-color);
+    background: transparent;
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+    font-size: 1.3rem;
+}
+
+.modalMember {
+    margin: 0;
+    color: var(--text-color);
+}
+
+.resultSummary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    padding: 14px;
+    background: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+}
+
+.resultSummary span {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    color: var(--header-text-color);
+    font-size: 0.82rem;
+}
+
+.resultSummary strong {
+    color: var(--text-color);
+    font-size: 0.74rem;
+}
+
+.reviewImages {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.reviewImages figure {
+    min-width: 0;
+    margin: 0;
+}
+
+.reviewImages img {
+    display: block;
+    width: 100%;
+    height: min(42vh, 360px);
+    object-fit: contain;
+    background: var(--card-bg-dark);
+    border: 1px solid var(--card-stroke-color);
+    border-radius: 8px;
+}
+
+.reviewImages figcaption {
+    margin-top: 7px;
+    color: var(--text-color);
+    font-size: 0.8rem;
+}
+
+.reason {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 0.84rem;
+    overflow-wrap: anywhere;
+}
+
+.reviewActions {
+    display: grid;
+    gap: 10px;
+    padding-top: 14px;
+    border-top: 1px solid var(--card-stroke-color);
+}
+
+.reviewActions > div {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+@media (max-width: 680px) {
+    .panel {
+        padding: 16px;
+    }
+
+    .queueHeader {
+        flex-direction: column;
+    }
+
+    .queueHeader label {
+        width: 100%;
+    }
+
+    .formGrid,
+    .reviewImages {
+        grid-template-columns: 1fr;
+    }
+
+    .modal {
+        padding: 20px 14px;
+    }
+}

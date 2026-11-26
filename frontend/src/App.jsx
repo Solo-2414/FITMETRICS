@@ -32,6 +32,7 @@ import AdminPredictiveAnalytics from "./pages/admin/AdminPredictiveAnalytics";
 import AdminAttendanceAnalysis from "./pages/admin/AdminAttendanceAnalysis";
 import AdminMembershipPlans from "./pages/admin/AdminMembershipPlans";
 import AdminManageUsers from "./pages/admin/AdminManageUsers";
+import AdminIdentityVerification from "./pages/admin/AdminIdentityVerification";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
 import AdminVideoTutorials from "./pages/admin/AdminVideoTutorials";
@@ -161,6 +162,10 @@ export default function App() {
                 <Route
                     path="/admin/manage-users"
                     element={<AdminManageUsers />}
+                />
+                <Route
+                    path="/admin/identity-verification"
+                    element={<AdminIdentityVerification />}
                 />
                 <Route path="/admin/walk-in-customers" element={<AdminWalkInCustomers />} />
                 <Route path="/admin/reports" element={<AdminReports />} />

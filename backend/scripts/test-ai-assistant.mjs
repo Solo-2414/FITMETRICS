@@ -4,12 +4,13 @@ process.env.SUPABASE_URL = 'http://127.0.0.1:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 process.env.SUPABASE_ANON_KEY = 'test-anon-key';
 
-const [{ calculateWhatIf, chatWithAssistant, runTool, systemInstruction, toolDeclarations }, { createTTLCache }, { requestGemini }, { createKeyPool }, { createQuotaService }] = await Promise.all([
+const [{ calculateWhatIf, chatWithAssistant, runTool, systemInstruction, toolDeclarations }, { createTTLCache }, { requestGemini }, { createKeyPool }, { createQuotaService }, { supabaseAdmin }] = await Promise.all([
   import('../src/services/aiAssistant.js'),
   import('../src/services/ai/cache.js'),
   import('../src/services/ai/geminiClient.js'),
   import('../src/services/ai/keyPool.js'),
   import('../src/services/ai/quota.js'),
+  import('../src/config/supabase.js'),
 ]);
 
 const whatIf = calculateWhatIf(
@@ -168,6 +169,98 @@ try {
   }), { status: 200 });
   const unsupportedAnswer = await chatWithAssistant({ messages: [], userText: 'Give me a metric we do not track.' });
   assert.equal(unsupportedAnswer.answer, 'I do not have data for that.');
+
+  const originalFrom = supabaseAdmin.from;
+  let activeQueries = 0;
+  let maxConcurrentQueries = 0;
+  const queryResult = (data) => new Promise((resolve) => {
+    activeQueries += 1;
+    maxConcurrentQueries = Math.max(maxConcurrentQueries, activeQueries);
+    setTimeout(() => {
+      activeQueries -= 1;
+      resolve({ data, error: null });
+    }, 20);
+  });
+  supabaseAdmin.from = (table) => {
+    const query = {
+      select() { return this; },
+      eq() { return this; },
+      gte() { return this; },
+      lte() { return this; },
+      single() {
+        return queryResult({ monthly_revenue: 125000, active_members: 75 });
+      },
+      then(resolve, reject) {
+        const rows = table === 'revenue_trend'
+          ? [{ period: '2026-11-01', revenue: '900' }, { period: '2026-11-02', revenue: '1200' }]
+          : [];
+        return queryResult(rows).then(resolve, reject);
+      },
+    };
+    return query;
+  };
+  let modelCall = 0;
+  globalThis.fetch = async (_url, options) => {
+    const request = JSON.parse(options.body);
+    modelCall += 1;
+    if (modelCall === 1) {
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [
+          { functionCall: { name: 'get_kpis_health', args: {} } },
+          { functionCall: { name: 'get_churn_summary', args: {} } },
+        ] } }],
+      }), { status: 200 });
+    }
+    assert.ok(request.contents.some((item) => item.parts.some((part) => part.functionResponse)));
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: 'Parallel metrics received.' }] } }],
+    }), { status: 200 });
+  };
+  try {
+    const parallelAnswer = await chatWithAssistant({ messages: [], userText: 'Summarize gym health and churn.' });
+    assert.equal(parallelAnswer.answer, 'Parallel metrics received.');
+    assert.deepEqual(parallelAnswer.toolsUsed, ['get_kpis_health', 'get_churn_summary']);
+    const kpiFigure = parallelAnswer.figures.find((figure) => figure.type === 'kpis');
+    assert.equal(kpiFigure?.tool, 'get_kpis_health');
+    assert.ok(kpiFigure.items.some((item) => item.label === 'Monthly revenue' && item.value === 125000));
+    assert.ok(parallelAnswer.figures.every((figure) => !JSON.stringify(figure).match(/member_id|full_name|email|phone/i)));
+    assert.equal(maxConcurrentQueries, 2);
+
+    modelCall = 0;
+    globalThis.fetch = async (_url, options) => {
+      modelCall += 1;
+      if (modelCall === 1) {
+        return new Response(JSON.stringify({
+          candidates: [{ content: { parts: [{ functionCall: { name: 'what_if', args: { type: 'price_change', value: 100 } } }] } }],
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: 'Estimate returned.' }] } }],
+      }), { status: 200 });
+    };
+    const estimateAnswer = await chatWithAssistant({ messages: [], userText: 'Estimate a price change.' });
+    assert.equal(estimateAnswer.figures[0]?.type, 'estimate');
+    assert.deepEqual(Object.keys(estimateAnswer.figures[0].range), ['low', 'base', 'high']);
+
+    modelCall = 0;
+    globalThis.fetch = async (_url, options) => {
+      modelCall += 1;
+      if (modelCall === 1) {
+        return new Response(JSON.stringify({
+          candidates: [{ content: { parts: [{ functionCall: { name: 'get_revenue_trend', args: {} } }] } }],
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: 'Trend returned.' }] } }],
+      }), { status: 200 });
+    };
+    const trendAnswer = await chatWithAssistant({ messages: [], userText: 'Show revenue trend.' });
+    assert.equal(trendAnswer.figures[0]?.type, 'trend');
+    assert.deepEqual(trendAnswer.figures[0].labels, ['2026-11-01', '2026-11-02']);
+    assert.deepEqual(trendAnswer.figures[0].series[0].values, [900, 1200]);
+  } finally {
+    supabaseAdmin.from = originalFrom;
+  }
 } finally {
   restore();
 }

@@ -7,6 +7,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "check:guards": "node scripts/check-guards.mjs",
+    "test:identity-verification": "node scripts/test-identity-verification.mjs",
     "test:password-reset": "node scripts/test-password-reset.mjs",
     "test:maintenance": "node scripts/test-maintenance.mjs",
     "preview:reports": "node scripts/preview-reports.mjs"
@@ -22,6 +23,7 @@
     "multer": "^2.4.0",
     "node-cron": "^4.2.1",
     "nodemailer": "^10.1.1",
-    "pdfkit": "^0.20.2"
+    "pdfkit": "^0.20.2",
+    "sharp": "0.35.5"
   }
 }

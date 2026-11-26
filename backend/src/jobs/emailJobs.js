@@ -6,6 +6,7 @@ import { dayStart, today } from '../utils/time.js';
 import { publishDueAnnouncements } from '../services/announcements.js';
 import { expireRegistrationIntents } from '../services/registration.js';
 import { expirePendingQrPayments } from '../services/membership.js';
+import { runIdentityImageRetention } from './identityRetention.js';
 
 const expiryDate = (days) => {
   const date = new Date();
@@ -75,7 +76,8 @@ export const runDailyEmailJobs = async () => {
 export const startEmailJobs = () => {
   cron.schedule('*/1 * * * *', () => processEmailQueue().catch((error) => console.error(`Email queue worker failed: ${error.message}`)));
   cron.schedule('* * * * *', () => publishDueAnnouncements().catch((error) => console.error(`Announcement scheduler failed: ${error.message}`)));
-  cron.schedule('* * * * *', () => expireRegistrationIntents().catch((error) => console.error(`Registration intent expiry failed: ${error.message}`)));
+  cron.schedule('* * * * *', () => expireRegistrationIntents().catch((error) => console.error(`Registration intent expiry failed: ${error.message}`)))
   cron.schedule('* * * * *', () => expirePendingQrPayments().catch((error) => console.error(`QR payment expiry failed: ${error.message}`)));
   cron.schedule('5 0 * * *', () => runDailyEmailJobs().catch((error) => console.error(`Daily membership job failed: ${error.message}`)), { timezone: process.env.CRON_TIMEZONE || 'Asia/Manila' });
+  cron.schedule('*/15 * * * *', () => runIdentityImageRetention().catch((error) => console.error(`Identity image retention failed: ${error.message}`)), { timezone: 'Asia/Manila' });
 };
