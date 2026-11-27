@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import styles from "./CheckIn.module.css";
 import { SkeletonCheckIn } from "../components/ui/Skeleton";
+import { toastError, useToast } from "../components/ui/toast/useToast";
 
 const DEVICE_KEY = "fitmetrics-checkin-device";
 const PHONE_KEY = "fitmetrics-checkin-phone";
@@ -38,6 +39,7 @@ export default function CheckIn() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const [code, setCode] = useState("");
+    const toast = useToast();
 
     useEffect(() => {
         if (!token) {
@@ -62,7 +64,7 @@ export default function CheckIn() {
             const device = getDevice();
             const result = await api("/public/checkin/lookup", { method: "POST", body: { t: token, phone, device_id: device.id, device_secret: device.secret } });
             if (!["ready", "already_in"].includes(result.status)) {
-                setError(result.message || "We couldn't find an active membership for this number. Please see the front desk.");
+                toast.error(result.message || "We couldn't find an active membership for this number. Please see the front desk.");
                 return;
             }
             if (remember) localStorage.setItem(PHONE_KEY, phone);
@@ -70,20 +72,19 @@ export default function CheckIn() {
             setLookup(result);
             setStep(result.needs_verification ? "verify" : "confirm");
         } catch (requestError) {
-            setError(requestError.message);
+            toast.error(toastError(requestError));
         } finally {
             setBusy(false);
         }
     };
     const sendCode = async () => {
         setBusy(true);
-        setError("");
         try {
             const result = await api("/public/checkin/send-code", { method: "POST", body: { t: token, phone, confirm_token: lookup.confirm_token } });
             if (result.status === "needs_clerk") throw new Error(result.message);
             setStep("verify");
         } catch (requestError) {
-            setError(requestError.message);
+            toast.error(toastError(requestError));
         } finally {
             setBusy(false);
         }
@@ -91,7 +92,6 @@ export default function CheckIn() {
     const verifyCode = async (event) => {
         event.preventDefault();
         setBusy(true);
-        setError("");
         try {
             const device = getDevice();
             const result = await api("/public/checkin/verify-code", { method: "POST", body: { t: token, phone, code, device_id: device.id, confirm_token: lookup.confirm_token } });
@@ -99,20 +99,19 @@ export default function CheckIn() {
             setLookup({ ...lookup, confirm_token: result.confirm_token, needs_verification: false });
             setStep("confirm");
         } catch (requestError) {
-            setError(requestError.message);
+            toast.error(toastError(requestError));
         } finally {
             setBusy(false);
         }
     };
     const confirm = async () => {
         setBusy(true);
-        setError("");
         try {
             const result = await api("/public/checkin/confirm", { method: "POST", body: { confirm_token: lookup.confirm_token, device_id: getDevice().id } });
             setLookup({ ...lookup, ...result });
             setStep("done");
         } catch (requestError) {
-            setError(requestError.message);
+            toast.error(toastError(requestError));
         } finally {
             setBusy(false);
         }
@@ -133,7 +132,7 @@ export default function CheckIn() {
                         <label htmlFor="mobile">Mobile number</label>
                         <input id="mobile" ref={inputRef} inputMode="tel" autoComplete="tel" placeholder="0917 123 4567" value={formatPhone(phone)} onChange={(event) => setPhone(event.target.value)} />
                         <label className={styles.check}><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> Remember this number on this phone</label>
-                        {error && <div className={styles.error}>{error}</div>}
+                        {error && <div className={styles.error} data-field-error="Philippine mobile number validation">{error}</div>}
                         <button disabled={busy} type="submit">{busy ? "Checking..." : "Continue"}</button>
                     </form>
                 )}
@@ -141,7 +140,6 @@ export default function CheckIn() {
                     <div>
                         <h1>Hi {lookup.display_name}!</h1>
                         <p className={styles.muted}>{lookup.plan_name}<br />Valid until {lookup.valid_until}</p>
-                        {error && <div className={styles.error}>{error}</div>}
                         <button disabled={busy} onClick={confirm}>{busy ? "Saving..." : lookup.action === "check_out" ? "Check out" : "Check in"}</button>
                         <button className={styles.link} onClick={() => { setStep("phone"); setLookup(null); }}>Not you?</button>
                     </div>
@@ -150,7 +148,6 @@ export default function CheckIn() {
                     <div>
                         <h1>Verify your phone</h1>
                         <p className={styles.muted}>We sent a 6-digit code to {lookup.masked_email || "your email on file"}.</p>
-                        {error && <div className={styles.error}>{error}</div>}
                         <form onSubmit={verifyCode}>
                             <label htmlFor="checkin-code">Email code</label>
                             <input id="checkin-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} />

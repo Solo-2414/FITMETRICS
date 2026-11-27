@@ -11,6 +11,7 @@ import {
   IDENTITY_MAX_FILE_BYTES,
   IDENTITY_UPLOAD_FIELDS,
   IdentityInputError,
+  automatedIdentityCheckStatus,
   automatedReviewResult,
   isIdentityUuid,
   sanitizeReviewReason,
@@ -226,16 +227,20 @@ router.post(
 
       const [ocrResult, faceResult] = await Promise.allSettled([
         readIdName(idImage),
-        compareIdAndSelfie(idImage, selfieImage),
+        livenessCheckCompleted === 'true'
+          ? compareIdAndSelfie(idImage, selfieImage)
+          : Promise.resolve(null),
       ]);
       const idNameMatch = ocrResult.status === 'fulfilled'
         ? idTextContainsName(ocrResult.value, member.full_name)
         : null;
       const faceMatch = faceResult.status === 'fulfilled' ? faceResult.value : null;
       const result = automatedReviewResult({ faceMatch, idNameMatch });
-      const automatedCheck = ocrResult.status === 'fulfilled' && faceResult.status === 'fulfilled'
-        ? 'complete'
-        : 'unavailable';
+      const automatedCheck = automatedIdentityCheckStatus({
+        livenessCheckCompleted: livenessCheckCompleted === 'true',
+        ocrSucceeded: ocrResult.status === 'fulfilled',
+        faceSucceeded: faceResult.status === 'fulfilled',
+      });
       const { error: updateError } = await supabaseAdmin.from('identity_verifications')
         .update({ ...result, status: 'needs_review' })
         .eq('id', verificationId);

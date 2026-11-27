@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  automatedIdentityCheckStatus,
   automatedReviewResult,
   sanitizeReviewReason,
   validateIdLast4,
@@ -28,5 +29,20 @@ for (const confidence of [99.99, 0.01]) {
   }).status, 'needs_review');
 }
 assert.equal(automatedReviewResult({ faceMatch: null, idNameMatch: null }).score, null);
+assert.equal(automatedIdentityCheckStatus({
+  livenessCheckCompleted: false,
+  ocrSucceeded: true,
+  faceSucceeded: false,
+}), 'manual_only');
+assert.equal(automatedIdentityCheckStatus({
+  livenessCheckCompleted: true,
+  ocrSucceeded: true,
+  faceSucceeded: true,
+}), 'complete');
+assert.equal(automatedIdentityCheckStatus({
+  livenessCheckCompleted: true,
+  ocrSucceeded: false,
+  faceSucceeded: true,
+}), 'unavailable');
 
 console.log('Identity verification checks passed.');

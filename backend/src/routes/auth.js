@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { createTransientAuthClient, supabaseAdmin, supabaseAuth } from '../config/supabase.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 import { PasswordResetError, createPasswordResetService } from '../services/passwordReset.js';
 import { enqueueEmail } from '../services/emailQueue.js';
 import { getGymSettings, maintenanceStatus } from '../services/maintenance.js';
@@ -274,6 +275,25 @@ router.post('/login', loginLimiter, async (req, res, next) => {
       return res.status(503).json({ ...status, error: status.message });
     }
     res.json({ session: data.session, user: data.user, profile, maintenance: null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/admin/passkey/verified', requireAuth, requireRole('admin'), async (req, res, next) => {
+  try {
+    if (req.body && Object.keys(req.body).length) {
+      return res.status(400).json({ error: 'This request does not accept a body.' });
+    }
+    const { error } = await supabaseAdmin.from('audit_log').insert({
+      actor_id: req.user.id,
+      action: 'admin_passkey_verified',
+      entity_type: 'profile',
+      entity_id: req.user.id,
+      details: { method: 'passkey' },
+    });
+    if (error) return next(error);
+    res.status(201).json({ recorded: true });
   } catch (error) {
     next(error);
   }

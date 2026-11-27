@@ -244,12 +244,28 @@ export default function IdentityCapture({
         afterSelect?.();
     };
 
+    const chooseIdImage = (event) => chooseFile(
+        event,
+        idPreviewUrlRef,
+        setIdPreview,
+        onIdImageChange,
+        () => {
+            if (selfiePreviewUrlRef.current) {
+                URL.revokeObjectURL(selfiePreviewUrlRef.current);
+                selfiePreviewUrlRef.current = "";
+            }
+            setSelfiePreview("");
+            onSelfieImageChange(null);
+            onLivenessChange(false);
+        },
+    );
+
     return (
         <section className={styles.capture}>
             <div className={styles.captureHeader}>
                 <div>
                     <h3>Identity images</h3>
-                    <p>Use a clear, glare-free image with the entire ID visible. Check legibility and crop before submitting.</p>
+                    <p>Step 1: upload a clear, glare-free ID. Step 2: capture a live selfie for face matching; uploaded selfies go to manual review only.</p>
                 </div>
                 <span className={styles.privateLabel}><i className="fa-solid fa-lock" aria-hidden="true"></i> Private upload</span>
             </div>
@@ -257,24 +273,24 @@ export default function IdentityCapture({
                 <div className={styles.imageSlot}>
                     <label htmlFor="identity-id-image">Government ID front</label>
                     {idPreview ? <img src={idPreview} alt="Selected ID front preview" /> : <div className={styles.previewEmpty}>No ID image selected</div>}
-                    <input id="identity-id-image" type="file" accept="image/jpeg,image/png" disabled={!consentGiven} onChange={(event) => chooseFile(event, idPreviewUrlRef, setIdPreview, onIdImageChange)} />
+                    <input id="identity-id-image" type="file" accept="image/jpeg,image/png" disabled={!consentGiven || cameraOpen} onChange={chooseIdImage} />
                 </div>
                 <div className={styles.imageSlot}>
                     <label htmlFor="identity-selfie-image">Member selfie</label>
                     {selfiePreview ? <img src={selfiePreview} alt="Selected selfie preview" /> : <div className={styles.previewEmpty}>No selfie captured</div>}
-                    <input id="identity-selfie-image" type="file" accept="image/jpeg,image/png" disabled={!consentGiven || cameraOpen} onChange={(event) => chooseFile(
+                    <input id="identity-selfie-image" type="file" accept="image/jpeg,image/png" disabled={!consentGiven || !idImage || cameraOpen} onChange={(event) => chooseFile(
                         event,
                         selfiePreviewUrlRef,
                         setSelfiePreview,
                         onSelfieImageChange,
                         () => onLivenessChange(false),
                     )} />
-                    <small>Uploaded selfies skip the camera liveness check and remain for manual review.</small>
+                    <small>Complete the ID step first. Uploaded selfies skip liveness and remain for manual review.</small>
                 </div>
             </div>
             <div className={styles.cameraControls}>
                 {!cameraOpen
-                    ? <button type="button" className={styles.captureButton} disabled={!consentGiven || modelLoading} onClick={startCamera}><i className="fa-solid fa-camera" aria-hidden="true"></i> Start live capture</button>
+                    ? <button type="button" className={styles.captureButton} disabled={!consentGiven || !idImage || modelLoading} onClick={startCamera}><i className="fa-solid fa-camera" aria-hidden="true"></i> Start live capture</button>
                     : <button type="button" className={styles.cancelButton} onClick={stopCamera}>Cancel camera</button>}
                 <span aria-live="polite">{cameraStatus}</span>
             </div>

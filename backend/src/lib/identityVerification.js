@@ -64,3 +64,8 @@ export function automatedReviewResult({ faceMatch, idNameMatch }) {
     id_name_match: typeof idNameMatch === 'boolean' ? idNameMatch : null,
   };
 }
+
+export function automatedIdentityCheckStatus({ livenessCheckCompleted, ocrSucceeded, faceSucceeded }) {
+  if (!livenessCheckCompleted) return 'manual_only';
+  return ocrSucceeded && faceSucceeded ? 'complete' : 'unavailable';
+}

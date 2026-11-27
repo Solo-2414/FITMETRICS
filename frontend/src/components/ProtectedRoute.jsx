@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { homePathForRole } from "../context/homePathForRole";
 import { api } from "../lib/api";
+import { hasAdminPasskey } from "../lib/supabase";
 import MaintenanceScreen from "./MaintenanceScreen";
 
 /**
@@ -14,7 +15,11 @@ export default function ProtectedRoute({ roles }) {
     const { session, profile, loading } = useAuth();
     const location = useLocation();
     const [maintenance, setMaintenance] = useState(null);
+    const [adminPasskeyResult, setAdminPasskeyResult] = useState({ token: null, verified: false });
     const memberRoute = roles?.includes("member");
+    const adminRoute = roles?.includes("admin");
+    const sessionToken = session?.access_token;
+    const isAdminProfile = profile?.role === "admin";
     useEffect(() => {
         if (!memberRoute) return undefined;
         let active = true;
@@ -30,6 +35,21 @@ export default function ProtectedRoute({ roles }) {
         };
     }, [memberRoute]);
 
+    useEffect(() => {
+        if (!adminRoute || !isAdminProfile || !sessionToken) return undefined;
+        let active = true;
+        hasAdminPasskey()
+            .then((verified) => {
+                if (active) setAdminPasskeyResult({ token: sessionToken, verified });
+            })
+            .catch(() => {
+                if (active) setAdminPasskeyResult({ token: sessionToken, verified: false });
+            });
+        return () => {
+            active = false;
+        };
+    }, [adminRoute, isAdminProfile, sessionToken]);
+
     if (loading) {
         return <p className="fm-route-loading" role="status">Checking your session...</p>;
     }
@@ -43,6 +63,14 @@ export default function ProtectedRoute({ roles }) {
 
     if (roles && !roles.includes(profile.role)) {
         return <Navigate to={homePathForRole(profile.role)} replace />;
+    }
+    if (adminRoute && profile.role === "admin") {
+        if (adminPasskeyResult.token !== sessionToken) {
+            return <p className="fm-route-loading" role="status">Checking admin passkey...</p>;
+        }
+        if (!adminPasskeyResult.verified) {
+            return <Navigate to="/login" replace state={{ from: location }} />;
+        }
     }
     if (profile.role === "member" && maintenance) return <MaintenanceScreen {...maintenance} />;
 

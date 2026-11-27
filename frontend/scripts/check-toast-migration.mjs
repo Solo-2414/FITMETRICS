@@ -2,6 +2,7 @@
 // Exit code 0 only when no old-style feedback is left. A line may be kept on purpose by putting
 //   toast-allow: <reason>
 // in a comment on the same line or the line directly above (use it only for persistent banners).
+// Field validation may use data-field-error="<reason>" on the rendered field message.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
@@ -49,6 +50,24 @@ for (const file of files) {
   }
   const isFieldErrorAt = (index) => fieldErrorRanges.some(([start, end]) => index >= start && index < end);
   const lineOffset = (index) => source.slice(0, index).split(/\r?\n/).length - 1;
+  const alertColorRanges = [];
+  for (const match of source.matchAll(/<[A-Za-z][\w.]*\b[^>]*>/gs)) {
+    const tag = match[0];
+    if (!/role=["']alert["']/.test(tag) || !/style=\{\{[\s\S]*?\bcolor\s*:/.test(tag)) continue;
+    const start = match.index;
+    const end = start + tag.length;
+    alertColorRanges.push([start, end]);
+    if (isFieldErrorAt(start)) continue;
+    const line = lineOffset(start);
+    const markerLines = [lines[line], lines[line - 1] || ''];
+    if (markerLines.some((marker) => /toast-allow(?::|=)/.test(marker))) continue;
+    findings.push({
+      rel,
+      line: line + 1,
+      rule: 'role alert with inline color style',
+      text: lines[line].trim().slice(0, 90),
+    });
+  }
   const setErrorState = /\[\s*([A-Za-z_$][\w$]*)\s*,\s*setError\w*\s*\]\s*=\s*useState\b/g;
   for (const match of source.matchAll(setErrorState)) {
     const message = new RegExp(`\\{\\s*${match[1]}\\s*\\}`, 'g');
@@ -65,10 +84,11 @@ for (const file of files) {
     }
   }
   lines.forEach((line, index) => {
+    const offset = lineOffsets[index];
     for (const rule of rules) {
       if (!rule.re.test(line)) continue;
+      if (rule.name === 'role alert feedback' && alertColorRanges.some(([start, end]) => offset >= start && offset < end)) continue;
       if (/toast-allow(?::|=)/.test(line) || /toast-allow(?::|=)/.test(lines[index - 1] || '')) continue;
-      const offset = lineOffsets[index];
       const markerLines = [line, lines[index - 1] || ''];
       const hasFieldErrorReason = markerLines.some((marker) => {
         const reason = marker.match(/(?:data-)?field-error(?::|=)\s*([^*"'\n]+)/i)?.[1]?.trim();

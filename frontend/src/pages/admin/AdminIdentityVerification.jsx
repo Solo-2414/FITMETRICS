@@ -205,6 +205,8 @@ export default function AdminIdentityVerification() {
             const result = await api("/admin/identity-verifications", { method: "POST", body: formData });
             if (result.automated_check === "complete") {
                 toast.success("Images saved. Human admin review is required; the automated result does not decide the outcome.");
+            } else if (result.automated_check === "manual_only") {
+                toast.warning("Images saved for manual review. Face matching was skipped because camera liveness was not completed.");
             } else {
                 toast.warning("Images saved for manual review because the automated check was unavailable.");
             }

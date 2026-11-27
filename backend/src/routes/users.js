@@ -18,12 +18,7 @@ const avatarUpload = multer({
   fileFilter: (_req, file, callback) => callback(null, ['image/jpeg', 'image/png'].includes(file.mimetype)),
 });
 const passwordOk = (p) => typeof p === 'string' && p.length >= 8 && /[0-9!@#$%^&*(),.?":{}|<>]/.test(p);
-const requireAdmin = (req, res, next) => {
-  if (req.profile.role !== 'admin') {
-    return res.status(403).json({ error: `Manage Users requires an admin account. Current account role: ${req.profile.role}.` });
-  }
-  next();
-};
+const requireAdmin = requireRole('admin');
 
 // GET /api/me  -> the logged-in user's profile
 router.get('/me', requireAuth, async (req, res) => {

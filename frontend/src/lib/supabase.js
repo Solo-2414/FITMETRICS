@@ -51,3 +51,13 @@ export const supabase = createClient(url, anonKey, {
         autoRefreshToken: true,
     },
 });
+
+export async function hasAdminPasskey() {
+    const { data, error } = await supabase.auth.getClaims();
+    if (error) throw error;
+    const claims = data?.claims;
+    return Array.isArray(claims?.amr)
+        && claims.amr.some((entry) =>
+            entry === "passkey" || entry?.method === "passkey",
+        );
+}
